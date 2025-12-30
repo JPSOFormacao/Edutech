@@ -68,9 +68,12 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="mt-6 grid grid-cols-2 gap-3">
               <button onClick={() => setEmail('admin@edutech.pt')} className="text-xs border p-1 rounded hover:bg-slate-50">
                 Admin
+              </button>
+              <button onClick={() => setEmail('jpsoliveira.formacao@hotmail.com')} className="text-xs border p-1 rounded hover:bg-slate-50 bg-indigo-50 border-indigo-200 text-indigo-800 font-medium truncate" title="jpsoliveira.formacao@hotmail.com">
+                JPS Admin
               </button>
               <button onClick={() => setEmail('formador@edutech.pt')} className="text-xs border p-1 rounded hover:bg-slate-50">
                 Formador
