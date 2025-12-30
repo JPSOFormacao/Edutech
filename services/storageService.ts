@@ -36,6 +36,15 @@ const INITIAL_USERS: User[] = [
     status: UserStatus.ACTIVE,
     allowedCourses: ['101'], // Access to React Course
     avatarUrl: 'https://picsum.photos/102/102'
+  },
+  {
+    id: '4',
+    email: 'jpsoliveira.formacao@hotmail.com',
+    name: 'JPS Oliveira',
+    role: UserRole.ADMIN,
+    status: UserStatus.ACTIVE,
+    allowedCourses: [],
+    avatarUrl: 'https://ui-avatars.com/api/?name=J+O&background=4f46e5&color=fff'
   }
 ];
 
@@ -82,9 +91,26 @@ const INITIAL_PAGES: Page[] = [
 
 // Helper to initialize storage
 const initStorage = () => {
-  if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
+  // Users Initialization & Migration
+  const storedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
+  let users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
+
+  if (users.length === 0) {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS));
+  } else {
+    // Check if new admins need to be added to existing storage
+    const newAdminEmail = 'jpsoliveira.formacao@hotmail.com';
+    const hasNewAdmin = users.find(u => u.email === newAdminEmail);
+    if (!hasNewAdmin) {
+      const newAdminUser = INITIAL_USERS.find(u => u.email === newAdminEmail);
+      if (newAdminUser) {
+        users.push(newAdminUser);
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+      }
+    }
   }
+
+  // Other entities
   if (!localStorage.getItem(STORAGE_KEYS.COURSES)) {
     localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(INITIAL_COURSES));
   }
