@@ -1,0 +1,43 @@
+import React from 'react';
+import { 
+  LayoutDashboard, 
+  BookOpen, 
+  Users, 
+  FileText, 
+  Settings, 
+  LogOut, 
+  Plus, 
+  MoreVertical,
+  Trash2,
+  Edit,
+  Check,
+  X,
+  Search,
+  BrainCircuit,
+  FileSpreadsheet,
+  Link as LinkIcon,
+  FileQuestion,
+  GraduationCap
+} from 'lucide-react';
+
+export const Icons = {
+  Dashboard: LayoutDashboard,
+  Courses: BookOpen,
+  Users: Users,
+  Materials: FileText,
+  FileText: FileText, // Added to expose generic FileText icon
+  CMS: FileSpreadsheet,
+  Settings: Settings,
+  Logout: LogOut,
+  Plus: Plus,
+  More: MoreVertical,
+  Delete: Trash2,
+  Edit: Edit,
+  Check: Check,
+  Close: X,
+  Search: Search,
+  AI: BrainCircuit,
+  Link: LinkIcon,
+  Quiz: FileQuestion,
+  Student: GraduationCap
+};
