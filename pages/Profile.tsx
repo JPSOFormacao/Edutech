@@ -5,15 +5,16 @@ import { Button, Input } from '../components/UI';
 import { Icons } from '../components/Icons';
 import { UserPrivacySettings } from '../types';
 
+// Avatares estilo Cartoon (DiceBear Avataaars)
 const PRESET_AVATARS = [
-  'https://ui-avatars.com/api/?name=User&background=random',
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
-  'https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&q=80&w=150',
-  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=150',
-  'https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&q=80&w=150',
-  'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=150',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150',
-  'https://images.unsplash.com/photo-1628157588553-5eeea00af15c?auto=format&fit=crop&q=80&w=150'
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Sasha',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Tigger',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Misty',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Coco',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Jack'
 ];
 
 export default function ProfilePage() {
@@ -50,7 +51,7 @@ export default function ProfilePage() {
 
     try {
       const updatedUser = {
-        ...user,
+        ...user, // IMPORTANTE: Manter todos os campos do utilizador (id, role, etc)
         name,
         bio,
         avatarUrl: customAvatarUrl || avatarUrl,
@@ -61,12 +62,26 @@ export default function ProfilePage() {
       await refreshUser();
       setMsg({ type: 'success', text: 'Perfil atualizado com sucesso!' });
       setCustomAvatarUrl(''); // Reset custom input if saved
-    } catch (e) {
-      setMsg({ type: 'error', text: 'Erro ao guardar perfil.' });
+    } catch (e: any) {
+      console.error(e);
+      setMsg({ type: 'error', text: 'Erro ao guardar perfil: ' + e.message });
     } finally {
       setSaving(false);
     }
   };
+
+  const ToggleSwitch = ({ checked, onChange, id }: { checked: boolean, onChange: (val: boolean) => void, id: string }) => (
+      <label htmlFor={id} className="relative inline-flex items-center cursor-pointer">
+          <input 
+            type="checkbox" 
+            id={id} 
+            className="sr-only peer" 
+            checked={checked}
+            onChange={(e) => onChange(e.target.checked)}
+          />
+          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+      </label>
+  );
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -86,7 +101,7 @@ export default function ProfilePage() {
                     <img 
                         src={customAvatarUrl || avatarUrl || 'https://via.placeholder.com/150'} 
                         alt="Avatar" 
-                        className="w-32 h-32 rounded-full object-cover border-4 border-indigo-100 mx-auto mb-4 shadow-sm"
+                        className="w-32 h-32 rounded-full object-cover border-4 border-indigo-100 mx-auto mb-4 shadow-sm bg-gray-50"
                     />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">{name}</h3>
@@ -101,7 +116,7 @@ export default function ProfilePage() {
                         <button 
                             key={idx}
                             onClick={() => { setAvatarUrl(url); setCustomAvatarUrl(''); }}
-                            className={`w-full aspect-square rounded-md overflow-hidden border-2 transition-all ${avatarUrl === url && !customAvatarUrl ? 'border-indigo-600 scale-105 ring-2 ring-indigo-200' : 'border-transparent hover:border-gray-300'}`}
+                            className={`w-full aspect-square rounded-md overflow-hidden border-2 transition-all bg-gray-50 ${avatarUrl === url && !customAvatarUrl ? 'border-indigo-600 scale-105 ring-2 ring-indigo-200' : 'border-transparent hover:border-gray-300'}`}
                         >
                             <img src={url} alt={`Avatar ${idx}`} className="w-full h-full object-cover" />
                         </button>
@@ -113,7 +128,7 @@ export default function ProfilePage() {
                         type="text" 
                         value={customAvatarUrl}
                         onChange={(e) => setCustomAvatarUrl(e.target.value)}
-                        placeholder="https://exemplo.com/foto.jpg"
+                        placeholder="https://..."
                         className="w-full text-xs border rounded p-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
                 </div>
@@ -161,13 +176,11 @@ export default function ProfilePage() {
                             <span className="block text-sm font-medium text-gray-900">Mostrar Email</span>
                             <span className="block text-xs text-gray-500">Permitir que os colegas vejam o seu email de contacto.</span>
                         </div>
-                        <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                            <input type="checkbox" name="toggle" id="toggle-email" className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-gray-300 checked:right-0 checked:border-indigo-600" 
-                                checked={privacy.showEmail}
-                                onChange={(e) => setPrivacy({...privacy, showEmail: e.target.checked})}
-                            />
-                            <label htmlFor="toggle-email" className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${privacy.showEmail ? 'bg-indigo-600' : 'bg-gray-300'}`}></label>
-                        </div>
+                        <ToggleSwitch 
+                            id="toggle-email"
+                            checked={privacy.showEmail} 
+                            onChange={(checked) => setPrivacy({...privacy, showEmail: checked})}
+                        />
                     </div>
 
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -175,13 +188,11 @@ export default function ProfilePage() {
                             <span className="block text-sm font-medium text-gray-900">Mostrar Biografia</span>
                             <span className="block text-xs text-gray-500">Exibir o texto "Sobre mim" no cartão da comunidade.</span>
                         </div>
-                         <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                            <input type="checkbox" name="toggle" id="toggle-bio" className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-gray-300 checked:right-0 checked:border-indigo-600" 
-                                checked={privacy.showBio}
-                                onChange={(e) => setPrivacy({...privacy, showBio: e.target.checked})}
-                            />
-                            <label htmlFor="toggle-bio" className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${privacy.showBio ? 'bg-indigo-600' : 'bg-gray-300'}`}></label>
-                        </div>
+                        <ToggleSwitch 
+                            id="toggle-bio"
+                            checked={privacy.showBio} 
+                            onChange={(checked) => setPrivacy({...privacy, showBio: checked})}
+                        />
                     </div>
 
                     <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -189,13 +200,11 @@ export default function ProfilePage() {
                             <span className="block text-sm font-medium text-gray-900">Mostrar Cursos Inscritos</span>
                             <span className="block text-xs text-gray-500">Partilhar que cursos está a frequentar.</span>
                         </div>
-                         <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                            <input type="checkbox" name="toggle" id="toggle-courses" className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer border-gray-300 checked:right-0 checked:border-indigo-600" 
-                                checked={privacy.showCourses}
-                                onChange={(e) => setPrivacy({...privacy, showCourses: e.target.checked})}
-                            />
-                            <label htmlFor="toggle-courses" className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer ${privacy.showCourses ? 'bg-indigo-600' : 'bg-gray-300'}`}></label>
-                        </div>
+                        <ToggleSwitch 
+                            id="toggle-courses"
+                            checked={privacy.showCourses} 
+                            onChange={(checked) => setPrivacy({...privacy, showCourses: checked})}
+                        />
                     </div>
                 </div>
             </div>
@@ -213,21 +222,6 @@ export default function ProfilePage() {
             </div>
         </div>
       </div>
-      
-      <style>{`
-      .toggle-checkbox:checked {
-        right: 0;
-        border-color: #4f46e5;
-      }
-      .toggle-checkbox {
-        right: auto;
-        left: 0;
-        transition: all 0.3s;
-      }
-      .toggle-label {
-        width: 2.5rem;
-      }
-      `}</style>
     </div>
   );
 }

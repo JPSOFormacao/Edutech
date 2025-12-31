@@ -37,7 +37,10 @@ export default function Courses() {
       description: '',
       imageUrl: 'https://picsum.photos/400/250',
       duration: '',
-      price: 0
+      price: 0,
+      syllabus: '',
+      requirements: '',
+      certificationInfo: ''
     });
     setIsModalOpen(true);
   };
@@ -99,6 +102,14 @@ export default function Courses() {
                 <h3 className="text-lg font-bold text-gray-900 mb-2">{course.title}</h3>
                 <p className="text-sm text-gray-500 line-clamp-3 mb-4 flex-1">{course.description}</p>
                 
+                {/* Seções extras (Syllabus/Reqs) colapsadas ou indicadas */}
+                {(course.syllabus || course.requirements) && (
+                     <div className="mb-4 flex gap-2">
+                         {course.syllabus && <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded">Conteúdo Detalhado</span>}
+                         {course.requirements && <span className="text-xs bg-yellow-50 text-yellow-600 px-2 py-1 rounded">Requisitos</span>}
+                     </div>
+                )}
+
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
                     <div className="flex flex-col">
                         <span className="text-xs text-gray-400 font-medium uppercase">Duração</span>
@@ -138,7 +149,7 @@ export default function Courses() {
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto p-1">
           <Input 
             label="Título do Curso" 
             value={editingCourse.title || ''} 
@@ -178,12 +189,40 @@ export default function Courses() {
            <div>
                <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
                <textarea 
-                 rows={4}
+                 rows={3}
                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md border p-2"
                  value={editingCourse.description || ''}
                  onChange={e => setEditingCourse({...editingCourse, description: e.target.value})}
                />
            </div>
+
+           <div>
+               <label className="block text-sm font-medium text-gray-700 mb-1">Conteúdo Programático (Opcional)</label>
+               <textarea 
+                 rows={3}
+                 className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md border p-2"
+                 value={editingCourse.syllabus || ''}
+                 onChange={e => setEditingCourse({...editingCourse, syllabus: e.target.value})}
+                 placeholder="Módulo 1: ... Módulo 2: ..."
+               />
+           </div>
+
+           <div>
+               <label className="block text-sm font-medium text-gray-700 mb-1">Requisitos (Opcional)</label>
+               <input 
+                 className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md border p-2"
+                 value={editingCourse.requirements || ''}
+                 onChange={e => setEditingCourse({...editingCourse, requirements: e.target.value})}
+                 placeholder="Ex: Computador com acesso à internet"
+               />
+           </div>
+
+           <Input 
+            label="Informação Certificação (Opcional)" 
+            value={editingCourse.certificationInfo || ''} 
+            onChange={e => setEditingCourse({...editingCourse, certificationInfo: e.target.value})} 
+            placeholder="Ex: Certificado Profissional Nível 2"
+           />
         </div>
       </Modal>
     </div>

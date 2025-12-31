@@ -57,8 +57,30 @@ export const storageService = {
 
         // 2. Criar Cursos
         const courses: Course[] = [
-            { id: 'c_py_01', title: 'Python para Data Science', category: 'Programação', description: 'Domine Python e as suas bibliotecas principais para análise de dados.', imageUrl: 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?auto=format&fit=crop&q=80&w=800', duration: '40 Horas', price: 199.99 },
-            { id: 'c_web_01', title: 'Desenvolvimento Web Fullstack', category: 'Web Dev', description: 'Aprenda React, Node.js e Bases de Dados modernas.', imageUrl: 'https://images.unsplash.com/photo-1593720213428-28a5b9e94613?auto=format&fit=crop&q=80&w=800', duration: '60 Horas', price: 249.50 },
+            { 
+                id: 'c_py_01', 
+                title: 'Python para Data Science', 
+                category: 'Programação', 
+                description: 'Domine Python e as suas bibliotecas principais para análise de dados.', 
+                imageUrl: 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?auto=format&fit=crop&q=80&w=800', 
+                duration: '40 Horas', 
+                price: 199.99,
+                syllabus: "Módulo 1: Introdução ao Python\nMódulo 2: Estruturas de Dados\nMódulo 3: Pandas e NumPy\nMódulo 4: Visualização com Matplotlib",
+                requirements: "Computador com acesso à internet. Noções básicas de lógica de programação recomendadas.",
+                certificationInfo: "Certificado de Conclusão Profissional EduTech"
+            },
+            { 
+                id: 'c_web_01', 
+                title: 'Desenvolvimento Web Fullstack', 
+                category: 'Web Dev', 
+                description: 'Aprenda React, Node.js e Bases de Dados modernas.', 
+                imageUrl: 'https://images.unsplash.com/photo-1593720213428-28a5b9e94613?auto=format&fit=crop&q=80&w=800', 
+                duration: '60 Horas', 
+                price: 249.50,
+                syllabus: "Módulo 1: HTML5 & CSS3\nMódulo 2: JavaScript Moderno\nMódulo 3: React & Hooks\nMódulo 4: Node.js & APIs",
+                requirements: "Nenhum conhecimento prévio necessário.",
+                certificationInfo: "Diploma Fullstack Junior"
+            },
             { id: 'c_ai_01', title: 'Introdução à IA Generativa', category: 'Inteligência Artificial', description: 'Compreenda como funcionam os LLMs e como criar prompts eficazes.', imageUrl: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=800', duration: '20 Horas', price: 149.00 },
             { id: 'c_sec_01', title: 'Cibersegurança Essencial', category: 'Segurança', description: 'Proteja sistemas e redes contra ameaças digitais.', imageUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=800', duration: '30 Horas', price: 179.90 }
         ];
@@ -82,8 +104,9 @@ export const storageService = {
                 status: UserStatus.ACTIVE, 
                 allowedCourses: [], 
                 password: 'admin', 
-                avatarUrl: 'https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff',
-                mustChangePassword: false
+                avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin',
+                mustChangePassword: false,
+                bio: "Gestor principal da plataforma EduTech PT."
             },
             { 
                 id: 'usr_formador', 
@@ -94,8 +117,9 @@ export const storageService = {
                 status: UserStatus.ACTIVE, 
                 allowedCourses: ['c_py_01', 'c_web_01', 'c_ai_01', 'c_sec_01'], 
                 password: '123', 
-                avatarUrl: 'https://ui-avatars.com/api/?name=Joao+Formador&background=random',
-                mustChangePassword: false
+                avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Joao',
+                mustChangePassword: false,
+                bio: "Formador sénior com 10 anos de experiência em desenvolvimento web."
             },
             { 
                 id: 'usr_aluno1', 
@@ -107,8 +131,9 @@ export const storageService = {
                 allowedCourses: ['c_web_01'], 
                 classId: 'cl_a_2024',
                 password: '123', 
-                avatarUrl: 'https://ui-avatars.com/api/?name=Maria+Silva&background=random',
-                mustChangePassword: false
+                avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria',
+                mustChangePassword: false,
+                bio: "Estudante entusiasta de tecnologia."
             },
             { 
                 id: 'usr_aluno2', 
@@ -120,7 +145,7 @@ export const storageService = {
                 allowedCourses: ['c_py_01', 'c_ai_01'], 
                 classId: 'cl_b_2024',
                 password: '123', 
-                avatarUrl: 'https://ui-avatars.com/api/?name=Pedro+Santos&background=random',
+                avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Pedro',
                 mustChangePassword: false
             }
         ];
@@ -153,6 +178,7 @@ export const storageService = {
   },
   
   saveUser: async (user: User) => {
+      // Garantir que não perdemos campos opcionais ao gravar
       const { error } = await supabase.from('users').upsert(user);
       if (error) throw error;
   },
@@ -331,7 +357,7 @@ export const storageService = {
         roleId: shouldBeAdmin ? 'role_admin' : 'role_aluno',
         status: shouldBeAdmin ? UserStatus.ACTIVE : UserStatus.PENDING,
         allowedCourses: [],
-        avatarUrl: `https://ui-avatars.com/api/?name=${normalizedEmail}&background=random`,
+        avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedEmail}`,
         password: password || '123456',
         mustChangePassword: false
       };

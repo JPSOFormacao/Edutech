@@ -86,6 +86,9 @@ export interface Course {
   imageUrl: string;
   duration: string;
   price: number;
+  syllabus?: string; // Conteúdo Programático
+  requirements?: string; // Requisitos do Curso
+  certificationInfo?: string; // Detalhes sobre o certificado
 }
 
 export interface Material {
@@ -116,8 +119,15 @@ export interface QuizData {
   questions: QuizQuestion[];
 }
 
+export interface EmailTemplates {
+    welcomeId: string;
+    resetPasswordId: string;
+    enrollmentId: string;
+    notificationId: string;
+}
+
 export interface EmailConfig {
   serviceId: string;
-  templateId: string;
   publicKey: string;
+  templates: EmailTemplates;
 }

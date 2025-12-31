@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { Icons } from '../components/Icons';
-import { Button, Input, formatCurrency } from '../components/UI';
+import { Button, Input, formatCurrency, Modal } from '../components/UI';
 import { storageService } from '../services/storageService';
-import { Course } from '../types';
+import { emailService } from '../services/emailService';
+import { Course, User, UserRole, UserStatus } from '../types';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -13,6 +14,15 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
+  // Enrollment State
+  const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
+  const [selectedCourseForEnroll, setSelectedCourseForEnroll] = useState<Course | null>(null);
+  const [enrollName, setEnrollName] = useState('');
+  const [enrollEmail, setEnrollEmail] = useState('');
+  const [enrollPass, setEnrollPass] = useState('');
+  const [enrollLoading, setEnrollLoading] = useState(false);
+  const [enrollSuccess, setEnrollSuccess] = useState(false);
+
   // Public Data
   const [courses, setCourses] = useState<Course[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
@@ -53,6 +63,62 @@ export default function Login() {
     } else {
         setLoading(false);
     }
+  };
+
+  const openEnrollModal = (course: Course) => {
+      setSelectedCourseForEnroll(course);
+      setEnrollName('');
+      setEnrollEmail('');
+      setEnrollPass('');
+      setEnrollSuccess(false);
+      setIsEnrollModalOpen(true);
+  };
+
+  const handleEnrollment = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if(!selectedCourseForEnroll) return;
+      
+      setEnrollLoading(true);
+      
+      try {
+          const allUsers = await storageService.getUsers();
+          const cleanEmail = enrollEmail.trim().toLowerCase();
+          
+          let existingUser = allUsers.find(u => u.email === cleanEmail);
+          
+          if (existingUser) {
+              // Se já existe, notificar que deve fazer login
+              alert("Já existe uma conta com este email. Por favor faça login para adicionar cursos.");
+              setEnrollLoading(false);
+              return;
+          }
+
+          // Criar novo utilizador pendente
+          const newUser: User = {
+              id: Date.now().toString(),
+              name: enrollName,
+              email: cleanEmail,
+              password: enrollPass,
+              role: UserRole.ALUNO,
+              roleId: 'role_aluno',
+              status: UserStatus.PENDING,
+              allowedCourses: [selectedCourseForEnroll.id],
+              avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`,
+              mustChangePassword: true
+          };
+
+          await storageService.saveUser(newUser);
+
+          // Enviar email de notificação (opcional, se configurado)
+          // await emailService.sendNotification(newUser.name, "Nova pré-inscrição realizada.");
+
+          setEnrollSuccess(true);
+      } catch (err) {
+          console.error(err);
+          alert("Erro ao processar inscrição. Tente novamente.");
+      } finally {
+          setEnrollLoading(false);
+      }
   };
 
   return (
@@ -164,7 +230,7 @@ export default function Login() {
                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
                            A verificar...
                         </>
-                    ) : 'Entrar / Registar'}
+                    ) : 'Entrar'}
                   </Button>
                 </div>
               </form>
@@ -210,15 +276,35 @@ export default function Login() {
                               </div>
                               <div className="p-5 flex-1 flex flex-col">
                                 <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">{course.title}</h3>
-                                <p className="text-sm text-gray-500 line-clamp-3 mb-4 flex-1">{course.description}</p>
+                                <p className="text-sm text-gray-500 line-clamp-3 mb-4">{course.description}</p>
                                 
-                                <div className="border-t border-gray-100 pt-4 flex items-center justify-between">
-                                    <div className="text-xs text-gray-500 font-medium bg-gray-100 px-2 py-1 rounded">
-                                        {course.duration}
+                                {/* Mostrar detalhes extra se existirem */}
+                                <div className="mb-4 space-y-2">
+                                    {course.certificationInfo && (
+                                        <div className="flex items-center text-xs text-green-600 bg-green-50 p-1 rounded">
+                                            <Icons.Check className="w-3 h-3 mr-1" />
+                                            {course.certificationInfo}
+                                        </div>
+                                    )}
+                                    {course.syllabus && (
+                                        <div className="text-xs text-gray-500 line-clamp-2 italic">
+                                            Inclui: {course.syllabus.replace(/\n/g, ', ')}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-4 mt-auto">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="text-xs text-gray-500 font-medium bg-gray-100 px-2 py-1 rounded">
+                                            {course.duration}
+                                        </div>
+                                        <div className="text-lg font-bold text-indigo-600">
+                                            {formatCurrency(course.price)}
+                                        </div>
                                     </div>
-                                    <div className="text-lg font-bold text-indigo-600">
-                                        {formatCurrency(course.price)}
-                                    </div>
+                                    <Button onClick={() => openEnrollModal(course)} className="w-full">
+                                        Inscrever-se Agora
+                                    </Button>
                                 </div>
                               </div>
                           </div>
@@ -227,6 +313,64 @@ export default function Login() {
               )}
           </div>
       </div>
+
+      {/* Enrollment Modal */}
+      <Modal 
+         isOpen={isEnrollModalOpen}
+         onClose={() => setIsEnrollModalOpen(false)}
+         title={enrollSuccess ? "Inscrição Pendente" : `Inscrever em: ${selectedCourseForEnroll?.title}`}
+         footer={null}
+      >
+          {enrollSuccess ? (
+              <div className="text-center py-6">
+                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                      <Icons.Check className="h-6 w-6 text-green-600" />
+                  </div>
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">Pedido Recebido!</h3>
+                  <p className="mt-2 text-sm text-gray-500">
+                      A sua conta foi criada e a inscrição registada. <br/>
+                      Aguarde a aprovação do Administrador. Receberá um email assim que a conta estiver ativa.
+                  </p>
+                  <div className="mt-6">
+                      <Button onClick={() => setIsEnrollModalOpen(false)} className="w-full">Fechar</Button>
+                  </div>
+              </div>
+          ) : (
+              <form onSubmit={handleEnrollment} className="space-y-4">
+                  <p className="text-sm text-gray-500 mb-4">
+                      Preencha os seus dados para criar uma conta e solicitar inscrição neste curso.
+                  </p>
+                  
+                  <Input 
+                      label="Nome Completo"
+                      required
+                      value={enrollName}
+                      onChange={e => setEnrollName(e.target.value)}
+                  />
+                   <Input 
+                      label="Email"
+                      type="email"
+                      required
+                      value={enrollEmail}
+                      onChange={e => setEnrollEmail(e.target.value)}
+                  />
+                   <Input 
+                      label="Definir Senha"
+                      type="password"
+                      required
+                      value={enrollPass}
+                      onChange={e => setEnrollPass(e.target.value)}
+                  />
+                  
+                  <div className="pt-4 flex justify-end gap-2">
+                      <Button type="button" variant="ghost" onClick={() => setIsEnrollModalOpen(false)}>Cancelar</Button>
+                      <Button type="submit" disabled={enrollLoading}>
+                          {enrollLoading ? 'A Processar...' : 'Confirmar Inscrição'}
+                      </Button>
+                  </div>
+              </form>
+          )}
+      </Modal>
 
       {/* Footer */}
       <footer className="bg-white border-t border-gray-200 py-8">

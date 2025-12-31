@@ -3,11 +3,20 @@ import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
 import { Button, Input } from '../components/UI';
 import { Icons } from '../components/Icons';
+import { EmailTemplates } from '../types';
 
 export default function EmailConfigPage() {
   const [serviceId, setServiceId] = useState('');
-  const [templateId, setTemplateId] = useState('');
   const [publicKey, setPublicKey] = useState('');
+  
+  // Templates
+  const [templates, setTemplates] = useState<EmailTemplates>({
+      welcomeId: '',
+      resetPasswordId: '',
+      enrollmentId: '',
+      notificationId: ''
+  });
+
   const [status, setStatus] = useState<{type: 'success' | 'error' | 'info', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -16,30 +25,38 @@ export default function EmailConfigPage() {
         const config = await storageService.getEmailConfig();
         if (config) {
           setServiceId(config.serviceId);
-          setTemplateId(config.templateId);
           setPublicKey(config.publicKey);
+          if (config.templates) {
+              setTemplates(config.templates);
+          } else {
+              // Migração legacy: se só existir templateId antigo, assumir como welcome/general
+              const legacyTemplate = (config as any).templateId || '';
+              setTemplates({
+                  welcomeId: legacyTemplate,
+                  resetPasswordId: legacyTemplate,
+                  enrollmentId: legacyTemplate,
+                  notificationId: legacyTemplate
+              });
+          }
         }
     };
     load();
   }, []);
 
   const handleSave = async () => {
-    if (!serviceId || !templateId || !publicKey) {
-      setStatus({ type: 'error', msg: 'Por favor preencha todos os campos.' });
+    if (!serviceId || !publicKey) {
+      setStatus({ type: 'error', msg: 'Service ID e Public Key são obrigatórios.' });
       return;
     }
     
-    const cleanConfig = { 
+    const config = { 
         serviceId: serviceId.trim(), 
-        templateId: templateId.trim(), 
-        publicKey: publicKey.trim() 
+        templateId: templates.welcomeId, // Mantendo retrocompatibilidade no campo raiz se necessário
+        publicKey: publicKey.trim(),
+        templates: templates
     };
     
-    setServiceId(cleanConfig.serviceId);
-    setTemplateId(cleanConfig.templateId);
-    setPublicKey(cleanConfig.publicKey);
-
-    await storageService.saveEmailConfig(cleanConfig);
+    await storageService.saveEmailConfig(config);
     setStatus({ type: 'success', msg: 'Configurações guardadas com sucesso!' });
     
     setTimeout(() => setStatus(null), 3000);
@@ -47,14 +64,15 @@ export default function EmailConfigPage() {
 
   const handleTest = async () => {
     setLoading(true);
-    setStatus({ type: 'info', msg: 'A iniciar teste de envio...' });
+    setStatus({ type: 'info', msg: 'A iniciar teste de envio (Template Boas-vindas)...' });
     
-    const cleanConfig = { 
+    const config = { 
         serviceId: serviceId.trim(), 
-        templateId: templateId.trim(), 
-        publicKey: publicKey.trim() 
+        templateId: templates.welcomeId,
+        publicKey: publicKey.trim(),
+        templates: templates
     };
-    await storageService.saveEmailConfig(cleanConfig);
+    await storageService.saveEmailConfig(config);
 
     try {
       const result = await emailService.sendTestEmail();
@@ -80,24 +98,21 @@ export default function EmailConfigPage() {
         </div>
         <div>
             <h2 className="text-2xl font-bold text-gray-900">Configuração de Email</h2>
-            <p className="text-sm text-gray-500">Integração com EmailJS para notificações</p>
+            <p className="text-sm text-gray-500">Gestão de templates e credenciais EmailJS</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white shadow rounded-lg p-6 space-y-4">
-             <h3 className="font-bold text-gray-900 border-b pb-2 mb-4">Credenciais API</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Credenciais */}
+          <div className="bg-white shadow rounded-lg p-6 space-y-4 h-fit">
+             <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
+                 <Icons.Settings className="w-4 h-4" /> Credenciais API
+             </h3>
              <Input 
                 label="Service ID" 
                 value={serviceId} 
                 onChange={e => setServiceId(e.target.value)} 
                 placeholder="ex: service_xxxxxx"
-             />
-             <Input 
-                label="Template ID" 
-                value={templateId} 
-                onChange={e => setTemplateId(e.target.value)} 
-                placeholder="ex: template_xxxxxx"
              />
              <Input 
                 label="Public Key" 
@@ -106,32 +121,65 @@ export default function EmailConfigPage() {
                 placeholder="ex: user_xxxxxx"
                 type="password"
              />
-
-             {status && (
-                 <div className={`p-4 rounded-md text-sm font-medium border ${
-                     status.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 
-                     status.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 
-                     'bg-blue-50 text-blue-700 border-blue-200'
-                 }`}>
-                     {status.msg}
-                 </div>
-             )}
-
-             <div className="flex justify-between pt-4 border-t mt-4">
-                 <Button variant="secondary" onClick={handleTest} disabled={loading}>
-                     {loading ? 'A Enviar...' : 'Testar Envio'}
-                 </Button>
-                 <Button onClick={handleSave}>
-                     Guardar
-                 </Button>
+             
+             <div className="bg-blue-50 p-4 rounded text-xs text-blue-800 border border-blue-100 mt-4">
+                 <p>Configure o EmailJS com as variáveis: <code>name</code>, <code>to_email</code>, <code>message</code>, <code>password</code>, <code>training_details</code>.</p>
              </div>
           </div>
           
-          <div className="space-y-6">
-               <div className="bg-blue-50 p-5 rounded-lg border border-blue-100 text-blue-900">
-                    <p className="text-sm">Configure o EmailJS com as variáveis: <code>name</code>, <code>to_email</code>, <code>message</code>, <code>password</code>.</p>
-               </div>
+          {/* Templates */}
+          <div className="bg-white shadow rounded-lg p-6 space-y-4">
+               <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
+                   <Icons.FileText className="w-4 h-4" /> Templates de Email (IDs)
+               </h3>
+               <p className="text-xs text-gray-500">Defina o ID do template EmailJS para cada tipo de ação.</p>
+               
+               <Input 
+                  label="Boas-vindas / Criação de Conta" 
+                  value={templates.welcomeId} 
+                  onChange={e => setTemplates({...templates, welcomeId: e.target.value})} 
+                  placeholder="ex: template_welcome"
+               />
+               <Input 
+                  label="Recuperação de Senha" 
+                  value={templates.resetPasswordId} 
+                  onChange={e => setTemplates({...templates, resetPasswordId: e.target.value})} 
+                  placeholder="ex: template_reset"
+               />
+               <Input 
+                  label="Notificação Genérica" 
+                  value={templates.notificationId} 
+                  onChange={e => setTemplates({...templates, notificationId: e.target.value})} 
+                  placeholder="ex: template_notify"
+               />
+               {/* 
+               <Input 
+                  label="Confirmação de Inscrição" 
+                  value={templates.enrollmentId} 
+                  onChange={e => setTemplates({...templates, enrollmentId: e.target.value})} 
+                  placeholder="ex: template_enroll"
+               /> 
+               */}
           </div>
+      </div>
+
+      {status && (
+            <div className={`p-4 rounded-md text-sm font-medium border ${
+                status.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 
+                status.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 
+                'bg-blue-50 text-blue-700 border-blue-200'
+            }`}>
+                {status.msg}
+            </div>
+      )}
+
+      <div className="flex justify-between pt-4 border-t">
+            <Button variant="secondary" onClick={handleTest} disabled={loading}>
+                {loading ? 'A Enviar...' : 'Testar Configuração'}
+            </Button>
+            <Button onClick={handleSave}>
+                Guardar Tudo
+            </Button>
       </div>
     </div>
   );

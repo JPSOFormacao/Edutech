@@ -50,7 +50,10 @@ const getTrainingDetailsString = async (classId?: string, courseIds?: string[]):
 export const emailService = {
   sendTestEmail: async (): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
-    if (!config || !config.serviceId || !config.templateId || !config.publicKey) {
+    // Tenta usar o template de welcome como default para teste, ou o genérico antigo
+    const templateId = config?.templates?.welcomeId || (config as any)?.templateId;
+
+    if (!config || !config.serviceId || !templateId || !config.publicKey) {
       throw new Error("Configuração incompleta. Verifique Service ID, Template ID e Public Key.");
     }
 
@@ -80,7 +83,7 @@ export const emailService = {
 
       console.log("Enviando Teste com Params:", templateParams);
 
-      await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
+      await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
       return { success: true };
     } catch (error: any) {
       console.error("EmailJS Error:", error);
@@ -90,10 +93,12 @@ export const emailService = {
 
   sendNotification: async (toName: string, message: string): Promise<boolean> => {
     const config = await storageService.getEmailConfig();
-    if (!config) return false;
+    const templateId = config?.templates?.notificationId || (config as any)?.templateId;
+    
+    if (!config || !templateId) return false;
     
     try {
-        await emailjs.send(config.serviceId, config.templateId, {
+        await emailjs.send(config.serviceId, templateId, {
             to_name: toName,
             name: toName,
             message: message,
@@ -113,8 +118,9 @@ export const emailService = {
 
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
+    const templateId = config?.templates?.welcomeId || (config as any)?.templateId;
     
-    if (!config) return { success: false, message: "Configuração de Email inexistente." };
+    if (!config || !templateId) return { success: false, message: "Configuração de Email inexistente." };
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
 
     const cleanEmail = toEmail.trim();
@@ -158,7 +164,7 @@ export const emailService = {
 
     try {
         console.log("A enviar email de boas-vindas para:", cleanEmail);
-        await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
+        await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
         return { success: true };
     } catch (e: any) {
         console.error("Erro Fatal EmailJS:", e);
@@ -169,7 +175,9 @@ export const emailService = {
 
   sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
-    if (!config) return { success: false, message: "Configuração de Email inexistente." };
+    const templateId = config?.templates?.resetPasswordId || (config as any)?.templateId;
+    
+    if (!config || !templateId) return { success: false, message: "Configuração de Email inexistente." };
 
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
     const cleanEmail = toEmail.trim();
@@ -205,7 +213,7 @@ export const emailService = {
     };
 
     try {
-        await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
+        await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
         return { success: true };
     } catch (e: any) {
         console.error("Erro Fatal EmailJS:", e);
