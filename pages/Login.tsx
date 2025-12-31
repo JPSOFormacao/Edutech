@@ -160,23 +160,23 @@ export default function Login() {
 
       try {
           // 1. Criar utilizador
-          const { user: newUser, token } = await storageService.register({
+          // A conta agora é criada com emailVerified: true por defeito (ver storageService)
+          await storageService.register({
               name: regName,
               fullName: regFullName,
               email: regEmail,
               password: regPass
           });
 
-          // 2. Criar Link de Verificação
-          // Ex: http://localhost:3000/#/verify-email?token=...
-          const verificationLink = `${window.location.origin}/#/verify-email?token=${token}`;
-
-          // 3. Enviar email de verificação com o link
-          const emailResult = await emailService.sendVerificationEmail(regName, regEmail, verificationLink);
+          // 2. Enviar email de "Registo Recebido" / Boas-vindas (SEM link de verificação)
+          // Substituímos o sendVerificationEmail por sendNotification para o utilizador
+          const messageBody = `Olá ${regName},\n\nO seu registo na EduTech PT foi recebido com sucesso.\nA sua conta encontra-se atualmente pendente de aprovação por um Administrador.\n\nReceberá um novo email assim que a sua conta for ativada.`;
           
-          if (!emailResult.success) {
-              console.warn("FALHA ENVIO EMAIL. Link manual para debug:", verificationLink);
-              setEmailError(emailResult.message || "Erro desconhecido ao enviar email.");
+          const emailResult = await emailService.sendNotification(regName, messageBody, regEmail);
+          
+          if (!emailResult) {
+              console.warn("FALHA ENVIO EMAIL DE REGISTO.");
+              setEmailError("A conta foi criada, mas não foi possível enviar o email de confirmação.");
           }
 
           setRegisterSuccess(true);
@@ -462,14 +462,11 @@ export default function Login() {
                                <h4 className="font-bold text-red-800">Atenção: Falha no Envio de Email</h4>
                            </div>
                            <p className="text-sm text-red-700 mb-2">
-                               A sua conta foi criada com sucesso, mas o sistema não conseguiu enviar o email de verificação automático.
+                               A sua conta foi criada com sucesso, mas o sistema não conseguiu enviar o email de confirmação.
                            </p>
                            <p className="text-sm text-red-700">
                                Isto acontece normalmente quando as credenciais de email (EmailJS) não estão configuradas na plataforma.
                            </p>
-                           <div className="mt-2 text-xs text-gray-500 italic border-t border-red-200 pt-2">
-                               (Aceda à consola do browser [F12] para ver o link de verificação manual se for o administrador)
-                           </div>
                        </div>
                   ) : (
                       <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
@@ -479,16 +476,16 @@ export default function Login() {
                   
                   {!emailError && (
                     <>
-                        <h3 className="text-lg leading-6 font-medium text-gray-900">Verifique o seu Email</h3>
+                        <h3 className="text-lg leading-6 font-medium text-gray-900">Confirmação de Registo</h3>
                         <p className="mt-2 text-sm text-gray-500">
-                            A sua conta foi criada com sucesso, mas requer aprovação.
-                            Enviámos um email de verificação para <strong>{regEmail}</strong>.
+                            A sua conta foi criada com sucesso e aguarda aprovação.
+                            Enviámos um email de confirmação para <strong>{regEmail}</strong>.
                         </p>
                     </>
                   )}
 
                   <p className="mt-2 text-sm text-gray-500 font-medium">
-                      Assim que confirmar o email e um Administrador aprovar o registo, poderá fazer login.
+                      Não é necessário verificar o email. Assim que um Administrador aprovar o seu registo, receberá um novo aviso.
                   </p>
                   <div className="mt-6">
                       <Button onClick={() => setIsRegisterModalOpen(false)} className="w-full">Entendi</Button>

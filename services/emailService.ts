@@ -91,7 +91,7 @@ export const emailService = {
     }
   },
 
-  sendNotification: async (toName: string, message: string): Promise<boolean> => {
+  sendNotification: async (toName: string, message: string, toEmail: string = SYSTEM_EMAIL): Promise<boolean> => {
     const config = await storageService.getEmailConfig();
     const templateId = config?.templates?.notificationId || (config as any)?.templateId;
     
@@ -105,8 +105,8 @@ export const emailService = {
             training_details: "N/A",
             from_name: SYSTEM_NAME,
             reply_to: SYSTEM_EMAIL,
-            to_email: SYSTEM_EMAIL,
-            email: SYSTEM_EMAIL,
+            to_email: toEmail, // Permite envio para utilizador (se especificado) ou sistema
+            email: toEmail,
             password: 'N/A' 
         }, config.publicKey);
         return true;

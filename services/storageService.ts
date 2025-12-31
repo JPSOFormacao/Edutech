@@ -218,10 +218,9 @@ export const storageService = {
   deleteUser: async (id: string) => {
       // 1. Desvincular Testemunhos APROVADOS (update userId = null)
       // Isto garante que o testemunho fica no site (com os dados de snapshot) mas perde o link ao user.
-      // Desta forma, evitamos conflitos de FK ao apagar o user ou apagar o testemunho em cascata.
       const { error: updateError } = await supabase
           .from('testimonials')
-          .update({ userId: null } as any) // Cast as any caso o TS reclame, mas atualizámos a interface
+          .update({ userId: null } as any) 
           .eq('userId', id)
           .eq('status', TestimonialStatus.APPROVED);
 
@@ -230,7 +229,6 @@ export const storageService = {
       }
 
       // 2. Apagar Testemunhos PENDENTES ou REJEITADOS
-      // Estes não devem ficar no site se o user for apagado.
       const { error: deleteTestimonialError } = await supabase
           .from('testimonials')
           .delete()
@@ -242,8 +240,6 @@ export const storageService = {
       }
 
       // 3. Apagar o Utilizador
-      // Agora podemos apagar com segurança. Se existir FK na DB, o passo 1 garantiu que não viola constraint nos aprovados,
-      // e o passo 2 removeu os restantes.
       const { error } = await supabase.from('users').delete().eq('id', id);
       if (error) throw error;
   },
@@ -266,12 +262,12 @@ export const storageService = {
           fullName: user.fullName || '',
           role: UserRole.ALUNO,
           roleId: 'role_aluno', // Default para alunos
-          status: UserStatus.PENDING, // Bloqueado por defeito
+          status: UserStatus.PENDING, // Bloqueado por defeito (Aguardando Aprovação Admin)
           password: user.password,
           allowedCourses: [],
           avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
           mustChangePassword: false,
-          emailVerified: false,
+          emailVerified: true, // AUTO-VERIFICADO (Alteração Solicitada)
           verificationToken: verificationToken,
           ...user
       } as User;
