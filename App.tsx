@@ -14,6 +14,8 @@ import PageViewer from './pages/PageViewer';
 import EmailConfigPage from './pages/EmailConfig';
 import ClassesPage from './pages/Classes'; 
 import RolesPage from './pages/Roles';
+import ProfilePage from './pages/Profile';
+import CommunityPage from './pages/Community';
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -39,6 +41,10 @@ const Layout = () => {
   const [confirmPass, setConfirmPass] = useState('');
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  
+  // States for toggle password visibility
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
 
   if (!user) return <Navigate to="/login" />;
   
@@ -71,20 +77,45 @@ const Layout = () => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>}
                     
-                    <Input 
-                        label="Nova Senha"
-                        type="password"
-                        value={newPass}
-                        onChange={e => setNewPass(e.target.value)}
-                        required
-                    />
-                    <Input 
-                        label="Confirmar Senha"
-                        type="password"
-                        value={confirmPass}
-                        onChange={e => setConfirmPass(e.target.value)}
-                        required
-                    />
+                    <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nova Senha</label>
+                        <div className="relative">
+                            <input
+                                type={showNewPass ? "text" : "password"}
+                                value={newPass}
+                                onChange={e => setNewPass(e.target.value)}
+                                required
+                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border pr-10"
+                            />
+                            <button
+                                type="button"
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                                onClick={() => setShowNewPass(!showNewPass)}
+                            >
+                                {showNewPass ? <Icons.EyeOff className="h-5 w-5" /> : <Icons.Eye className="h-5 w-5" />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Senha</label>
+                        <div className="relative">
+                            <input
+                                type={showConfirmPass ? "text" : "password"}
+                                value={confirmPass}
+                                onChange={e => setConfirmPass(e.target.value)}
+                                required
+                                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border pr-10"
+                            />
+                            <button
+                                type="button"
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                                onClick={() => setShowConfirmPass(!showConfirmPass)}
+                            >
+                                {showConfirmPass ? <Icons.EyeOff className="h-5 w-5" /> : <Icons.Eye className="h-5 w-5" />}
+                            </button>
+                        </div>
+                    </div>
                     
                     <Button type="submit" className="w-full">Atualizar Senha</Button>
                     <div className="text-center mt-4">
@@ -267,6 +298,9 @@ export default function App() {
             <Route path="/materials" element={<Materials />} />
             <Route path="/p/:slug" element={<PageViewer />} />
             
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/community" element={<CommunityPage />} />
+
             {/* Protected Routes based on Permissions */}
             <Route path="/users" element={
               hasPermission(PERMISSIONS.MANAGE_USERS) ? <UsersPage /> : <Navigate to="/" />

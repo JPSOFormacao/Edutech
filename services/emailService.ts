@@ -41,7 +41,7 @@ const getTrainingDetailsString = async (classId?: string, courseIds?: string[]):
 
     // Lógica solicitada: Se não houver atribuição, mostrar texto específico
     if (!hasInfo) {
-        return "A turma e/ou O curso será atribuída oportunamente pelo Formador";
+        return "A turma e/ou o curso será atribuída posteriormente pelo Formador";
     }
 
     return detailsParts.join('\n');

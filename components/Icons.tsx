@@ -47,7 +47,9 @@ export const Icons = {
   Student: GraduationCap,
   Mail: Mail,
   Role: Shield,
+  Shield: Shield,
   Class: UsersRound,
+  UsersRound: UsersRound,
   Eye: Eye,
   EyeOff: EyeOff
 };

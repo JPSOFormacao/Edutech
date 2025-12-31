@@ -56,6 +56,12 @@ export interface ClassEntity {
   description?: string;
 }
 
+export interface UserPrivacySettings {
+  showEmail: boolean;
+  showCourses: boolean;
+  showBio: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -68,6 +74,8 @@ export interface User {
   avatarUrl?: string;
   password?: string;
   mustChangePassword?: boolean;
+  bio?: string;
+  privacySettings?: UserPrivacySettings;
 }
 
 export interface Course {

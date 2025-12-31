@@ -41,6 +41,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission 
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
         <NavItem to="/" icon={Icons.Dashboard} label="Painel Principal" />
         
+        {/* Community & Profile */}
+        <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            Comunidade
+        </div>
+        <NavItem to="/community" icon={Icons.Class} label="Minha Turma" />
+        <NavItem to="/profile" icon={Icons.Users} label="O Meu Perfil" />
+
         {hasPermission(PERMISSIONS.VIEW_COURSES) && (
             <>
                 <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -62,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission 
             )}
             
             {hasPermission(PERMISSIONS.MANAGE_CLASSES) && (
-                <NavItem to="/classes" icon={Icons.Class} label="Turmas" />
+                <NavItem to="/classes" icon={Icons.Class} label="Gestão Turmas" />
             )}
 
             {hasPermission(PERMISSIONS.MANAGE_ROLES) && (
@@ -89,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission 
           <img 
             src={user.avatarUrl || 'https://via.placeholder.com/40'} 
             alt="Perfil" 
-            className="w-10 h-10 rounded-full border-2 border-indigo-500"
+            className="w-10 h-10 rounded-full border-2 border-indigo-500 object-cover"
           />
           <div className="overflow-hidden">
             <p className="text-sm font-medium text-white truncate">{user.name}</p>
