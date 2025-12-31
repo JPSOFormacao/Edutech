@@ -284,15 +284,20 @@ export const storageService = {
   },
 
   login: (email: string, password?: string): User => {
-    // CORREÇÃO: Normalizar email para evitar duplicação por Case Sensitivity
+    // Normalizar email para evitar duplicação por Case Sensitivity
     const normalizedEmail = email.trim().toLowerCase();
-    
     const users = storageService.getUsers();
-    // Procura ignorando maiúsculas/minúsculas
-    let user = users.find(u => u.email.toLowerCase() === normalizedEmail);
+    
+    // 1. Encontrar TODOS os utilizadores com este email (ignora Case)
+    const matches = users.filter(u => u.email.trim().toLowerCase() === normalizedEmail);
+    
+    // 2. PRIORIZAR UTILIZADOR ATIVO
+    // Se existir um duplicado "Pendente" e um "Ativo", escolher sempre o Ativo.
+    // Isto resolve o erro de "Conta Pendente" quando o Admin já ativou a conta.
+    let user = matches.find(u => u.status === UserStatus.ACTIVE) || matches[0];
     
     if (!user) {
-      // Auto-register as PENDING
+      // Auto-register as PENDING if no user exists at all
       user = {
         id: Date.now().toString(),
         email: normalizedEmail, // Save as lowercase
