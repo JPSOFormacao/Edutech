@@ -33,6 +33,7 @@ export default function Login() {
   const [showRegConfirmPass, setShowRegConfirmPass] = useState(false);
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null); // Novo estado para erro de email
 
   // Public Data
   const [courses, setCourses] = useState<Course[]>([]);
@@ -138,6 +139,7 @@ export default function Login() {
       setRegPass('');
       setRegConfirmPass('');
       setRegisterSuccess(false);
+      setEmailError(null);
       setIsRegisterModalOpen(true);
   };
 
@@ -154,6 +156,7 @@ export default function Login() {
       }
 
       setRegisterLoading(true);
+      setEmailError(null);
 
       try {
           // 1. Criar utilizador
@@ -169,7 +172,12 @@ export default function Login() {
           const verificationLink = `${window.location.origin}/#/verify-email?token=${token}`;
 
           // 3. Enviar email de verificação com o link
-          await emailService.sendVerificationEmail(regName, regEmail, verificationLink);
+          const emailResult = await emailService.sendVerificationEmail(regName, regEmail, verificationLink);
+          
+          if (!emailResult.success) {
+              console.warn("FALHA ENVIO EMAIL. Link manual para debug:", verificationLink);
+              setEmailError(emailResult.message || "Erro desconhecido ao enviar email.");
+          }
 
           setRegisterSuccess(true);
       } catch (e: any) {
@@ -447,19 +455,43 @@ export default function Login() {
       >
           {registerSuccess ? (
               <div className="text-center py-6">
-                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
-                      <Icons.Mail className="h-6 w-6 text-indigo-600" />
-                  </div>
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">Verifique o seu Email</h3>
-                  <p className="mt-2 text-sm text-gray-500">
-                      A sua conta foi criada com sucesso, mas requer aprovação.
-                      Enviámos um email de verificação para <strong>{regEmail}</strong>.
-                  </p>
+                  {emailError ? (
+                       <div className="bg-red-50 p-4 rounded-lg border border-red-200 mb-6 text-left">
+                           <div className="flex items-center gap-2 mb-2">
+                               <Icons.Close className="w-5 h-5 text-red-600" />
+                               <h4 className="font-bold text-red-800">Atenção: Falha no Envio de Email</h4>
+                           </div>
+                           <p className="text-sm text-red-700 mb-2">
+                               A sua conta foi criada com sucesso, mas o sistema não conseguiu enviar o email de verificação automático.
+                           </p>
+                           <p className="text-sm text-red-700">
+                               Isto acontece normalmente quando as credenciais de email (EmailJS) não estão configuradas na plataforma.
+                           </p>
+                           <div className="mt-2 text-xs text-gray-500 italic border-t border-red-200 pt-2">
+                               (Aceda à consola do browser [F12] para ver o link de verificação manual se for o administrador)
+                           </div>
+                       </div>
+                  ) : (
+                      <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
+                          <Icons.Mail className="h-6 w-6 text-indigo-600" />
+                      </div>
+                  )}
+                  
+                  {!emailError && (
+                    <>
+                        <h3 className="text-lg leading-6 font-medium text-gray-900">Verifique o seu Email</h3>
+                        <p className="mt-2 text-sm text-gray-500">
+                            A sua conta foi criada com sucesso, mas requer aprovação.
+                            Enviámos um email de verificação para <strong>{regEmail}</strong>.
+                        </p>
+                    </>
+                  )}
+
                   <p className="mt-2 text-sm text-gray-500 font-medium">
                       Assim que confirmar o email e um Administrador aprovar o registo, poderá fazer login.
                   </p>
                   <div className="mt-6">
-                      <Button onClick={() => setIsRegisterModalOpen(false)} className="w-full">Entendido</Button>
+                      <Button onClick={() => setIsRegisterModalOpen(false)} className="w-full">Entendi</Button>
                   </div>
               </div>
           ) : (

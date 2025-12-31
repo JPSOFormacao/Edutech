@@ -4,8 +4,10 @@ import { emailService } from '../services/emailService';
 import { User, UserRole, UserStatus, Course, ClassEntity, RoleEntity, EnrollmentRequest } from '../types';
 import { Badge, Button, Modal, Input } from '../components/UI';
 import { Icons } from '../components/Icons';
+import { useAuth } from '../App';
 
 export default function UsersPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [classes, setClasses] = useState<ClassEntity[]>([]);
@@ -13,14 +15,10 @@ export default function UsersPage() {
   
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [loading, setLoading] = useState(true);
   
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [bulkText, setBulkText] = useState('');
-  const [bulkClassId, setBulkClassId] = useState('');
-  const [bulkRoleId, setBulkRoleId] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
@@ -65,6 +63,8 @@ export default function UsersPage() {
       return user.enrollmentRequests && user.enrollmentRequests.some(r => r.status === 'PENDING');
   };
 
+  // --- Actions ---
+
   const handleEdit = (user: User) => {
     setSelectedUser({ ...user }); 
     setNewPassword(''); 
@@ -88,6 +88,69 @@ export default function UsersPage() {
       setNewPassword(generateRandomPassword()); 
       setIsModalOpen(true);
   };
+
+  const handleDelete = async (userId: string) => {
+      if (userId === currentUser?.id) {
+          alert("Não pode apagar a sua própria conta.");
+          return;
+      }
+      
+      if (confirm("Tem a certeza que deseja eliminar este utilizador permanentemente?")) {
+          try {
+              await storageService.deleteUser(userId);
+              // Remover da lista local para feedback imediato
+              setUsers(users.filter(u => u.id !== userId));
+              // Remover dos selecionados se estiver lá
+              setSelectedIds(selectedIds.filter(id => id !== userId));
+          } catch (e) {
+              alert("Erro ao eliminar utilizador.");
+          }
+      }
+  };
+
+  const handleBulkDelete = async () => {
+      if (selectedIds.length === 0) return;
+      
+      if (confirm(`Tem a certeza que deseja eliminar ${selectedIds.length} utilizadores?`)) {
+          setLoading(true);
+          try {
+              // Evitar apagar o próprio utilizador
+              const idsToDelete = selectedIds.filter(id => id !== currentUser?.id);
+              
+              if (idsToDelete.length !== selectedIds.length) {
+                  alert("A sua própria conta foi removida da seleção de eliminação.");
+              }
+
+              for (const id of idsToDelete) {
+                  await storageService.deleteUser(id);
+              }
+              await loadData();
+              setSelectedIds([]);
+          } catch (e) {
+              alert("Erro durante a eliminação em massa.");
+              setLoading(false);
+          }
+      }
+  };
+
+  // --- Selection Logic ---
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.checked) {
+          setSelectedIds(users.map(u => u.id));
+      } else {
+          setSelectedIds([]);
+      }
+  };
+
+  const handleSelectOne = (id: string) => {
+      if (selectedIds.includes(id)) {
+          setSelectedIds(selectedIds.filter(curr => curr !== id));
+      } else {
+          setSelectedIds([...selectedIds, id]);
+      }
+  };
+
+  // --- Save Logic ---
 
   const handleSave = async () => {
     if (!selectedUser) return;
@@ -237,10 +300,6 @@ export default function UsersPage() {
   const getClassName = (id?: string) => classes.find(c => c.id === id)?.name || '-';
   const getRoleName = (id: string) => roles.find(r => r.id === id)?.name || 'Cargo desconhecido';
 
-  // ... (Bulk handlers same as previous, omitted for brevity but included implicitly in full file context logic) ... 
-  const handleBulkDelete = async () => { /* ... */ }; 
-  const handleBulkAdd = async () => { /* ... */ };
-
   if (loading) return <div className="p-10 text-center">A carregar dados do Supabase...</div>;
 
   return (
@@ -252,11 +311,33 @@ export default function UsersPage() {
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.length > 0 && (
+          <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 flex justify-between items-center animate-pulse">
+              <span className="text-sm font-medium text-indigo-800 ml-2">
+                  {selectedIds.length} utilizador(es) selecionado(s)
+              </span>
+              <div className="flex gap-2">
+                  <Button variant="danger" size="sm" onClick={handleBulkDelete} icon={Icons.Delete}>
+                      Apagar Selecionados
+                  </Button>
+              </div>
+          </div>
+      )}
+
       <div className="bg-white shadow overflow-hidden sm:rounded-lg">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th scope="col" className="px-6 py-3 text-left">
+                    <input
+                        type="checkbox"
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                        checked={users.length > 0 && selectedIds.length === users.length}
+                        onChange={handleSelectAll}
+                    />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilizador</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cargo</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Turma</th>
@@ -267,8 +348,18 @@ export default function UsersPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {users.map((user, idx) => {
                   const pending = hasPendingRequests(user);
+                  const isSelected = selectedIds.includes(user.id);
+                  
                   return (
-                    <tr key={user.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <tr key={user.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} ${isSelected ? 'bg-indigo-50' : ''}`}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                        <input
+                            type="checkbox"
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                            checked={isSelected}
+                            onChange={() => handleSelectOne(user.id)}
+                        />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10 relative">
@@ -303,15 +394,20 @@ export default function UsersPage() {
                         </Badge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        {user.status === UserStatus.PENDING && (
-                            <Button variant="primary" size="sm" className="mr-2" onClick={() => approveUser(user)} disabled={isSendingEmail}>
-                                Aprovar Conta
-                            </Button>
-                        )}
-                        <button onClick={() => handleEdit(user)} className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1 ml-auto">
-                           {pending && <span className="text-xs text-red-500 font-bold mr-1">Pedidos Pendentes</span>}
-                           <Icons.Edit className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                            {user.status === UserStatus.PENDING && (
+                                <Button variant="primary" size="sm" onClick={() => approveUser(user)} disabled={isSendingEmail}>
+                                    Aprovar
+                                </Button>
+                            )}
+                            <button onClick={() => handleEdit(user)} className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1 p-2 hover:bg-gray-100 rounded-full" title="Editar">
+                                {pending && <span className="text-xs text-red-500 font-bold mr-1">!</span>}
+                                <Icons.Edit className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => handleDelete(user.id)} className="text-red-500 hover:text-red-700 p-2 hover:bg-red-50 rounded-full" title="Apagar">
+                                <Icons.Delete className="w-5 h-5" />
+                            </button>
+                        </div>
                     </td>
                     </tr>
                 );

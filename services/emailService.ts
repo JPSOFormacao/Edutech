@@ -118,22 +118,22 @@ export const emailService = {
 
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
-    const templateId = config?.templates?.verificationId || config?.templates?.notificationId;
+    
+    // Tenta encontrar ID de verificação, senão usa notificação ou welcome como fallback
+    const templateId = config?.templates?.verificationId || config?.templates?.notificationId || config?.templates?.welcomeId || (config as any)?.templateId;
 
-    if (!config || !templateId) return { success: false, message: "Template de Verificação não configurado." };
+    if (!config || !templateId || !config.serviceId || !config.publicKey) {
+         return { success: false, message: "Serviço de Email não configurado no sistema." };
+    }
     
     // Constrói uma mensagem HTML com botão
     const messageBody = `
       Olá ${toName},
       
       Obrigado pelo seu registo na EduTech PT.
-      Por favor confirme o seu endereço de email clicando no botão abaixo:
+      Por favor confirme o seu endereço de email clicando no link abaixo:
       
-      <br><br>
-      <a href="${verificationLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirmar Email</a>
-      <br><br>
-      
-      Se o botão não funcionar, copie este link: ${verificationLink}
+      ${verificationLink}
       
       Após a verificação, a sua conta ficará pendente de aprovação por um Administrador.
     `;
@@ -144,15 +144,15 @@ export const emailService = {
             name: toName,
             to_email: toEmail,
             email: toEmail,
-            message: messageBody,
+            message: messageBody, // Garante que se o template usar {{message}}, o link vai lá
             from_name: SYSTEM_NAME,
             reply_to: SYSTEM_EMAIL,
-            verification_link: verificationLink
+            verification_link: verificationLink // Garante que se o template usar {{verification_link}}, o link vai lá
         }, config.publicKey);
         return { success: true };
     } catch (e: any) {
         console.error("Erro Email Verificação:", e);
-        return { success: false, message: e?.text || 'Erro no envio.' };
+        return { success: false, message: e?.text || 'Erro no envio de email.' };
     }
   },
 
