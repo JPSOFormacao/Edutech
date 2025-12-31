@@ -85,6 +85,12 @@ export default function Materials() {
       }
   };
 
+  // Group materials by Course
+  const materialsByCourse = courses.reduce((acc, course) => {
+      acc[course.id] = materials.filter(m => m.courseId === course.id);
+      return acc;
+  }, {} as Record<string, Material[]>);
+
   if (loading) return <div className="p-10 text-center">A carregar materiais...</div>;
 
   return (
@@ -98,55 +104,79 @@ export default function Materials() {
         )}
       </div>
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200">
-          {materials.length === 0 && (
-              <li className="p-8 text-center text-gray-500">Não existem materiais disponíveis.</li>
-          )}
-          {materials.map((material) => {
-            const course = courses.find(c => c.id === material.courseId);
+      <div className="space-y-8">
+        {courses.map(course => {
+            const courseMaterials = materialsByCourse[course.id] || [];
+            if (courseMaterials.length === 0 && !canEdit) return null;
+
             return (
-              <li key={material.id}>
-                <div className="px-4 py-4 sm:px-6 hover:bg-gray-50 flex items-center justify-between">
-                    <div className="flex items-center flex-1 min-w-0">
-                        <div className="flex-shrink-0 mr-4">
-                            {getMaterialIcon(material.type)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                             <p className="text-sm font-medium text-indigo-600 truncate">{material.title}</p>
-                             <div className="flex items-center mt-1">
-                                <span className="text-xs text-gray-500 mr-2">{course?.title || 'Curso Removido'}</span>
-                                <Badge color="neutral">{translateType(material.type)}</Badge>
-                             </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                         <a 
-                           href={material.linkOrContent} 
-                           target="_blank" 
-                           rel="noreferrer"
-                           className="text-gray-400 hover:text-gray-600"
-                           title="Abrir Recurso"
-                         >
-                             <Icons.Link className="w-5 h-5" />
-                         </a>
-                         {canEdit && (
-                            <button onClick={() => handleDelete(material.id)} className="text-red-400 hover:text-red-600 ml-2">
-                                <Icons.Delete className="w-5 h-5" />
-                            </button>
-                         )}
-                    </div>
+                <div key={course.id} className="bg-white shadow rounded-lg overflow-hidden">
+                     <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                        <h3 className="text-lg font-bold text-gray-900">{course.title}</h3>
+                        <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full">{courseMaterials.length} Materiais</span>
+                     </div>
+                     <ul className="divide-y divide-gray-200">
+                        {courseMaterials.length === 0 ? (
+                             <li className="p-4 text-sm text-gray-500 italic">Sem materiais atribuídos.</li>
+                        ) : (
+                            courseMaterials.map((material) => (
+                                <li key={material.id}>
+                                    <div className="px-4 py-4 sm:px-6 hover:bg-gray-50 flex items-center justify-between">
+                                        <div className="flex items-center flex-1 min-w-0">
+                                            <div className="flex-shrink-0 mr-4">
+                                                {getMaterialIcon(material.type)}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="text-sm font-medium text-indigo-600 truncate">{material.title}</p>
+                                                <div className="flex items-center mt-1">
+                                                    <Badge color="neutral">{translateType(material.type)}</Badge>
+                                                    <span className="text-xs text-gray-400 ml-2">
+                                                        {new Date(material.createdAt).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <a 
+                                            href={material.linkOrContent} 
+                                            target="_blank" 
+                                            rel="noreferrer"
+                                            className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full"
+                                            title="Abrir Recurso"
+                                            >
+                                                <Icons.Link className="w-5 h-5" />
+                                            </a>
+                                            {canEdit && (
+                                                <button onClick={() => {
+                                                    setEditingMaterial(material);
+                                                    setIsModalOpen(true);
+                                                }} className="text-gray-400 hover:text-gray-600 ml-1 p-2 hover:bg-gray-100 rounded-full">
+                                                    <Icons.Edit className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                            {canEdit && (
+                                                <button onClick={() => handleDelete(material.id)} className="text-red-400 hover:text-red-600 ml-1 p-2 hover:bg-red-50 rounded-full">
+                                                    <Icons.Delete className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </li>
+                            ))
+                        )}
+                     </ul>
                 </div>
-              </li>
             );
-          })}
-        </ul>
+        })}
+        {courses.length === 0 && (
+             <div className="p-8 text-center text-gray-500">Não existem cursos associados.</div>
+        )}
       </div>
 
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        title="Novo Material"
+        title={editingMaterial.id ? "Editar Material" : "Novo Material"}
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
@@ -154,7 +184,6 @@ export default function Materials() {
           </>
         }
       >
-          {/* ... Modal content same as before ... */}
           <div className="space-y-4">
             <Input 
                 label="Título do Material" 

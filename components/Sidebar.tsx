@@ -45,15 +45,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission 
         <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Comunidade
         </div>
-        <NavItem to="/community" icon={Icons.Class} label="Minha Turma" />
+        <NavItem to="/community" icon={Icons.Class} label="Comunidade Escolar" />
         <NavItem to="/profile" icon={Icons.Users} label="O Meu Perfil" />
+
+        {/* Oferta Formativa Publica para Alunos */}
+        <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+             Formação
+        </div>
+        
+        <NavItem to="/catalog" icon={Icons.Search} label="Oferta Formativa" />
 
         {hasPermission(PERMISSIONS.VIEW_COURSES) && (
             <>
-                <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Formação
-                </div>
-                <NavItem to="/courses" icon={Icons.Courses} label="Cursos" />
+                <NavItem to="/courses" icon={Icons.Courses} label="Meus Cursos" />
                 <NavItem to="/materials" icon={Icons.Materials} label="Materiais Didáticos" />
             </>
         )}

@@ -9,9 +9,9 @@ import { formatCurrency } from '../components/UI';
 export default function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState([
-      { name: 'Total de Cursos', value: 0, icon: Icons.Courses, color: 'bg-indigo-500' },
-      { name: 'Materiais Disponíveis', value: 0, icon: Icons.Materials, color: 'bg-pink-500' },
-      { name: 'Alunos Registados', value: 0, icon: Icons.Users, color: 'bg-green-500' },
+      { name: 'Total de Cursos', value: 0, icon: Icons.Courses, color: 'bg-indigo-500', link: '/courses' },
+      { name: 'Materiais Disponíveis', value: 0, icon: Icons.Materials, color: 'bg-pink-500', link: '/materials' },
+      { name: 'Alunos Registados', value: 0, icon: Icons.Users, color: 'bg-green-500', link: '/community' },
   ]);
   const [courses, setCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,17 +32,17 @@ export default function Dashboard() {
             const myCourses = coursesData.filter(c => user.allowedCourses.includes(c.id));
 
             setStats([
-                { name: 'Meus Cursos', value: myCourses.length, icon: Icons.Courses, color: 'bg-indigo-500' },
-                { name: 'Materiais Disponíveis', value: myMaterials.length, icon: Icons.Materials, color: 'bg-pink-500' },
-                { name: 'Colegas de Turma', value: Math.max(0, myClassUsers.length - 1), icon: Icons.Class, color: 'bg-green-500' }, // Exclui o próprio
+                { name: 'Meus Cursos', value: myCourses.length, icon: Icons.Courses, color: 'bg-indigo-500', link: '/courses' },
+                { name: 'Materiais Disponíveis', value: myMaterials.length, icon: Icons.Materials, color: 'bg-pink-500', link: '/materials' },
+                { name: 'Colegas de Turma', value: Math.max(0, myClassUsers.length - 1), icon: Icons.Class, color: 'bg-green-500', link: '/community' }, // Exclui o próprio
             ]);
             setCourses(myCourses);
         } else {
             // Lógica Admin/Editor: Totais Globais
             setStats([
-                { name: 'Total de Cursos', value: coursesData.length, icon: Icons.Courses, color: 'bg-indigo-500' },
-                { name: 'Materiais Disponíveis', value: materialsData.length, icon: Icons.Materials, color: 'bg-pink-500' },
-                { name: 'Alunos Registados', value: usersData.filter(u => u.role === UserRole.ALUNO).length, icon: Icons.Users, color: 'bg-green-500' },
+                { name: 'Total de Cursos', value: coursesData.length, icon: Icons.Courses, color: 'bg-indigo-500', link: '/courses' },
+                { name: 'Materiais Disponíveis', value: materialsData.length, icon: Icons.Materials, color: 'bg-pink-500', link: '/materials' },
+                { name: 'Alunos Registados', value: usersData.filter(u => u.role === UserRole.ALUNO).length, icon: Icons.Users, color: 'bg-green-500', link: '/community' },
             ]);
             setCourses(coursesData);
         }
@@ -53,27 +53,29 @@ export default function Dashboard() {
   }, [user]);
 
   const StatCard: React.FC<{ item: any }> = ({ item }) => (
-    <div className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow">
-      <div className="p-5">
-        <div className="flex items-center">
-          <div className="flex-shrink-0">
-            <div className={`rounded-md p-3 ${item.color}`}>
-              <item.icon className="h-6 w-6 text-white" aria-hidden="true" />
-            </div>
-          </div>
-          <div className="ml-5 w-0 flex-1">
-            <dl>
-              <dt className="text-sm font-medium text-gray-500 truncate">{item.name}</dt>
-              <dd>
-                <div className="text-lg font-medium text-gray-900">
-                    {loading ? '...' : item.value}
+    <Link to={item.link} className="block group">
+        <div className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow border-transparent hover:border-indigo-500 border-2">
+        <div className="p-5">
+            <div className="flex items-center">
+            <div className="flex-shrink-0">
+                <div className={`rounded-md p-3 ${item.color} group-hover:opacity-90`}>
+                <item.icon className="h-6 w-6 text-white" aria-hidden="true" />
                 </div>
-              </dd>
-            </dl>
-          </div>
+            </div>
+            <div className="ml-5 w-0 flex-1">
+                <dl>
+                <dt className="text-sm font-medium text-gray-500 truncate group-hover:text-indigo-600">{item.name}</dt>
+                <dd>
+                    <div className="text-lg font-medium text-gray-900">
+                        {loading ? '...' : item.value}
+                    </div>
+                </dd>
+                </dl>
+            </div>
+            </div>
         </div>
-      </div>
-    </div>
+        </div>
+    </Link>
   );
 
   return (
@@ -137,32 +139,6 @@ export default function Dashboard() {
               ))}
             </div>
         )}
-      </div>
-      
-      {/* Links */}
-      <div className="mt-8 bg-white shadow rounded-lg p-6">
-        <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Recursos Úteis</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <Link to="/materials" className="block p-4 border rounded-lg hover:bg-gray-50 transition-colors flex items-center">
-                 <div className="bg-pink-100 p-2 rounded-full mr-4">
-                    <Icons.Materials className="w-6 h-6 text-pink-600" />
-                 </div>
-                 <div>
-                    <h4 className="font-semibold text-gray-900">Materiais Didáticos</h4>
-                    <p className="text-xs text-gray-500">Aceda a todos os recursos disponíveis.</p>
-                 </div>
-             </Link>
-
-             <Link to="/p/regulamento" className="block p-4 border rounded-lg hover:bg-gray-50 transition-colors flex items-center">
-                 <div className="bg-indigo-100 p-2 rounded-full mr-4">
-                     <Icons.FileText className="w-6 h-6 text-indigo-600" />
-                 </div>
-                 <div>
-                     <h4 className="font-semibold text-gray-900">Regulamento</h4>
-                     <p className="text-xs text-gray-500">Normas da formação.</p>
-                 </div>
-             </Link>
-        </div>
       </div>
     </div>
   );

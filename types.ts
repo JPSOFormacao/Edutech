@@ -62,6 +62,12 @@ export interface UserPrivacySettings {
   showBio: boolean;
 }
 
+export interface EnrollmentRequest {
+  courseId: string;
+  requestedAt: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+
 export interface User {
   id: string;
   email: string;
@@ -70,6 +76,7 @@ export interface User {
   roleId: string; // New dynamic role link
   status: UserStatus;
   allowedCourses: string[]; // Array of Course IDs
+  enrollmentRequests?: EnrollmentRequest[]; // Novos pedidos de curso
   classId?: string; // Link to ClassEntity
   avatarUrl?: string;
   password?: string;

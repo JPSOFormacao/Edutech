@@ -7,7 +7,6 @@ import { Icons } from '../components/Icons';
 export default function CommunityPage() {
   const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
-  const [classes, setClasses] = useState<ClassEntity[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -17,43 +16,35 @@ export default function CommunityPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [allUsers, allClasses, allCourses] = await Promise.all([
+    const [allUsers, allCourses] = await Promise.all([
         storageService.getUsers(),
-        storageService.getClasses(),
         storageService.getCourses()
     ]);
     
-    // Filtragem de Dados
-    // Admin, Editor e Formador veem todos. Aluno vê apenas a sua turma.
-    if (user && (user.role === UserRole.ADMIN || user.role === UserRole.EDITOR)) {
-        setUsers(allUsers);
-    } else if (user && user.classId) {
-        setUsers(allUsers.filter(u => u.classId === user.classId));
+    // Alunos só veem cursos que têm
+    if (user?.role === UserRole.ALUNO) {
+        setCourses(allCourses.filter(c => user.allowedCourses.includes(c.id)));
     } else {
-        // Aluno sem turma vê apenas ele próprio ou vazio
-        setUsers(allUsers.filter(u => u.id === user?.id));
+        setCourses(allCourses);
     }
-
-    setClasses(allClasses);
-    setCourses(allCourses);
+    setUsers(allUsers);
     setLoading(false);
   };
 
-  const getClassName = (classId?: string) => {
-      const cls = classes.find(c => c.id === classId);
-      return cls ? cls.name : 'Sem Turma';
-  };
-
-  // Agrupar por turmas se for Admin/Editor
-  const groupedUsers = React.useMemo(() => {
+  // Agrupar por Curso
+  // Nota: Um aluno pode aparecer em múltiplos cursos.
+  const groupedByCourse = React.useMemo(() => {
       const groups: Record<string, User[]> = {};
-      users.forEach(u => {
-          const key = u.classId || 'unassigned';
-          if (!groups[key]) groups[key] = [];
-          groups[key].push(u);
+      courses.forEach(course => {
+          // Find all users enrolled in this course
+          const enrolled = users.filter(u => u.allowedCourses?.includes(course.id));
+          
+          // Se sou aluno, só mostro este curso se EU estiver inscrito (já filtrado no loadData)
+          // Mas garanto que mostro apenas colegas (ou eu mesmo) inscritos nisto.
+          groups[course.id] = enrolled;
       });
       return groups;
-  }, [users]);
+  }, [users, courses]);
 
   // Verificar se utilizador atual tem permissão de "Super View" (Admin) para dados privados
   const isSuperAdmin = user?.role === UserRole.ADMIN;
@@ -64,9 +55,6 @@ export default function CommunityPage() {
       
       const canSeeEmail = isMe || isSuperAdmin || privacy.showEmail;
       const canSeeBio = isMe || isSuperAdmin || privacy.showBio;
-      const canSeeCourses = isMe || isSuperAdmin || privacy.showCourses;
-
-      const studentCourses = courses.filter(c => student.allowedCourses?.includes(c.id));
 
       return (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center hover:shadow-md transition-shadow relative overflow-hidden">
@@ -102,28 +90,6 @@ export default function CommunityPage() {
                           <span className="text-gray-400 italic">Privado</span>
                       )}
                   </div>
-
-                  {/* Class Info */}
-                  <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
-                      <Icons.Class className="w-4 h-4 text-gray-400" />
-                      <span>{getClassName(student.classId)}</span>
-                  </div>
-                  
-                  {/* Courses Count */}
-                  {canSeeCourses && studentCourses.length > 0 && (
-                      <div className="flex flex-wrap gap-1 justify-center mt-2">
-                          {studentCourses.slice(0, 3).map(c => (
-                              <span key={c.id} className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100">
-                                  {c.category}
-                              </span>
-                          ))}
-                          {studentCourses.length > 3 && (
-                               <span className="text-[10px] bg-gray-50 text-gray-500 px-2 py-0.5 rounded-full border">
-                                  +{studentCourses.length - 3}
-                               </span>
-                          )}
-                      </div>
-                  )}
               </div>
           </div>
       );
@@ -135,47 +101,39 @@ export default function CommunityPage() {
     <div className="space-y-8">
       <div className="flex items-center gap-3">
          <div className="bg-green-600 p-2 rounded-lg text-white">
-            <Icons.Class className="w-6 h-6" />
+            <Icons.UsersRound className="w-6 h-6" />
          </div>
          <div>
             <h2 className="text-2xl font-bold text-gray-900">Comunidade Escolar</h2>
             <p className="text-sm text-gray-500">
-                {user?.role === UserRole.ALUNO 
-                    ? `Colegas da ${getClassName(user?.classId)}` 
-                    : 'Visão Global de Alunos e Formadores'}
+                Organizado por Cursos
             </p>
          </div>
       </div>
 
-      {Object.keys(groupedUsers).length === 0 && (
-          <div className="text-center py-12 bg-white rounded-lg border border-dashed">
-              <p className="text-gray-500">Não existem outros utilizadores na sua turma de momento.</p>
+      {courses.length === 0 && (
+           <div className="text-center py-12 bg-white rounded-lg border border-dashed">
+              <p className="text-gray-500">Não está inscrito em nenhum curso.</p>
           </div>
       )}
 
-      {Object.entries(groupedUsers).map(([classId, classUsers]) => {
-          // Se for aluno, só vai haver 1 grupo (a sua turma)
-          // Se for admin, mostra separadores por turma
-          const showHeader = user?.role === UserRole.ADMIN || user?.role === UserRole.EDITOR;
-          const className = classId === 'unassigned' ? 'Sem Turma Atribuída' : getClassName(classId);
-
+      {courses.map(course => {
+          const classUsers = groupedByCourse[course.id] || [];
           if (classUsers.length === 0) return null;
 
           return (
-              <div key={classId} className="space-y-4">
-                  {showHeader && (
-                      <h3 className="text-lg font-bold text-gray-800 border-b pb-2 flex items-center gap-2 mt-8">
-                          <Icons.UsersRound className="w-5 h-5 text-indigo-600" />
-                          {className} 
-                          <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full ml-2">
-                              {classUsers.length} membros
-                          </span>
-                      </h3>
-                  )}
+              <div key={course.id} className="space-y-4">
+                  <h3 className="text-lg font-bold text-gray-800 border-b pb-2 flex items-center gap-2 mt-8">
+                      <Icons.Courses className="w-5 h-5 text-indigo-600" />
+                      {course.title}
+                      <span className="text-sm font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full ml-2">
+                          {classUsers.length} inscritos
+                      </span>
+                  </h3>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                       {classUsers.map(student => (
-                          <UserCard key={student.id} student={student} />
+                          <UserCard key={`${course.id}-${student.id}`} student={student} />
                       ))}
                   </div>
               </div>

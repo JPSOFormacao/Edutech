@@ -16,6 +16,7 @@ import ClassesPage from './pages/Classes';
 import RolesPage from './pages/Roles';
 import ProfilePage from './pages/Profile';
 import CommunityPage from './pages/Community';
+import CatalogPage from './pages/Catalog';
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -294,6 +295,7 @@ export default function App() {
             <Route path="/courses" element={
                 hasPermission(PERMISSIONS.VIEW_COURSES) ? <Courses /> : <Navigate to="/" />
             } />
+            <Route path="/catalog" element={<CatalogPage />} />
             
             <Route path="/materials" element={<Materials />} />
             <Route path="/p/:slug" element={<PageViewer />} />
