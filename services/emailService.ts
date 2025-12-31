@@ -1,11 +1,16 @@
 import emailjs from '@emailjs/browser';
 import { storageService } from './storageService';
 
+interface EmailResult {
+    success: boolean;
+    message?: string;
+}
+
 export const emailService = {
-  sendTestEmail: async (): Promise<boolean> => {
+  sendTestEmail: async (): Promise<EmailResult> => {
     const config = storageService.getEmailConfig();
-    if (!config) {
-      throw new Error("Configuração de Email não encontrada. Por favor configure o Service ID, Template ID e Public Key.");
+    if (!config || !config.serviceId || !config.templateId || !config.publicKey) {
+      throw new Error("Configuração incompleta. Verifique Service ID, Template ID e Public Key.");
     }
 
     const currentUser = storageService.getCurrentUser();
@@ -13,13 +18,11 @@ export const emailService = {
     const userName = currentUser?.name || 'Sistema EduTech';
 
     try {
-      // Enviamos params redundantes para garantir compatibilidade com diferentes templates
       const templateParams = {
         to_name: "Administrador", 
-        message: "Este é um email de teste da plataforma EduTech PT. Se está a ler isto, a configuração está correta.",
+        message: "Email de teste EduTech PT.",
         from_name: userName,
         reply_to: userEmail,
-        // Variantes para o destinatário
         user_email: userEmail,
         to_email: userEmail,
         email: userEmail,
@@ -28,14 +31,15 @@ export const emailService = {
       };
 
       await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
-      return true;
-    } catch (error) {
+      return { success: true };
+    } catch (error: any) {
       console.error("EmailJS Error:", error);
-      throw error;
+      return { success: false, message: error?.text || error?.message || 'Erro desconhecido' };
     }
   },
 
   sendNotification: async (toName: string, message: string): Promise<boolean> => {
+    // Mantido simples para compatibilidade, mas idealmente deve ser migrado
     const config = storageService.getEmailConfig();
     if (!config) return false;
 
@@ -48,9 +52,8 @@ export const emailService = {
             message: message,
             from_name: currentUser?.name || 'Sistema',
             reply_to: replyTo,
-            user_email: replyTo,
-            email: replyTo,
-            to: replyTo
+            to_email: replyTo,
+            email: replyTo
         }, config.publicKey);
         return true;
     } catch (e) {
@@ -59,17 +62,16 @@ export const emailService = {
     }
   },
 
-  sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string): Promise<boolean> => {
+  sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string): Promise<EmailResult> => {
     const config = storageService.getEmailConfig();
-    if (!config) {
-        console.error("Email Config missing");
-        return false;
-    }
+    
+    // Validação detalhada
+    if (!config) return { success: false, message: "Configuração de Email inexistente." };
+    if (!config.serviceId) return { success: false, message: "Service ID em falta na configuração." };
+    if (!config.templateId) return { success: false, message: "Template ID em falta na configuração." };
+    if (!config.publicKey) return { success: false, message: "Public Key em falta na configuração." };
 
-    if (!toEmail) {
-        console.error("Tentativa de envio de email sem destinatário.");
-        return false;
-    }
+    if (!toEmail) return { success: false, message: "Email de destino vazio." };
 
     const cleanEmail = toEmail.trim();
     const currentUser = storageService.getCurrentUser();
@@ -89,37 +91,34 @@ export const emailService = {
 
     const templateParams = {
         to_name: toName,
-        // Variáveis de destino (Redundância para evitar erro "recipients address is empty")
         to_email: cleanEmail, 
         user_email: cleanEmail, 
         email: cleanEmail,
         recipient: cleanEmail,
         to: cleanEmail,
-        
-        // Conteúdo
         message: messageBody,
         password: tempPass,
-        
-        // Remetente
         from_name: "EduTech PT Admin",
         reply_to: adminEmail
     };
 
     try {
-        console.log("A enviar email de boas-vindas para:", cleanEmail);
+        console.log("Tentando enviar via EmailJS:", config.serviceId, config.templateId);
         await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
-        return true;
-    } catch (e) {
-        console.error("Erro ao enviar welcome email:", e);
-        return false;
+        return { success: true };
+    } catch (e: any) {
+        console.error("Erro Fatal EmailJS:", e);
+        // Tentar extrair a mensagem de erro real do objeto EmailJS
+        const errorMsg = e?.text || e?.message || JSON.stringify(e);
+        return { success: false, message: errorMsg };
     }
   },
 
-  sendPasswordReset: async (toName: string, toEmail: string, newPass: string): Promise<boolean> => {
+  sendPasswordReset: async (toName: string, toEmail: string, newPass: string): Promise<EmailResult> => {
     const config = storageService.getEmailConfig();
-    if (!config) return false;
+    if (!config) return { success: false, message: "Configuração de Email inexistente." };
 
-    if (!toEmail) return false;
+    if (!toEmail) return { success: false, message: "Email de destino vazio." };
     const cleanEmail = toEmail.trim();
     
     const currentUser = storageService.getCurrentUser();
@@ -128,24 +127,20 @@ export const emailService = {
     const messageBody = `
       Olá ${toName},
 
-      A sua senha de acesso à plataforma EduTech PT foi redefinida pelo administrador.
+      A sua senha de acesso à plataforma EduTech PT foi redefinida.
 
-      As suas novas credenciais:
+      Novas credenciais:
       Email: ${cleanEmail}
       Nova Senha: ${newPass}
-
-      Terá de alterar esta senha obrigatoriamente no próximo login.
     `;
 
     const templateParams = {
         to_name: toName,
-        // Redundância de destinatário
         to_email: cleanEmail, 
         user_email: cleanEmail, 
         email: cleanEmail,
         recipient: cleanEmail,
         to: cleanEmail,
-
         message: messageBody,
         password: newPass,
         from_name: "EduTech PT Admin",
@@ -153,12 +148,12 @@ export const emailService = {
     };
 
     try {
-        console.log("A enviar email de reset de senha para:", cleanEmail);
         await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
-        return true;
-    } catch (e) {
-        console.error("Erro ao enviar reset email:", e);
-        return false;
+        return { success: true };
+    } catch (e: any) {
+        console.error("Erro Fatal EmailJS:", e);
+        const errorMsg = e?.text || e?.message || JSON.stringify(e);
+        return { success: false, message: errorMsg };
     }
   }
 };

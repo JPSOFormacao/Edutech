@@ -26,7 +26,18 @@ export default function EmailConfigPage() {
       return;
     }
     
-    storageService.saveEmailConfig({ serviceId, templateId, publicKey });
+    // Clean inputs before saving
+    const cleanConfig = { 
+        serviceId: serviceId.trim(), 
+        templateId: templateId.trim(), 
+        publicKey: publicKey.trim() 
+    };
+    
+    setServiceId(cleanConfig.serviceId);
+    setTemplateId(cleanConfig.templateId);
+    setPublicKey(cleanConfig.publicKey);
+
+    storageService.saveEmailConfig(cleanConfig);
     setStatus({ type: 'success', msg: 'Configurações guardadas com sucesso!' });
     
     setTimeout(() => setStatus(null), 3000);
@@ -37,26 +48,26 @@ export default function EmailConfigPage() {
     setStatus({ type: 'info', msg: 'A iniciar teste de envio...' });
     
     // Save current values first to ensure test uses latest
-    storageService.saveEmailConfig({ serviceId, templateId, publicKey });
+    const cleanConfig = { 
+        serviceId: serviceId.trim(), 
+        templateId: templateId.trim(), 
+        publicKey: publicKey.trim() 
+    };
+    storageService.saveEmailConfig(cleanConfig);
 
     try {
-      await emailService.sendTestEmail();
-      const successMsg = 'Email de teste enviado com sucesso! Verifique a sua caixa de entrada.';
-      setStatus({ type: 'success', msg: successMsg });
-      // Alert added for explicit feedback as requested
-      alert(successMsg);
-    } catch (error: any) {
-      let errorMsg = 'Falha ao enviar email.';
-      
-      // Try to extract EmailJS specific error text
-      if (error?.text) {
-          errorMsg += ` Erro: ${error.text}`;
-      } else if (error?.message) {
-          errorMsg += ` Erro: ${error.message}`;
+      const result = await emailService.sendTestEmail();
+      if (result.success) {
+        const successMsg = 'Email de teste enviado com sucesso! Verifique a sua caixa de entrada.';
+        setStatus({ type: 'success', msg: successMsg });
+        alert(successMsg);
+      } else {
+        throw new Error(result.message);
       }
-
+    } catch (error: any) {
+      let errorMsg = error?.message || 'Falha ao enviar email.';
       setStatus({ type: 'error', msg: errorMsg });
-      alert(errorMsg);
+      alert("Erro no Teste: " + errorMsg);
     } finally {
       setLoading(false);
     }

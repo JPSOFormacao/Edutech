@@ -41,7 +41,6 @@ export default function UsersPage() {
   // --- Helpers ---
 
   const generateRandomPassword = () => {
-      // Gera uma senha robusta de 10 caracteres
       const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
       let retVal = "";
       for (let i = 0; i < 10; ++i) {
@@ -68,10 +67,9 @@ export default function UsersPage() {
           status: UserStatus.ACTIVE,
           allowedCourses: [],
           avatarUrl: 'https://via.placeholder.com/100',
-          mustChangePassword: true, // Força alteração no primeiro login
+          mustChangePassword: true,
           classId: ''
       });
-      // Gera senha aleatória ao criar
       setNewPassword(generateRandomPassword()); 
       setIsModalOpen(true);
   };
@@ -82,14 +80,13 @@ export default function UsersPage() {
     let userToSave = { ...selectedUser };
     let isPasswordReset = false;
 
-    // Se houver nova senha (Criação ou Redefinição)
     if (newPassword) {
         userToSave.password = newPassword;
-        userToSave.mustChangePassword = true; // REQUISITO: Pedir para alterar na próxima vez
+        userToSave.mustChangePassword = true; 
         isPasswordReset = true;
     }
     
-    // Sync Legacy Enum for compatibility
+    // Sync Legacy Enum
     const selectedRoleObj = roles.find(r => r.id === userToSave.roleId);
     if (selectedRoleObj) {
         if (selectedRoleObj.name.toLowerCase().includes('admin')) userToSave.role = UserRole.ADMIN;
@@ -106,16 +103,15 @@ export default function UsersPage() {
         storageService.saveUsers(updatedUsers);
         setUsers(updatedUsers);
         
-        // Se a senha foi alterada manualmente pelo admin, notificar o utilizador
         if (isPasswordReset && storageService.getEmailConfig()) {
             setIsSendingEmail(true);
-            const success = await emailService.sendPasswordReset(userToSave.name, userToSave.email, newPassword);
+            const result = await emailService.sendPasswordReset(userToSave.name, userToSave.email, newPassword);
             setIsSendingEmail(false);
             
-            if (success) {
+            if (result.success) {
                 alert("Utilizador atualizado e email com nova senha enviado.");
             } else {
-                alert("Utilizador atualizado, mas FALHA ao enviar email de nova senha.");
+                alert(`Utilizador atualizado, mas o envio de email falhou.\nErro: ${result.message}`);
             }
         }
         setIsModalOpen(false);
@@ -131,19 +127,19 @@ export default function UsersPage() {
         storageService.saveUsers(updatedUsers);
         setUsers(updatedUsers);
         
-        // Enviar Email de Boas-vindas
         if (storageService.getEmailConfig()) {
             setIsSendingEmail(true);
-            const success = await emailService.sendWelcomeEmail(userToSave.name, userToSave.email, newPassword);
+            const result = await emailService.sendWelcomeEmail(userToSave.name, userToSave.email, newPassword);
             setIsSendingEmail(false);
             
-            if (success) {
+            if (result.success) {
                 alert(`Utilizador criado e notificado por email.`);
             } else {
-                alert(`Utilizador criado, mas o envio do email FALHOU.`);
+                // Aqui mostramos a mensagem exata do erro
+                alert(`Utilizador criado, mas o envio do email FALHOU.\n\nDetalhe do Erro: ${result.message}\n\nVerifique a Configuração de Email.`);
             }
         } else {
-            alert("Utilizador criado (Sem configuração de email).");
+            alert("Utilizador criado. (Não foi enviado email pois a configuração está em falta).");
         }
         
         setIsModalOpen(false);
@@ -182,12 +178,10 @@ export default function UsersPage() {
                          roleToAssign?.name.toLowerCase().includes('formador') ? UserRole.EDITOR : UserRole.ALUNO;
 
       lines.forEach((line, idx) => {
-          // Format: Name; Email
-          const parts = line.split(/[;,]/); // Allow ; or ,
+          const parts = line.split(/[;,]/); 
           if(parts.length >= 2) {
               const name = parts[0].trim();
               const email = parts[1].trim();
-              // Senha aleatória para importação em massa também
               const password = generateRandomPassword();
               
               if(email.includes('@')) {
@@ -201,7 +195,7 @@ export default function UsersPage() {
                       classId: bulkClassId || undefined,
                       status: UserStatus.ACTIVE,
                       allowedCourses: [],
-                      mustChangePassword: true, // Força alteração
+                      mustChangePassword: true,
                       avatarUrl: `https://ui-avatars.com/api/?name=${name}&background=random`
                   });
               }
@@ -214,8 +208,7 @@ export default function UsersPage() {
           setUsers(updated);
           setIsBulkAddOpen(false);
           setBulkText('');
-          alert(`${newUsers.length} utilizadores adicionados. As senhas foram geradas (ver console ou implementar envio em massa).`);
-          console.log("Senhas geradas:", newUsers.map(u => ({email: u.email, pass: u.password})));
+          alert(`${newUsers.length} utilizadores adicionados.`);
       } else {
           alert("Nenhum utilizador válido encontrado.");
       }
