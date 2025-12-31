@@ -1,11 +1,12 @@
-import { User, Course, Material, Page, UserRole, UserStatus, MaterialType } from '../types';
+import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig } from '../types';
 
 const STORAGE_KEYS = {
   USERS: 'edutech_users',
   COURSES: 'edutech_courses',
   MATERIALS: 'edutech_materials',
   PAGES: 'edutech_pages',
-  CURRENT_USER: 'edutech_current_user'
+  CURRENT_USER: 'edutech_current_user',
+  EMAIL_CONFIG: 'edutech_email_config'
 };
 
 // Initial Seed Data
@@ -140,6 +141,13 @@ export const storageService = {
   // Pages
   getPages: (): Page[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.PAGES) || '[]'),
   savePages: (pages: Page[]) => localStorage.setItem(STORAGE_KEYS.PAGES, JSON.stringify(pages)),
+
+  // Email Config
+  getEmailConfig: (): EmailConfig | null => {
+    const stored = localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG);
+    return stored ? JSON.parse(stored) : null;
+  },
+  saveEmailConfig: (config: EmailConfig) => localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config)),
 
   // Auth Simulation
   getCurrentUser: (): User | null => {

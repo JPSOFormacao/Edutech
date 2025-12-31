@@ -56,6 +56,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
             )}
              <NavItem to="/cms" icon={Icons.CMS} label="Páginas / CMS" />
              <NavItem to="/ai-studio" icon={Icons.AI} label="AI Studio" />
+             
+             {user.role === UserRole.ADMIN && (
+               <NavItem to="/email-config" icon={Icons.Mail} label="Configuração Email" />
+             )}
           </>
         )}
       </nav>

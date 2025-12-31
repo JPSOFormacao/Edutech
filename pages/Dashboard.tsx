@@ -4,6 +4,7 @@ import { useAuth } from '../App';
 import { Icons } from '../components/Icons';
 import { UserRole } from '../types';
 import { Link } from 'react-router-dom';
+import { formatCurrency } from '../components/UI';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -47,7 +48,7 @@ export default function Dashboard() {
             Olá, {user?.name.split(' ')[0]}!
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Bem-vindo ao painel de gestão da EduTech PT.
+            Bem-vindo à EduTech PT. Aqui estão as novidades e a nossa oferta formativa.
           </p>
         </div>
         <div className="mt-4 flex md:mt-0 md:ml-4">
@@ -62,32 +63,62 @@ export default function Dashboard() {
           <StatCard key={item.name} item={item} />
         ))}
       </div>
+      
+      {/* Featured Courses / Offerings */}
+      <div className="mt-8">
+        <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg leading-6 font-bold text-gray-900">A Nossa Oferta Formativa</h3>
+            <Link to="/courses" className="text-sm text-indigo-600 hover:text-indigo-800">Ver todos &rarr;</Link>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {courses.map(course => (
+            <div key={course.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all border border-gray-200 flex flex-col group">
+              <div className="h-40 w-full relative overflow-hidden rounded-t-lg">
+                <img src={course.imageUrl} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div className="absolute top-2 right-2">
+                    <span className="bg-white/90 backdrop-blur px-2 py-1 text-xs font-bold rounded-full text-indigo-700 shadow-sm">
+                        {course.category}
+                    </span>
+                </div>
+              </div>
+              <div className="p-4 flex-1 flex flex-col">
+                <h3 className="text-md font-bold text-gray-900 mb-1">{course.title}</h3>
+                <p className="text-sm text-gray-500 line-clamp-2 mb-3">{course.description}</p>
+                
+                <div className="flex items-center justify-between mt-auto">
+                    <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                        {course.duration}
+                    </span>
+                    <span className="text-lg font-bold text-indigo-600">{formatCurrency(course.price)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="mt-8 bg-white shadow rounded-lg p-6">
-        <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Acesso Rápido</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-             <Link to="/courses" className="block p-6 border rounded-lg hover:bg-gray-50 transition-colors group">
-                 <div className="flex items-center">
-                     <Icons.Courses className="w-8 h-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform" />
+        <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Recursos Úteis</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <Link to="/materials" className="block p-4 border rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+                 <div className="bg-pink-100 p-2 rounded-full mr-4">
+                    <Icons.Materials className="w-6 h-6 text-pink-600" />
                  </div>
-                 <h4 className="font-semibold text-gray-900">Ver Cursos</h4>
-                 <p className="text-sm text-gray-500 mt-1">Navegue pelo catálogo e veja os detalhes.</p>
-             </Link>
-             
-             <Link to="/materials" className="block p-6 border rounded-lg hover:bg-gray-50 transition-colors group">
-                 <div className="flex items-center">
-                     <Icons.Materials className="w-8 h-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform" />
+                 <div>
+                    <h4 className="font-semibold text-gray-900">Materiais Didáticos</h4>
+                    <p className="text-xs text-gray-500">Aceda a todos os recursos disponíveis.</p>
                  </div>
-                 <h4 className="font-semibold text-gray-900">Materiais Didáticos</h4>
-                 <p className="text-sm text-gray-500 mt-1">Aceda a fichas e recursos de aprendizagem.</p>
              </Link>
 
-             <Link to="/p/regulamento" className="block p-6 border rounded-lg hover:bg-gray-50 transition-colors group">
-                 <div className="flex items-center">
-                     <Icons.FileText className="w-8 h-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform" />
+             <Link to="/p/regulamento" className="block p-4 border rounded-lg hover:bg-gray-50 transition-colors flex items-center">
+                 <div className="bg-indigo-100 p-2 rounded-full mr-4">
+                     <Icons.FileText className="w-6 h-6 text-indigo-600" />
                  </div>
-                 <h4 className="font-semibold text-gray-900">Regulamento</h4>
-                 <p className="text-sm text-gray-500 mt-1">Consulte as normas e procedimentos.</p>
+                 <div>
+                     <h4 className="font-semibold text-gray-900">Regulamento</h4>
+                     <p className="text-xs text-gray-500">Normas da formação.</p>
+                 </div>
              </Link>
         </div>
       </div>

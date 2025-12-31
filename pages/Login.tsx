@@ -55,34 +55,6 @@ export default function Login() {
               </Button>
             </div>
           </form>
-          
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Acesso Demo
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button onClick={() => setEmail('admin@edutech.pt')} className="text-xs border p-1 rounded hover:bg-slate-50">
-                Admin
-              </button>
-              <button onClick={() => setEmail('jpsoliveira.formacao@hotmail.com')} className="text-xs border p-1 rounded hover:bg-slate-50 bg-indigo-50 border-indigo-200 text-indigo-800 font-medium truncate" title="jpsoliveira.formacao@hotmail.com">
-                JPS Admin
-              </button>
-              <button onClick={() => setEmail('formador@edutech.pt')} className="text-xs border p-1 rounded hover:bg-slate-50">
-                Formador
-              </button>
-              <button onClick={() => setEmail('aluno@edutech.pt')} className="text-xs border p-1 rounded hover:bg-slate-50">
-                Aluno
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

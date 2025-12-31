@@ -17,7 +17,8 @@ import {
   FileSpreadsheet,
   Link as LinkIcon,
   FileQuestion,
-  GraduationCap
+  GraduationCap,
+  Mail
 } from 'lucide-react';
 
 export const Icons = {
@@ -39,5 +40,6 @@ export const Icons = {
   AI: BrainCircuit,
   Link: LinkIcon,
   Quiz: FileQuestion,
-  Student: GraduationCap
+  Student: GraduationCap,
+  Mail: Mail
 };

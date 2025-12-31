@@ -11,6 +11,7 @@ import Materials from './pages/Materials';
 import CMS from './pages/CMS';
 import AIStudio from './pages/AIStudio';
 import PageViewer from './pages/PageViewer';
+import EmailConfigPage from './pages/EmailConfig';
 import { Icons } from './components/Icons';
 
 // --- Auth Context ---
@@ -105,6 +106,9 @@ export default function App() {
             } />
              <Route path="/ai-studio" element={
               (user?.role === UserRole.ADMIN || user?.role === UserRole.EDITOR) ? <AIStudio /> : <Navigate to="/" />
+            } />
+            <Route path="/email-config" element={
+              (user?.role === UserRole.ADMIN) ? <EmailConfigPage /> : <Navigate to="/" />
             } />
           </Route>
 

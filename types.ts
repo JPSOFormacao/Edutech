@@ -64,3 +64,9 @@ export interface QuizData {
   topic: string;
   questions: QuizQuestion[];
 }
+
+export interface EmailConfig {
+  serviceId: string;
+  templateId: string;
+  publicKey: string;
+}
