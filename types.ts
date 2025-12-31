@@ -25,6 +25,8 @@ export interface User {
   status: UserStatus;
   allowedCourses: string[]; // Array of Course IDs
   avatarUrl?: string;
+  password?: string; // Stored in plain text for this demo (should be hashed in production)
+  mustChangePassword?: boolean;
 }
 
 export interface Course {

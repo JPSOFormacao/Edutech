@@ -6,6 +6,8 @@ import { Button, Input } from '../components/UI';
 
 export default function Login() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
@@ -15,8 +17,13 @@ export default function Login() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      login(email);
+    setError('');
+    if (email && password) {
+      try {
+        login(email, password);
+      } catch (err: any) {
+        setError(err.message || "Erro ao fazer login");
+      }
     }
   };
 
@@ -39,6 +46,12 @@ export default function Login() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
+            {error && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+                    <p className="text-sm text-red-700">{error}</p>
+                </div>
+            )}
+            
             <Input 
               label="Endereço de Email"
               type="email"
@@ -47,6 +60,16 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="exemplo@edutech.pt"
+            />
+
+            <Input 
+              label="Senha"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="********"
             />
 
             <div>

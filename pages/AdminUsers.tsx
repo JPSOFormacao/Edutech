@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
 import { User, UserRole, UserStatus, Course } from '../types';
-import { Badge, Button, Modal } from '../components/UI';
+import { Badge, Button, Modal, Input } from '../components/UI';
 import { Icons } from '../components/Icons';
 
 export default function UsersPage() {
@@ -9,6 +9,9 @@ export default function UsersPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // State for password management in modal
+  const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
     loadData();
@@ -21,12 +24,50 @@ export default function UsersPage() {
 
   const handleEdit = (user: User) => {
     setSelectedUser({ ...user }); // Clone
+    setNewPassword(''); // Reset password field
     setIsModalOpen(true);
+  };
+
+  const handleCreate = () => {
+      setSelectedUser({
+          id: Date.now().toString(),
+          name: '',
+          email: '',
+          role: UserRole.ALUNO,
+          status: UserStatus.ACTIVE,
+          allowedCourses: [],
+          avatarUrl: 'https://via.placeholder.com/100',
+          mustChangePassword: true
+      });
+      setNewPassword('123456'); // Default for new users
+      setIsModalOpen(true);
   };
 
   const handleSave = () => {
     if (!selectedUser) return;
-    const updatedUsers = users.map(u => u.id === selectedUser.id ? selectedUser : u);
+    
+    // Check if updating password
+    let userToSave = { ...selectedUser };
+    if (newPassword) {
+        userToSave.password = newPassword;
+        // If admin changes password, force user to change it next time, 
+        // unless it's the admin updating their own password (optional logic, keeping simple here)
+        userToSave.mustChangePassword = true; 
+    }
+
+    const exists = users.find(u => u.id === userToSave.id);
+    let updatedUsers = [...users];
+
+    if (exists) {
+        updatedUsers = users.map(u => u.id === userToSave.id ? userToSave : u);
+    } else {
+        if (!userToSave.email || !newPassword) {
+            alert("Nome, Email e Senha são obrigatórios para novos utilizadores.");
+            return;
+        }
+        updatedUsers.push(userToSave);
+    }
+
     storageService.saveUsers(updatedUsers);
     setUsers(updatedUsers);
     setIsModalOpen(false);
@@ -59,6 +100,7 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Gestão de Utilizadores</h2>
+        <Button onClick={handleCreate} icon={Icons.Plus}>Novo Utilizador</Button>
       </div>
 
       <div className="bg-white shadow overflow-hidden sm:rounded-lg">
@@ -111,11 +153,11 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Edit User Modal */}
+      {/* Edit/Create User Modal */}
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        title="Editar Utilizador"
+        title={selectedUser?.id && users.find(u => u.id === selectedUser.id) ? "Editar Utilizador" : "Novo Utilizador"}
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
@@ -125,9 +167,30 @@ export default function UsersPage() {
       >
         {selectedUser && (
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Nome</label>
-              <p className="mt-1 text-sm text-gray-900">{selectedUser.name}</p>
+            <Input 
+                label="Nome"
+                value={selectedUser.name}
+                onChange={e => setSelectedUser({...selectedUser, name: e.target.value})}
+            />
+            
+            <Input 
+                label="Email"
+                type="email"
+                value={selectedUser.email}
+                onChange={e => setSelectedUser({...selectedUser, email: e.target.value})}
+            />
+
+            <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                <Input 
+                    label={users.find(u => u.id === selectedUser.id) ? "Redefinir Senha (Opcional)" : "Senha Inicial"}
+                    type="text" // Visible text so admin knows what they are setting
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Deixe em branco para manter a atual"
+                />
+                <p className="text-xs text-yellow-700 mt-1">
+                    * Ao definir uma nova senha, o utilizador será obrigado a alterá-la no próximo login.
+                </p>
             </div>
             
             <div>

@@ -18,7 +18,9 @@ const INITIAL_USERS: User[] = [
     role: UserRole.ADMIN,
     status: UserStatus.ACTIVE,
     allowedCourses: [],
-    avatarUrl: 'https://picsum.photos/100/100'
+    avatarUrl: 'https://picsum.photos/100/100',
+    password: 'admin', // Senha inicial
+    mustChangePassword: false 
   },
   {
     id: '2',
@@ -27,7 +29,9 @@ const INITIAL_USERS: User[] = [
     role: UserRole.EDITOR,
     status: UserStatus.ACTIVE,
     allowedCourses: [],
-    avatarUrl: 'https://picsum.photos/101/101'
+    avatarUrl: 'https://picsum.photos/101/101',
+    password: '123456',
+    mustChangePassword: true
   },
   {
     id: '3',
@@ -36,7 +40,9 @@ const INITIAL_USERS: User[] = [
     role: UserRole.ALUNO,
     status: UserStatus.ACTIVE,
     allowedCourses: ['101'], // Access to React Course
-    avatarUrl: 'https://picsum.photos/102/102'
+    avatarUrl: 'https://picsum.photos/102/102',
+    password: '123456',
+    mustChangePassword: true
   },
   {
     id: '4',
@@ -45,7 +51,9 @@ const INITIAL_USERS: User[] = [
     role: UserRole.ADMIN,
     status: UserStatus.ACTIVE,
     allowedCourses: [],
-    avatarUrl: 'https://ui-avatars.com/api/?name=J+O&background=4f46e5&color=fff'
+    avatarUrl: 'https://ui-avatars.com/api/?name=J+O&background=4f46e5&color=fff',
+    password: '123456',
+    mustChangePassword: true
   }
 ];
 
@@ -99,6 +107,16 @@ const initStorage = () => {
   if (users.length === 0) {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS));
   } else {
+    // Migration: ensure existing users have password fields if they don't
+    let changed = false;
+    users = users.map(u => {
+      if (!u.password) {
+        changed = true;
+        return { ...u, password: '123456', mustChangePassword: true };
+      }
+      return u;
+    });
+
     // Check if new admins need to be added to existing storage
     const newAdminEmail = 'jpsoliveira.formacao@hotmail.com';
     const hasNewAdmin = users.find(u => u.email === newAdminEmail);
@@ -106,8 +124,12 @@ const initStorage = () => {
       const newAdminUser = INITIAL_USERS.find(u => u.email === newAdminEmail);
       if (newAdminUser) {
         users.push(newAdminUser);
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+        changed = true;
       }
+    }
+
+    if (changed) {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
     }
   }
 
@@ -154,12 +176,13 @@ export const storageService = {
     const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     return stored ? JSON.parse(stored) : null;
   },
-  login: (email: string): User => {
+  
+  login: (email: string, password?: string): User => {
     const users = storageService.getUsers();
     let user = users.find(u => u.email === email);
     
     if (!user) {
-      // Auto-register as PENDING
+      // Auto-register as PENDING if not exists (keep existing functionality but add password)
       user = {
         id: Date.now().toString(),
         email,
@@ -167,15 +190,47 @@ export const storageService = {
         role: UserRole.ALUNO, // Default role
         status: UserStatus.PENDING,
         allowedCourses: [],
-        avatarUrl: `https://ui-avatars.com/api/?name=${email}&background=random`
+        avatarUrl: `https://ui-avatars.com/api/?name=${email}&background=random`,
+        password: password || '123456',
+        mustChangePassword: false // Creating own account, so no need to force change
       };
       users.push(user);
       storageService.saveUsers(users);
+    } else {
+        // Verify password
+        if (user.password && user.password !== password) {
+            throw new Error("Senha incorreta.");
+        }
     }
     
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
     return user;
   },
+
+  updatePassword: (userId: string, newPassword: string): User | null => {
+    const users = storageService.getUsers();
+    const userIndex = users.findIndex(u => u.id === userId);
+    
+    if (userIndex === -1) return null;
+    
+    const updatedUser = { 
+        ...users[userIndex], 
+        password: newPassword, 
+        mustChangePassword: false 
+    };
+    
+    users[userIndex] = updatedUser;
+    storageService.saveUsers(users);
+    
+    // Update current session if it's the same user
+    const currentUser = storageService.getCurrentUser();
+    if (currentUser && currentUser.id === userId) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+    }
+
+    return updatedUser;
+  },
+
   logout: () => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
   }

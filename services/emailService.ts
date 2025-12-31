@@ -8,23 +8,30 @@ export const emailService = {
       throw new Error("Configuração de Email não encontrada. Por favor configure o Service ID, Template ID e Public Key.");
     }
 
-    // Obter o utilizador atual para definir como destinatário do teste
+    // Obter o utilizador atual para definir como remetente lógico (para o corpo do email e reply-to)
     const currentUser = storageService.getCurrentUser();
-    const recipientEmail = currentUser?.email || 'admin@edutech.pt';
+    const userEmail = currentUser?.email || 'sistema@edutech.pt';
+    const userName = currentUser?.name || 'Sistema EduTech';
 
     try {
-      // Adicionados campos comuns (to_email, user_email) que os templates EmailJS costumam exigir
-      // para preencher o campo "To" (Para) dinamicamente.
       const templateParams = {
-        to_name: currentUser?.name || "Administrador",
-        to_email: recipientEmail,
-        user_email: recipientEmail,
-        email: recipientEmail,
+        // 'to_name': Quem recebe (geralmente o Admin da plataforma)
+        to_name: "Administrador", 
+        
+        // 'message': O conteúdo
         message: "Este é um email de teste da plataforma EduTech PT. Se está a ler isto, a configuração está correta.",
-        reply_to: "noreply@edutech.pt"
+        
+        // 'from_name': Nome de quem enviou (pode ser o nome do user logado)
+        from_name: userName,
+
+        // 'reply_to': IMPORTANTE - Quando o admin clicar em responder, vai para este email.
+        // NÃO use isto no campo 'From Email' do template do EmailJS se usar Outlook/Gmail.
+        reply_to: userEmail,
+        
+        // Variáveis extra que podem ser usadas no corpo do email
+        user_email: userEmail
       };
 
-      // Using the 4th argument for publicKey avoids need for global init()
       await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
       return true;
     } catch (error) {
@@ -37,14 +44,14 @@ export const emailService = {
     const config = storageService.getEmailConfig();
     if (!config) return false;
 
-    // Fallback simples para o email, caso necessário
     const currentUser = storageService.getCurrentUser();
 
     try {
         await emailjs.send(config.serviceId, config.templateId, {
             to_name: toName,
-            to_email: currentUser?.email,
-            message: message
+            message: message,
+            from_name: currentUser?.name || 'Sistema',
+            reply_to: currentUser?.email || 'noreply@edutech.pt'
         }, config.publicKey);
         return true;
     } catch (e) {

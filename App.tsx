@@ -13,13 +13,15 @@ import AIStudio from './pages/AIStudio';
 import PageViewer from './pages/PageViewer';
 import EmailConfigPage from './pages/EmailConfig';
 import { Icons } from './components/Icons';
+import { Input, Button } from './components/UI';
 
 // --- Auth Context ---
 interface AuthContextType {
   user: User | null;
-  login: (email: string) => void;
+  login: (email: string, password?: string) => void;
   logout: () => void;
   refreshUser: () => void;
+  updatePassword: (password: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
@@ -28,11 +30,69 @@ export const useAuth = () => useContext(AuthContext);
 
 // --- Layout Component ---
 const Layout = () => {
-  const { user, logout } = useAuth();
-  const location = useLocation();
+  const { user, logout, updatePassword } = useAuth();
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [error, setError] = useState('');
 
   if (!user) return <Navigate to="/login" />;
   
+  // Force Password Change Screen
+  if (user.mustChangePassword) {
+      const handleSubmit = (e: React.FormEvent) => {
+          e.preventDefault();
+          if (newPass.length < 4) {
+              setError("A senha deve ter pelo menos 4 caracteres.");
+              return;
+          }
+          if (newPass !== confirmPass) {
+              setError("As senhas não coincidem.");
+              return;
+          }
+          updatePassword(newPass);
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
+            <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
+                    <Icons.Settings className="h-6 w-6 text-indigo-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">Alteração de Senha</h2>
+                <p className="text-gray-600 text-center mb-6 text-sm">
+                    É o seu primeiro acesso ou a sua senha expirou. Por favor, defina uma nova senha para continuar.
+                </p>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>}
+                    
+                    <Input 
+                        label="Nova Senha"
+                        type="password"
+                        value={newPass}
+                        onChange={e => setNewPass(e.target.value)}
+                        required
+                    />
+                    <Input 
+                        label="Confirmar Senha"
+                        type="password"
+                        value={confirmPass}
+                        onChange={e => setConfirmPass(e.target.value)}
+                        required
+                    />
+                    
+                    <Button type="submit" className="w-full">Atualizar Senha</Button>
+                    <div className="text-center mt-4">
+                         <button type="button" onClick={logout} className="text-sm text-gray-500 hover:text-gray-700">
+                             Voltar ao Login
+                         </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      );
+  }
+
   // Pending users block
   if (user.status === UserStatus.PENDING) {
     return (
@@ -69,8 +129,8 @@ const Layout = () => {
 export default function App() {
   const [user, setUser] = useState<User | null>(storageService.getCurrentUser());
 
-  const login = (email: string) => {
-    const loggedUser = storageService.login(email);
+  const login = (email: string, password?: string) => {
+    const loggedUser = storageService.login(email, password);
     setUser(loggedUser);
   };
 
@@ -84,9 +144,16 @@ export default function App() {
     const current = storageService.getCurrentUser();
     if (current) setUser(current);
   };
+  
+  const updatePassword = (pass: string) => {
+      if (user) {
+          const updated = storageService.updatePassword(user.id, pass);
+          if (updated) setUser(updated);
+      }
+  }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, login, logout, refreshUser, updatePassword }}>
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
