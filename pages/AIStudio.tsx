@@ -81,7 +81,7 @@ export default function AIStudio() {
             </div>
             <div>
                 <h2 className="text-2xl font-bold text-gray-900">Estúdio de Criação IA</h2>
-                <p className="text-sm text-gray-500">Powered by Gemini 3 Flash</p>
+                <p className="text-sm text-gray-500">Desenvolvido com Gemini 3 Flash</p>
             </div>
         </div>
 
@@ -106,7 +106,7 @@ export default function AIStudio() {
                    label="Tema do Conteúdo" 
                    value={topic} 
                    onChange={e => setTopic(e.target.value)} 
-                   placeholder={activeTab === 'plan' ? "Ex: Desenvolvimento Web Moderno" : "Ex: JavaScript Basics"}
+                   placeholder={activeTab === 'plan' ? "Ex: Desenvolvimento Web Moderno" : "Ex: Noções básicas de JavaScript"}
                  />
              </div>
              <div className="mb-4">
@@ -152,7 +152,7 @@ export default function AIStudio() {
                          <div className="max-w-xl mx-auto">
                             <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">
                                 <span>Questão {currentQuestionIndex + 1}/{resultQuiz.questions.length}</span>
-                                <span>Score: {quizScore}</span>
+                                <span>Pontuação: {quizScore}</span>
                             </div>
                             
                             <h3 className="text-xl font-bold text-gray-900 mb-8">

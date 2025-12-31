@@ -39,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission 
       </div>
 
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-        <NavItem to="/" icon={Icons.Dashboard} label="Dashboard" />
+        <NavItem to="/" icon={Icons.Dashboard} label="Painel Principal" />
         
         {hasPermission(PERMISSIONS.VIEW_COURSES) && (
             <>
@@ -74,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission 
             )}
             
             {hasPermission(PERMISSIONS.USE_AI_STUDIO) && (
-                 <NavItem to="/ai-studio" icon={Icons.AI} label="AI Studio" />
+                 <NavItem to="/ai-studio" icon={Icons.AI} label="Estúdio IA" />
             )}
              
             {hasPermission(PERMISSIONS.MANAGE_SETTINGS) && (
@@ -88,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission 
         <div className="flex items-center gap-3 mb-4">
           <img 
             src={user.avatarUrl || 'https://via.placeholder.com/40'} 
-            alt="Profile" 
+            alt="Perfil" 
             className="w-10 h-10 rounded-full border-2 border-indigo-500"
           />
           <div className="overflow-hidden">

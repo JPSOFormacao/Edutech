@@ -49,6 +49,15 @@ export default function UsersPage() {
       return retVal;
   };
 
+  const translateStatus = (status: UserStatus) => {
+      switch (status) {
+          case UserStatus.ACTIVE: return "Ativo";
+          case UserStatus.PENDING: return "Pendente";
+          case UserStatus.BLOCKED: return "Bloqueado";
+          default: return status;
+      }
+  };
+
   // --- CRUD Operations ---
 
   const handleEdit = (user: User) => {
@@ -87,8 +96,6 @@ export default function UsersPage() {
         return;
     }
 
-    // Nota: Removemos a verificação simples de duplicados aqui porque vamos fazer uma limpeza inteligente abaixo.
-
     let isPasswordReset = false;
 
     if (newPassword) {
@@ -113,10 +120,13 @@ export default function UsersPage() {
         // Atualiza o utilizador alvo
         updatedUsers = updatedUsers.map(u => u.id === userToSave.id ? userToSave : u);
         
-        // LIMPEZA DE CONFLITOS: Remove quaisquer OUTROS utilizadores que tenham o mesmo email
-        // Isto resolve o problema de ter uma conta Pendente antiga e uma Ativa nova a bloquear o login
+        // LIMPEZA DE CONFLITOS AGRESSIVA:
+        // Remove quaisquer OUTROS utilizadores que tenham o mesmo email (ignorando case) e ID diferente
         const beforeCount = updatedUsers.length;
-        updatedUsers = updatedUsers.filter(u => u.id === userToSave.id || u.email !== userToSave.email);
+        updatedUsers = updatedUsers.filter(u => 
+            u.id === userToSave.id || 
+            u.email.trim().toLowerCase() !== userToSave.email.trim().toLowerCase()
+        );
         
         if (beforeCount !== updatedUsers.length) {
             console.log("Limpeza automática: Duplicados removidos para garantir login correto.");
@@ -146,10 +156,10 @@ export default function UsersPage() {
 
     } else {
         // --- MODO CRIAÇÃO ---
-        // Verifica se já existe ALGUÉM com este email antes de criar novo
-        const duplicate = users.find(u => u.email === userToSave.email);
+        // Verifica duplicados estritamente antes de criar
+        const duplicate = users.find(u => u.email.trim().toLowerCase() === userToSave.email.trim().toLowerCase());
         if (duplicate) {
-             alert(`Já existe um utilizador com o email "${userToSave.email}" (Estado: ${duplicate.status}).\nEdite o utilizador existente em vez de criar um novo.`);
+             alert(`JÁ EXISTE um utilizador com o email "${userToSave.email}" (ID: ${duplicate.id}, Estado: ${duplicate.status}).\n\nPor favor, cancele e edite o utilizador existente na lista.`);
              return;
         }
 
@@ -261,9 +271,12 @@ export default function UsersPage() {
 
   const approveUser = (user: User) => {
       const updated = {...user, status: UserStatus.ACTIVE};
-      // Ao aprovar rapidamente, removemos também duplicados
+      // Ao aprovar rapidamente, removemos também duplicados com verificação case-insensitive
       let updatedUsers = users.map(u => u.id === user.id ? updated : u);
-      updatedUsers = updatedUsers.filter(u => u.id === user.id || u.email !== user.email);
+      updatedUsers = updatedUsers.filter(u => 
+          u.id === user.id || 
+          u.email.trim().toLowerCase() !== user.email.trim().toLowerCase()
+      );
       
       storageService.saveUsers(updatedUsers);
       setUsers(updatedUsers);
@@ -345,7 +358,7 @@ export default function UsersPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <Badge color={user.status === UserStatus.ACTIVE ? 'success' : user.status === UserStatus.PENDING ? 'warning' : 'danger'}>
-                      {user.status}
+                      {translateStatus(user.status)}
                     </Badge>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

@@ -82,6 +82,16 @@ export default function Materials() {
       }
   };
 
+  const translateType = (type: MaterialType) => {
+      switch (type) {
+          case MaterialType.DIAGNOSTICO: return "Diagnóstico";
+          case MaterialType.AVALIACAO: return "Avaliação";
+          case MaterialType.TRABALHO: return "Trabalho";
+          case MaterialType.RECURSO: return "Recurso";
+          default: return type;
+      }
+  };
+
   return (
     <div className="space-y-6">
        <div className="flex justify-between items-center">
@@ -111,7 +121,7 @@ export default function Materials() {
                              <p className="text-sm font-medium text-indigo-600 truncate">{material.title}</p>
                              <div className="flex items-center mt-1">
                                 <span className="text-xs text-gray-500 mr-2">{course?.title || 'Curso Removido'}</span>
-                                <Badge color="neutral">{material.type}</Badge>
+                                <Badge color="neutral">{translateType(material.type)}</Badge>
                              </div>
                         </div>
                     </div>
@@ -177,7 +187,7 @@ export default function Materials() {
                     onChange={e => setEditingMaterial({...editingMaterial, type: e.target.value as MaterialType})}
                 >
                     {Object.values(MaterialType).map(t => (
-                        <option key={t} value={t}>{t}</option>
+                        <option key={t} value={t}>{translateType(t)}</option>
                     ))}
                 </select>
             </div>

@@ -38,6 +38,7 @@ const Layout = () => {
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [error, setError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   if (!user) return <Navigate to="/login" />;
   
@@ -100,12 +101,24 @@ const Layout = () => {
   // Pending users block
   if (user.status === UserStatus.PENDING) {
     // Auto-refresh poll: check status every 3 seconds
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     React.useEffect(() => {
         const interval = setInterval(() => {
-            refreshUser();
+            handleRefresh();
         }, 3000);
         return () => clearInterval(interval);
-    }, [refreshUser]);
+    }, []);
+
+    const handleRefresh = () => {
+        setIsVerifying(true);
+        refreshUser();
+        // Visual delay just to show activity
+        setTimeout(() => setIsVerifying(false), 800);
+    };
+
+    const handleHardReload = () => {
+        window.location.reload();
+    };
 
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
@@ -114,24 +127,41 @@ const Layout = () => {
             <Icons.Student className="h-8 w-8 text-yellow-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Conta Pendente</h2>
-          <p className="text-gray-600 mb-8">
+          <p className="text-gray-600 mb-6">
             A sua conta aguarda aprovação de um Administrador. <br/>
             Por favor, contacte a secretaria ou aguarde a ativação.
           </p>
+          
           <div className="flex flex-col gap-3">
-             <div className="text-xs text-gray-400 mb-2 flex items-center justify-center">
-                 <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                 Verificando aprovação automaticamente...
-             </div>
-            <Button onClick={refreshUser} variant="primary">
-                Verificar Agora Manualmente
+             {isVerifying && (
+                 <div className="text-xs text-indigo-600 mb-1 flex items-center justify-center font-semibold">
+                     <span className="w-2 h-2 bg-indigo-600 rounded-full mr-2 animate-ping"></span>
+                     Verificando estado...
+                 </div>
+             )}
+             
+            <Button onClick={handleRefresh} variant="primary" disabled={isVerifying}>
+                {isVerifying ? 'A Verificar...' : 'Verificar Agora Manualmente'}
             </Button>
-            <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700 mt-2">
+            
+            <Button onClick={handleHardReload} variant="secondary" className="mt-2">
+                Recarregar Aplicação (Forçar)
+            </Button>
+
+            <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700 mt-4 border-t pt-4">
                 <div className="flex items-center justify-center">
                     <Icons.Logout className="w-4 h-4 mr-2" />
                     Voltar ao Login
                 </div>
             </button>
+
+            {/* Debug Info Footer */}
+            <div className="mt-6 pt-4 border-t border-gray-100 text-xs text-gray-400 text-left">
+                <p className="font-mono"><strong>Debug Info:</strong></p>
+                <p>ID: {user.id}</p>
+                <p>Email: {user.email}</p>
+                <p>Status: {user.status}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -173,7 +203,10 @@ export default function App() {
 
   const refreshUser = () => {
     const current = storageService.getCurrentUser();
-    if (current) setUser(current);
+    if (current) {
+        // Force new object reference to trigger React re-render properly
+        setUser({ ...current });
+    }
   };
   
   const updatePassword = (pass: string) => {
