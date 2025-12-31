@@ -72,11 +72,13 @@ export const storageService = {
   // --- ROLES ---
   getRoles: async (): Promise<RoleEntity[]> => {
     const { data, error } = await supabase.from('roles').select('*');
-    if (error) return [];
     
-    // Seed inicial se vazio
-    if (!data || data.length === 0) {
-        await supabase.from('roles').upsert(INITIAL_ROLES);
+    // Seed inicial se vazio ou erro (tabela não existe ainda)
+    if (error || !data || data.length === 0) {
+        // Tenta fazer seed silencioso se a conexão estiver OK mas vazia
+        if (!error || (error && error.code !== '42P01')) { // 42P01 é tabela inexistente
+             await supabase.from('roles').upsert(INITIAL_ROLES);
+        }
         return INITIAL_ROLES;
     }
     return data;
@@ -161,6 +163,9 @@ export const storageService = {
           localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(dbUser));
           return dbUser;
       } else {
+          // Se não encontrar na BD, pode ter sido apagado OU erro de conexão.
+          // Para segurança, mantemos logado se for erro de rede, mas logout se user não existir.
+          // Simplificação: logout se não existir confirmação.
           localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
           return null;
       }
@@ -169,9 +174,18 @@ export const storageService = {
   getUserPermissions: async (user: User | null): Promise<string[]> => {
     if (!user) return [];
     
-    const { data: roles } = await supabase.from('roles').select('*');
-    const allRoles = roles || [];
+    // 1. Obter Roles (com auto-seed se vazio)
+    let { data: roles } = await supabase.from('roles').select('*');
     
+    if (!roles || roles.length === 0) {
+        console.log("Roles table empty, using INITIAL_ROLES fallback.");
+        await supabase.from('roles').upsert(INITIAL_ROLES);
+        roles = INITIAL_ROLES;
+    }
+    
+    const allRoles = roles || INITIAL_ROLES;
+    
+    // 2. Determinar Role ID
     let roleId = user.roleId;
     if (!roleId) {
          if (user.role === UserRole.ADMIN) roleId = 'role_admin';
@@ -179,8 +193,19 @@ export const storageService = {
          else roleId = 'role_aluno';
     }
 
+    // 3. Encontrar Role e Permissões
     const userRole = allRoles.find(r => r.id === roleId);
-    return userRole ? userRole.permissions : [];
+    
+    if (userRole) {
+        return userRole.permissions;
+    }
+
+    // 4. Fallback de Segurança (Se ID não bater certo, usa o Enum antigo)
+    if (user.role === UserRole.ADMIN) return INITIAL_ROLES.find(r => r.id === 'role_admin')?.permissions || [];
+    if (user.role === UserRole.EDITOR) return INITIAL_ROLES.find(r => r.id === 'role_editor')?.permissions || [];
+    
+    // Default Aluno
+    return INITIAL_ROLES.find(r => r.id === 'role_aluno')?.permissions || [];
   },
 
   login: async (email: string, password?: string): Promise<User> => {
