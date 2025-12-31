@@ -44,6 +44,99 @@ const INITIAL_ROLES = [
 ];
 
 export const storageService = {
+  // --- SEEDING ---
+  checkAndSeedData: async () => {
+    // Verificar se já existem cursos
+    const { count } = await supabase.from('courses').select('*', { count: 'exact', head: true });
+    
+    if (count === 0) {
+        console.log("Base de dados vazia detetada. A criar dados de exemplo...");
+        
+        // 1. Criar Roles (garantir que existem)
+        await supabase.from('roles').upsert(INITIAL_ROLES);
+
+        // 2. Criar Cursos
+        const courses: Course[] = [
+            { id: 'c_py_01', title: 'Python para Data Science', category: 'Programação', description: 'Domine Python e as suas bibliotecas principais para análise de dados.', imageUrl: 'https://images.unsplash.com/photo-1526379095098-d400fd0bf935?auto=format&fit=crop&q=80&w=800', duration: '40 Horas', price: 199.99 },
+            { id: 'c_web_01', title: 'Desenvolvimento Web Fullstack', category: 'Web Dev', description: 'Aprenda React, Node.js e Bases de Dados modernas.', imageUrl: 'https://images.unsplash.com/photo-1593720213428-28a5b9e94613?auto=format&fit=crop&q=80&w=800', duration: '60 Horas', price: 249.50 },
+            { id: 'c_ai_01', title: 'Introdução à IA Generativa', category: 'Inteligência Artificial', description: 'Compreenda como funcionam os LLMs e como criar prompts eficazes.', imageUrl: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=800', duration: '20 Horas', price: 149.00 },
+            { id: 'c_sec_01', title: 'Cibersegurança Essencial', category: 'Segurança', description: 'Proteja sistemas e redes contra ameaças digitais.', imageUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=800', duration: '30 Horas', price: 179.90 }
+        ];
+        await supabase.from('courses').upsert(courses);
+
+        // 3. Criar Turmas
+        const classes: ClassEntity[] = [
+            { id: 'cl_a_2024', name: 'Turma A - Manhã', description: 'Horário: 09:00 - 13:00' },
+            { id: 'cl_b_2024', name: 'Turma B - Pós-Laboral', description: 'Horário: 19:00 - 23:00' }
+        ];
+        await supabase.from('classes').upsert(classes);
+
+        // 4. Criar Utilizadores
+        const users: User[] = [
+            { 
+                id: 'usr_admin', 
+                email: 'admin@edutech.pt', 
+                name: 'Administrador Sistema', 
+                role: UserRole.ADMIN, 
+                roleId: 'role_admin', 
+                status: UserStatus.ACTIVE, 
+                allowedCourses: [], 
+                password: 'admin', 
+                avatarUrl: 'https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff',
+                mustChangePassword: false
+            },
+            { 
+                id: 'usr_formador', 
+                email: 'formador@edutech.pt', 
+                name: 'João Formador', 
+                role: UserRole.EDITOR, 
+                roleId: 'role_editor', 
+                status: UserStatus.ACTIVE, 
+                allowedCourses: ['c_py_01', 'c_web_01', 'c_ai_01', 'c_sec_01'], 
+                password: '123', 
+                avatarUrl: 'https://ui-avatars.com/api/?name=Joao+Formador&background=random',
+                mustChangePassword: false
+            },
+            { 
+                id: 'usr_aluno1', 
+                email: 'aluno1@edutech.pt', 
+                name: 'Maria Silva', 
+                role: UserRole.ALUNO, 
+                roleId: 'role_aluno', 
+                status: UserStatus.ACTIVE, 
+                allowedCourses: ['c_web_01'], 
+                classId: 'cl_a_2024',
+                password: '123', 
+                avatarUrl: 'https://ui-avatars.com/api/?name=Maria+Silva&background=random',
+                mustChangePassword: false
+            },
+            { 
+                id: 'usr_aluno2', 
+                email: 'aluno2@edutech.pt', 
+                name: 'Pedro Santos', 
+                role: UserRole.ALUNO, 
+                roleId: 'role_aluno', 
+                status: UserStatus.ACTIVE, 
+                allowedCourses: ['c_py_01', 'c_ai_01'], 
+                classId: 'cl_b_2024',
+                password: '123', 
+                avatarUrl: 'https://ui-avatars.com/api/?name=Pedro+Santos&background=random',
+                mustChangePassword: false
+            }
+        ];
+        await supabase.from('users').upsert(users);
+
+        // 5. Criar Materiais
+        const materials: Material[] = [
+            { id: 'mat_01', courseId: 'c_web_01', title: 'Guia de Instalação React', type: MaterialType.RECURSO, linkOrContent: 'https://react.dev', createdAt: new Date().toISOString() },
+            { id: 'mat_02', courseId: 'c_py_01', title: 'Exercícios Pandas', type: MaterialType.TRABALHO, linkOrContent: 'https://pandas.pydata.org', createdAt: new Date().toISOString() }
+        ];
+        await supabase.from('materials').upsert(materials);
+        
+        console.log("Dados de exemplo criados com sucesso.");
+    }
+  },
+
   // --- USERS ---
   getUsers: async (): Promise<User[]> => {
     const { data, error } = await supabase.from('users').select('*');
@@ -163,9 +256,6 @@ export const storageService = {
           localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(dbUser));
           return dbUser;
       } else {
-          // Se não encontrar na BD, pode ter sido apagado OU erro de conexão.
-          // Para segurança, mantemos logado se for erro de rede, mas logout se user não existir.
-          // Simplificação: logout se não existir confirmação.
           localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
           return null;
       }
@@ -200,11 +290,9 @@ export const storageService = {
         return userRole.permissions;
     }
 
-    // 4. Fallback de Segurança (Se ID não bater certo, usa o Enum antigo)
     if (user.role === UserRole.ADMIN) return INITIAL_ROLES.find(r => r.id === 'role_admin')?.permissions || [];
     if (user.role === UserRole.EDITOR) return INITIAL_ROLES.find(r => r.id === 'role_editor')?.permissions || [];
     
-    // Default Aluno
     return INITIAL_ROLES.find(r => r.id === 'role_aluno')?.permissions || [];
   },
 
@@ -218,7 +306,6 @@ export const storageService = {
         .eq('email', normalizedEmail);
         
     if (error) {
-       // Mensagem amigável se as tabelas não existirem
        if (error.message.includes('relation') || error.code === '42P01') {
            throw new Error("Erro de Base de Dados: As tabelas não existem no Supabase. Por favor execute o SQL de configuração.");
        }
@@ -231,12 +318,9 @@ export const storageService = {
 
     if (!user) {
       // Registo Automático
-      
-      // Verificar se é o PRIMEIRO utilizador de sempre (se for, ganha Admin automaticamente)
       const { count } = await supabase.from('users').select('*', { count: 'exact', head: true });
       const isFirstUser = count === 0;
       
-      // Se for Super Admin ou Primeiro User, fica Admin/Ativo imediatamente
       const shouldBeAdmin = isFirstUser || isSuperAdmin;
 
       const newUser: User = {
@@ -257,9 +341,7 @@ export const storageService = {
       
       user = newUser;
     } else {
-        // Utilizador já existe
-        
-        // AUTO-REPARAÇÃO: Se for super admin e estiver preso em PENDING ou com cargo errado
+        // AUTO-REPARAÇÃO
         if (isSuperAdmin && (user.role !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
              console.log("Recuperação de conta de Administrador...");
              const updates = { 

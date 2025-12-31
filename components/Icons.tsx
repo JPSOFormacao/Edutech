@@ -20,7 +20,9 @@ import {
   GraduationCap,
   Mail,
   Shield,
-  UsersRound
+  UsersRound,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export const Icons = {
@@ -45,5 +47,7 @@ export const Icons = {
   Student: GraduationCap,
   Mail: Mail,
   Role: Shield,
-  Class: UsersRound
+  Class: UsersRound,
+  Eye: Eye,
+  EyeOff: EyeOff
 };

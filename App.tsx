@@ -182,6 +182,13 @@ export default function App() {
 
   useEffect(() => {
     const init = async () => {
+        // Tentativa de seed se a DB estiver vazia
+        try {
+            await storageService.checkAndSeedData();
+        } catch(e) {
+            console.warn("Erro ao verificar Seed:", e);
+        }
+
         if (user) {
             // Validate session and get perms
             const freshUser = await storageService.refreshSession();
@@ -199,7 +206,7 @@ export default function App() {
         }
     };
     init();
-  }, []); // Run once on mount to validate session
+  }, []); // Run once on mount
 
   // Watch for user changes to update permissions
   useEffect(() => {
