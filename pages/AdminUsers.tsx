@@ -78,9 +78,20 @@ export default function UsersPage() {
     if (!selectedUser) return;
     
     let userToSave = { ...selectedUser };
-    // CORREÇÃO: Forçar email minúsculo
+    
+    // 1. Normalização do Email
     if (userToSave.email) {
         userToSave.email = userToSave.email.trim().toLowerCase();
+    } else {
+        alert("O email é obrigatório.");
+        return;
+    }
+
+    // 2. Verificação de Duplicados (CRÍTICO para evitar contas fantasma)
+    const duplicate = users.find(u => u.email === userToSave.email && u.id !== userToSave.id);
+    if (duplicate) {
+        alert(`ERRO: Já existe um utilizador com o email "${userToSave.email}".\n\nPor favor, cancele e edite o utilizador existente na lista (pode estar marcado como Pendente).`);
+        return;
     }
 
     let isPasswordReset = false;
@@ -110,7 +121,6 @@ export default function UsersPage() {
         
         if (isPasswordReset && storageService.getEmailConfig()) {
             setIsSendingEmail(true);
-            // Agora passamos classId e allowedCourses
             const result = await emailService.sendPasswordReset(
                 userToSave.name, 
                 userToSave.email, 
@@ -141,7 +151,6 @@ export default function UsersPage() {
         
         if (storageService.getEmailConfig()) {
             setIsSendingEmail(true);
-            // Agora passamos classId e allowedCourses
             const result = await emailService.sendWelcomeEmail(
                 userToSave.name, 
                 userToSave.email, 
@@ -154,7 +163,6 @@ export default function UsersPage() {
             if (result.success) {
                 alert(`Utilizador criado e notificado por email.`);
             } else {
-                // Aqui mostramos a mensagem exata do erro
                 alert(`Utilizador criado, mas o envio do email FALHOU.\n\nDetalhe do Erro: ${result.message}\n\nVerifique a Configuração de Email.`);
             }
         } else {
@@ -200,10 +208,13 @@ export default function UsersPage() {
           const parts = line.split(/[;,]/); 
           if(parts.length >= 2) {
               const name = parts[0].trim();
-              const email = parts[1].trim().toLowerCase(); // CORREÇÃO: Minúsculas
+              const email = parts[1].trim().toLowerCase();
               const password = generateRandomPassword();
               
-              if(email.includes('@')) {
+              // Verificar duplicado no bulk
+              const exists = users.some(u => u.email === email) || newUsers.some(u => u.email === email);
+              
+              if(email.includes('@') && !exists) {
                   newUsers.push({
                       id: Date.now().toString() + idx,
                       name,
@@ -229,13 +240,11 @@ export default function UsersPage() {
           setBulkText('');
           alert(`${newUsers.length} utilizadores adicionados.`);
       } else {
-          alert("Nenhum utilizador válido encontrado.");
+          alert("Nenhum utilizador válido adicionado (verifique se os emails já existem).");
       }
   };
 
   // --- Helpers ---
-
-  // removido toggleStatus em favor do select directo
 
   const approveUser = (user: User) => {
       const updated = {...user, status: UserStatus.ACTIVE};
@@ -367,6 +376,7 @@ export default function UsersPage() {
                 type="email"
                 value={selectedUser.email}
                 onChange={e => setSelectedUser({...selectedUser, email: e.target.value})}
+                // Bloquear edição de email se não for novo, para evitar confusão. Opcional.
             />
 
             <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
@@ -411,17 +421,20 @@ export default function UsersPage() {
                 </div>
             </div>
 
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+            <div className="border p-4 rounded bg-gray-50">
+                <label className="block text-sm font-bold text-gray-800 mb-2">Estado da Conta</label>
                 <select 
                     value={selectedUser.status}
                     onChange={(e) => setSelectedUser({...selectedUser, status: e.target.value as UserStatus})}
                     className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
                 >
-                    <option value={UserStatus.ACTIVE}>Ativo</option>
-                    <option value={UserStatus.PENDING}>Pendente</option>
-                    <option value={UserStatus.BLOCKED}>Bloqueado</option>
+                    <option value={UserStatus.ACTIVE}>Ativo (Acesso Permitido)</option>
+                    <option value={UserStatus.PENDING}>Pendente (A aguardar aprovação)</option>
+                    <option value={UserStatus.BLOCKED}>Bloqueado (Acesso Negado)</option>
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                    Selecione "Ativo" para permitir que o utilizador entre no sistema.
+                </p>
             </div>
 
             {/* Course Override (Optional access control separate from Role) */}

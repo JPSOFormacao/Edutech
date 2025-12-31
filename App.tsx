@@ -34,7 +34,7 @@ export const useAuth = () => useContext(AuthContext);
 
 // --- Layout Component ---
 const Layout = () => {
-  const { user, logout, updatePassword, hasPermission } = useAuth();
+  const { user, logout, updatePassword, hasPermission, refreshUser } = useAuth();
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [error, setError] = useState('');
@@ -110,10 +110,17 @@ const Layout = () => {
             A sua conta aguarda aprovação de um Administrador. <br/>
             Por favor, contacte a secretaria ou aguarde a ativação.
           </p>
-          <button onClick={logout} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200">
-            <Icons.Logout className="w-4 h-4 mr-2" />
-            Voltar ao Login
-          </button>
+          <div className="flex flex-col gap-3">
+            <Button onClick={refreshUser} variant="primary">
+                Verificar Aprovação
+            </Button>
+            <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700 mt-2">
+                <div className="flex items-center justify-center">
+                    <Icons.Logout className="w-4 h-4 mr-2" />
+                    Voltar ao Login
+                </div>
+            </button>
+          </div>
         </div>
       </div>
     );
