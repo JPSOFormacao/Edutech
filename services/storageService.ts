@@ -216,6 +216,34 @@ export const storageService = {
   },
   
   deleteUser: async (id: string) => {
+      // 1. Desvincular Testemunhos APROVADOS (update userId = null)
+      // Isto garante que o testemunho fica no site (com os dados de snapshot) mas perde o link ao user.
+      // Desta forma, evitamos conflitos de FK ao apagar o user ou apagar o testemunho em cascata.
+      const { error: updateError } = await supabase
+          .from('testimonials')
+          .update({ userId: null } as any) // Cast as any caso o TS reclame, mas atualizámos a interface
+          .eq('userId', id)
+          .eq('status', TestimonialStatus.APPROVED);
+
+      if (updateError) {
+          console.warn("Aviso: Falha ao desvincular testemunhos aprovados.", updateError);
+      }
+
+      // 2. Apagar Testemunhos PENDENTES ou REJEITADOS
+      // Estes não devem ficar no site se o user for apagado.
+      const { error: deleteTestimonialError } = await supabase
+          .from('testimonials')
+          .delete()
+          .eq('userId', id)
+          .neq('status', TestimonialStatus.APPROVED);
+
+      if (deleteTestimonialError) {
+           console.warn("Aviso: Falha ao limpar testemunhos pendentes.", deleteTestimonialError);
+      }
+
+      // 3. Apagar o Utilizador
+      // Agora podemos apagar com segurança. Se existir FK na DB, o passo 1 garantiu que não viola constraint nos aprovados,
+      // e o passo 2 removeu os restantes.
       const { error } = await supabase.from('users').delete().eq('id', id);
       if (error) throw error;
   },

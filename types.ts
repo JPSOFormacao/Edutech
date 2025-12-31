@@ -125,9 +125,9 @@ export interface Page {
 
 export interface Testimonial {
   id: string;
-  userId: string;
-  userName: string;
-  userAvatar: string;
+  userId: string | null; // Pode ser null se o utilizador foi apagado
+  userName: string; // Snapshot do nome
+  userAvatar: string; // Snapshot do avatar
   role: string; // Texto livre, ex: "Aluno de Python"
   content: string;
   rating: number; // 1 to 5
