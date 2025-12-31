@@ -141,7 +141,7 @@ const INITIAL_PAGES: Page[] = [
   }
 ];
 
-// Helper to initialize storage
+// Helper to initialize storage and CLEAN DUPLICATES
 const initStorage = () => {
   // Roles & Classes
   if (!localStorage.getItem(STORAGE_KEYS.ROLES)) {
@@ -158,7 +158,7 @@ const initStorage = () => {
   if (users.length === 0) {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS_SEED));
   } else {
-    // Migration: ensure existing users have password fields and roleId
+    // 1. Migration: ensure existing users have password fields and roleId
     let changed = false;
     users = users.map(u => {
       let modified = { ...u };
@@ -174,22 +174,49 @@ const initStorage = () => {
         else modified.roleId = 'role_aluno';
         changed = true;
       }
+      // Ensure email is always lowercase
+      if (modified.email !== modified.email.toLowerCase()) {
+          modified.email = modified.email.toLowerCase();
+          changed = true;
+      }
       return modified;
     });
 
-    // Check if new admins need to be added to existing storage
-    const newAdminEmail = 'jpsoliveira.formacao@hotmail.com';
-    const hasNewAdmin = users.find(u => u.email === newAdminEmail);
-    if (!hasNewAdmin) {
-      const newAdminUser = INITIAL_USERS_SEED.find(u => u.email === newAdminEmail);
-      if (newAdminUser) {
-        users.push(newAdminUser);
-        changed = true;
-      }
-    }
+    // 2. CRITICAL FIX: Remove duplicate PENDING users if an ACTIVE user exists with same email
+    const uniqueUsersMap = new Map<string, User>();
+    const usersToKeep: User[] = [];
+    
+    // Sort users: Active users come first, then others. This ensures map prefers Active.
+    const sortedUsers = [...users].sort((a, b) => {
+        if (a.status === UserStatus.ACTIVE && b.status !== UserStatus.ACTIVE) return -1;
+        if (a.status !== UserStatus.ACTIVE && b.status === UserStatus.ACTIVE) return 1;
+        return 0;
+    });
 
-    if (changed) {
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    sortedUsers.forEach(u => {
+        const email = u.email.trim().toLowerCase();
+        if (!uniqueUsersMap.has(email)) {
+            uniqueUsersMap.set(email, u);
+            usersToKeep.push(u);
+        } else {
+            // Duplicate found. Since we sorted Active first, this duplicate is likely the Pending one we want to discard.
+            console.log(`Removing duplicate/pending user for email: ${email}`);
+            changed = true;
+        }
+    });
+
+    if (changed || users.length !== usersToKeep.length) {
+        users = usersToKeep;
+        
+        // Add default admin if missing after cleanup (safety check)
+        const newAdminEmail = 'jpsoliveira.formacao@hotmail.com';
+        const hasNewAdmin = users.find(u => u.email === newAdminEmail);
+        if (!hasNewAdmin) {
+           const newAdminUser = INITIAL_USERS_SEED.find(u => u.email === newAdminEmail);
+           if (newAdminUser) users.push(newAdminUser);
+        }
+        
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
     }
   }
 
@@ -244,20 +271,39 @@ export const storageService = {
     const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     if (!stored) return null;
     
-    // Get fresh data from Users list to ensure permissions/roles are up to date
     const sessionUser = JSON.parse(stored) as User;
     const allUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]') as User[];
     
-    // Find user safely ignoring case issues in ID, but best to rely on ID match
-    const freshUser = allUsers.find(u => u.id === sessionUser.id);
+    // 1. Tenta encontrar o utilizador pelo ID exato
+    let freshUser = allUsers.find(u => u.id === sessionUser.id);
     
-    // If user was deleted or not found, logout effectively
+    // 2. CORREÇÃO INTELIGENTE DE SESSÃO:
+    // Se o utilizador atual não existir ou estiver PENDING, mas existir um utilizador ATIVO com o mesmo email,
+    // o sistema assume que houve uma duplicação e "promove" a sessão para o utilizador correto (Ativo).
+    if (!freshUser || (freshUser.status === UserStatus.PENDING)) {
+        const email = (freshUser?.email || sessionUser.email).trim().toLowerCase();
+        
+        // Procura a "melhor" versão deste utilizador
+        const betterMatch = allUsers.find(u => 
+            u.email.trim().toLowerCase() === email && 
+            u.status === UserStatus.ACTIVE
+        );
+
+        if (betterMatch) {
+            console.log("Correção de Sessão: Trocando utilizador Pendente por Ativo encontrado.");
+            freshUser = betterMatch;
+            // Atualiza o storage imediatamente
+            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(freshUser));
+        }
+    }
+    
+    // Se mesmo assim não existir ou continuar pendente sem alternativa, mantemos a lógica normal
     if (!freshUser) {
         localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
         return null;
     }
 
-    // Update session storage if data is stale (e.g. roleId added)
+    // Sync se houve alterações de dados (roles, etc)
     if (JSON.stringify(freshUser) !== stored) {
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(freshUser));
     }
@@ -288,16 +334,14 @@ export const storageService = {
     const normalizedEmail = email.trim().toLowerCase();
     const users = storageService.getUsers();
     
-    // 1. Encontrar TODOS os utilizadores com este email (ignora Case)
+    // 1. Encontrar todos com este email
     const matches = users.filter(u => u.email.trim().toLowerCase() === normalizedEmail);
     
-    // 2. PRIORIZAR UTILIZADOR ATIVO
-    // Se existir um duplicado "Pendente" e um "Ativo", escolher sempre o Ativo.
-    // Isto resolve o erro de "Conta Pendente" quando o Admin já ativou a conta.
+    // 2. Preferir conta ATIVA. Se houver duplicados, pega a ativa.
     let user = matches.find(u => u.status === UserStatus.ACTIVE) || matches[0];
     
     if (!user) {
-      // Auto-register as PENDING if no user exists at all
+      // Auto-register as PENDING
       user = {
         id: Date.now().toString(),
         email: normalizedEmail, // Save as lowercase
