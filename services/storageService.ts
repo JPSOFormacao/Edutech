@@ -242,14 +242,42 @@ export const storageService = {
   // Auth Simulation
   getCurrentUser: (): User | null => {
     const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+    
+    // Get fresh data from Users list to ensure permissions/roles are up to date
+    const sessionUser = JSON.parse(stored) as User;
+    const allUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]') as User[];
+    const freshUser = allUsers.find(u => u.id === sessionUser.id);
+    
+    // If user was deleted or not found, logout effectively
+    if (!freshUser) {
+        localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+        return null;
+    }
+
+    // Update session storage if data is stale (e.g. roleId added)
+    if (JSON.stringify(freshUser) !== stored) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(freshUser));
+    }
+    
+    return freshUser;
   },
   
   // Permission Helper
   getUserPermissions: (user: User | null): string[] => {
     if (!user) return [];
     const roles = JSON.parse(localStorage.getItem(STORAGE_KEYS.ROLES) || '[]') as RoleEntity[];
-    const userRole = roles.find(r => r.id === user.roleId);
+    
+    // Fallback: If roleId is missing (legacy session), try to map from old role enum
+    let roleId = user.roleId;
+    if (!roleId) {
+         if (user.role === UserRole.ADMIN) roleId = 'role_admin';
+         else if (user.role === UserRole.EDITOR) roleId = 'role_editor';
+         else roleId = 'role_aluno';
+    }
+
+    const userRole = roles.find(r => r.id === roleId);
+    // Return permissions or empty array
     return userRole ? userRole.permissions : [];
   },
 
