@@ -87,12 +87,7 @@ export default function UsersPage() {
         return;
     }
 
-    // 2. Verificação de Duplicados (CRÍTICO para evitar contas fantasma)
-    const duplicate = users.find(u => u.email === userToSave.email && u.id !== userToSave.id);
-    if (duplicate) {
-        alert(`ERRO: Já existe um utilizador com o email "${userToSave.email}".\n\nPor favor, cancele e edite o utilizador existente na lista (pode estar marcado como Pendente).`);
-        return;
-    }
+    // Nota: Removemos a verificação simples de duplicados aqui porque vamos fazer uma limpeza inteligente abaixo.
 
     let isPasswordReset = false;
 
@@ -115,7 +110,18 @@ export default function UsersPage() {
 
     if (exists) {
         // --- MODO EDIÇÃO ---
-        updatedUsers = users.map(u => u.id === userToSave.id ? userToSave : u);
+        // Atualiza o utilizador alvo
+        updatedUsers = updatedUsers.map(u => u.id === userToSave.id ? userToSave : u);
+        
+        // LIMPEZA DE CONFLITOS: Remove quaisquer OUTROS utilizadores que tenham o mesmo email
+        // Isto resolve o problema de ter uma conta Pendente antiga e uma Ativa nova a bloquear o login
+        const beforeCount = updatedUsers.length;
+        updatedUsers = updatedUsers.filter(u => u.id === userToSave.id || u.email !== userToSave.email);
+        
+        if (beforeCount !== updatedUsers.length) {
+            console.log("Limpeza automática: Duplicados removidos para garantir login correto.");
+        }
+
         storageService.saveUsers(updatedUsers);
         setUsers(updatedUsers);
         
@@ -140,6 +146,13 @@ export default function UsersPage() {
 
     } else {
         // --- MODO CRIAÇÃO ---
+        // Verifica se já existe ALGUÉM com este email antes de criar novo
+        const duplicate = users.find(u => u.email === userToSave.email);
+        if (duplicate) {
+             alert(`Já existe um utilizador com o email "${userToSave.email}" (Estado: ${duplicate.status}).\nEdite o utilizador existente em vez de criar um novo.`);
+             return;
+        }
+
         if (!userToSave.email || !newPassword) {
             alert("Nome, Email e Senha são obrigatórios.");
             return;
@@ -248,7 +261,10 @@ export default function UsersPage() {
 
   const approveUser = (user: User) => {
       const updated = {...user, status: UserStatus.ACTIVE};
-      const updatedUsers = users.map(u => u.id === user.id ? updated : u);
+      // Ao aprovar rapidamente, removemos também duplicados
+      let updatedUsers = users.map(u => u.id === user.id ? updated : u);
+      updatedUsers = updatedUsers.filter(u => u.id === user.id || u.email !== user.email);
+      
       storageService.saveUsers(updatedUsers);
       setUsers(updatedUsers);
   }

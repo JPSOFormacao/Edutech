@@ -99,6 +99,14 @@ const Layout = () => {
 
   // Pending users block
   if (user.status === UserStatus.PENDING) {
+    // Auto-refresh poll: check status every 3 seconds
+    React.useEffect(() => {
+        const interval = setInterval(() => {
+            refreshUser();
+        }, 3000);
+        return () => clearInterval(interval);
+    }, [refreshUser]);
+
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
         <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 text-center">
@@ -111,8 +119,12 @@ const Layout = () => {
             Por favor, contacte a secretaria ou aguarde a ativação.
           </p>
           <div className="flex flex-col gap-3">
+             <div className="text-xs text-gray-400 mb-2 flex items-center justify-center">
+                 <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                 Verificando aprovação automaticamente...
+             </div>
             <Button onClick={refreshUser} variant="primary">
-                Verificar Aprovação
+                Verificar Agora Manualmente
             </Button>
             <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700 mt-2">
                 <div className="flex items-center justify-center">
