@@ -58,5 +58,39 @@ export const emailService = {
         console.error(e);
         return false;
     }
+  },
+
+  sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string): Promise<boolean> => {
+    const config = storageService.getEmailConfig();
+    if (!config) return false;
+
+    const currentUser = storageService.getCurrentUser();
+    const adminEmail = currentUser?.email || 'admin@edutech.pt';
+
+    const messageBody = `
+      Bem-vindo à EduTech PT!
+      
+      A sua conta foi criada com sucesso.
+      
+      As suas credenciais de acesso são:
+      Email: ${toEmail}
+      Senha Temporária: ${tempPass}
+      
+      Por favor, aceda à plataforma e altere a sua senha no primeiro login.
+    `;
+
+    try {
+        await emailjs.send(config.serviceId, config.templateId, {
+            to_name: toName,
+            to_email: toEmail, // Email do novo utilizador
+            message: messageBody,
+            from_name: "EduTech PT Admin",
+            reply_to: adminEmail
+        }, config.publicKey);
+        return true;
+    } catch (e) {
+        console.error("Erro ao enviar welcome email:", e);
+        return false;
+    }
   }
 };

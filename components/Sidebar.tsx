@@ -1,14 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Icons } from './Icons';
-import { User, UserRole } from '../types';
+import { User, PERMISSIONS } from '../types';
 
 interface SidebarProps {
   user: User;
   onLogout: () => void;
+  hasPermission: (perm: string) => boolean;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission }) => {
   
   const NavItem = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => (
     <NavLink
@@ -40,24 +41,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout }) => {
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
         <NavItem to="/" icon={Icons.Dashboard} label="Dashboard" />
         
-        <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          Formação
-        </div>
-        <NavItem to="/courses" icon={Icons.Courses} label="Cursos" />
-        <NavItem to="/materials" icon={Icons.Materials} label="Materiais Didáticos" />
+        {hasPermission(PERMISSIONS.VIEW_COURSES) && (
+            <>
+                <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Formação
+                </div>
+                <NavItem to="/courses" icon={Icons.Courses} label="Cursos" />
+                <NavItem to="/materials" icon={Icons.Materials} label="Materiais Didáticos" />
+            </>
+        )}
         
-        {(user.role === UserRole.ADMIN || user.role === UserRole.EDITOR) && (
+        {(hasPermission(PERMISSIONS.MANAGE_USERS) || hasPermission(PERMISSIONS.MANAGE_CONTENT)) && (
           <>
             <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Gestão
             </div>
-            {user.role === UserRole.ADMIN && (
-              <NavItem to="/users" icon={Icons.Users} label="Utilizadores" />
+            
+            {hasPermission(PERMISSIONS.MANAGE_USERS) && (
+                <NavItem to="/users" icon={Icons.Users} label="Utilizadores" />
             )}
-             <NavItem to="/cms" icon={Icons.CMS} label="Páginas / CMS" />
-             <NavItem to="/ai-studio" icon={Icons.AI} label="AI Studio" />
+            
+            {hasPermission(PERMISSIONS.MANAGE_CLASSES) && (
+                <NavItem to="/classes" icon={Icons.Class} label="Turmas" />
+            )}
+
+            {hasPermission(PERMISSIONS.MANAGE_ROLES) && (
+                <NavItem to="/roles" icon={Icons.Role} label="Cargos" />
+            )}
+
+            {hasPermission(PERMISSIONS.MANAGE_CONTENT) && (
+                 <NavItem to="/cms" icon={Icons.CMS} label="Páginas / CMS" />
+            )}
+            
+            {hasPermission(PERMISSIONS.USE_AI_STUDIO) && (
+                 <NavItem to="/ai-studio" icon={Icons.AI} label="AI Studio" />
+            )}
              
-             {user.role === UserRole.ADMIN && (
+            {hasPermission(PERMISSIONS.MANAGE_SETTINGS) && (
                <NavItem to="/email-config" icon={Icons.Mail} label="Configuração Email" />
              )}
           </>

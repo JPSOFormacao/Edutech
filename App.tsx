@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { User, UserRole, UserStatus } from './types';
+import { User, UserRole, UserStatus, PERMISSIONS } from './types';
 import { storageService } from './services/storageService';
 import { Sidebar } from './components/Sidebar';
 import Login from './pages/Login';
@@ -12,16 +12,20 @@ import CMS from './pages/CMS';
 import AIStudio from './pages/AIStudio';
 import PageViewer from './pages/PageViewer';
 import EmailConfigPage from './pages/EmailConfig';
+import ClassesPage from './pages/Classes'; // New
+import RolesPage from './pages/Roles'; // New
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
 // --- Auth Context ---
 interface AuthContextType {
   user: User | null;
+  permissions: string[];
   login: (email: string, password?: string) => void;
   logout: () => void;
   refreshUser: () => void;
   updatePassword: (password: string) => void;
+  hasPermission: (permission: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType>(null!);
@@ -30,7 +34,7 @@ export const useAuth = () => useContext(AuthContext);
 
 // --- Layout Component ---
 const Layout = () => {
-  const { user, logout, updatePassword } = useAuth();
+  const { user, logout, updatePassword, hasPermission } = useAuth();
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [error, setError] = useState('');
@@ -117,7 +121,7 @@ const Layout = () => {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <Sidebar user={user} onLogout={logout} />
+      <Sidebar user={user} onLogout={logout} hasPermission={hasPermission} />
       <main className="flex-1 ml-64 p-8 overflow-y-auto h-screen fade-in">
         <Outlet />
       </main>
@@ -128,6 +132,15 @@ const Layout = () => {
 // --- App Component ---
 export default function App() {
   const [user, setUser] = useState<User | null>(storageService.getCurrentUser());
+  const [permissions, setPermissions] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (user) {
+        setPermissions(storageService.getUserPermissions(user));
+    } else {
+        setPermissions([]);
+    }
+  }, [user]);
 
   const login = (email: string, password?: string) => {
     const loggedUser = storageService.login(email, password);
@@ -140,7 +153,6 @@ export default function App() {
   };
 
   const refreshUser = () => {
-    // Reload user from storage in case permissions changed
     const current = storageService.getCurrentUser();
     if (current) setUser(current);
   };
@@ -152,30 +164,45 @@ export default function App() {
       }
   }
 
+  const hasPermission = (permission: string) => {
+      return permissions.includes(permission);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, refreshUser, updatePassword }}>
+    <AuthContext.Provider value={{ user, permissions, login, logout, refreshUser, updatePassword, hasPermission }}>
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
-            <Route path="/courses" element={<Courses />} />
+            
+            <Route path="/courses" element={
+                hasPermission(PERMISSIONS.VIEW_COURSES) ? <Courses /> : <Navigate to="/" />
+            } />
+            
             <Route path="/materials" element={<Materials />} />
             <Route path="/p/:slug" element={<PageViewer />} />
             
-            {/* Protected Routes */}
+            {/* Protected Routes based on Permissions */}
             <Route path="/users" element={
-              user?.role === UserRole.ADMIN ? <UsersPage /> : <Navigate to="/" />
+              hasPermission(PERMISSIONS.MANAGE_USERS) ? <UsersPage /> : <Navigate to="/" />
             } />
+             <Route path="/classes" element={
+              hasPermission(PERMISSIONS.MANAGE_CLASSES) ? <ClassesPage /> : <Navigate to="/" />
+            } />
+             <Route path="/roles" element={
+              hasPermission(PERMISSIONS.MANAGE_ROLES) ? <RolesPage /> : <Navigate to="/" />
+            } />
+
             <Route path="/cms" element={
-              (user?.role === UserRole.ADMIN || user?.role === UserRole.EDITOR) ? <CMS /> : <Navigate to="/" />
+              hasPermission(PERMISSIONS.MANAGE_CONTENT) ? <CMS /> : <Navigate to="/" />
             } />
              <Route path="/ai-studio" element={
-              (user?.role === UserRole.ADMIN || user?.role === UserRole.EDITOR) ? <AIStudio /> : <Navigate to="/" />
+              hasPermission(PERMISSIONS.USE_AI_STUDIO) ? <AIStudio /> : <Navigate to="/" />
             } />
             <Route path="/email-config" element={
-              (user?.role === UserRole.ADMIN) ? <EmailConfigPage /> : <Navigate to="/" />
+              hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <EmailConfigPage /> : <Navigate to="/" />
             } />
           </Route>
 

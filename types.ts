@@ -1,4 +1,5 @@
 export enum UserRole {
+  // Mantemos o Enum para retrocompatibilidade, mas a lógica passará para RoleEntity
   ADMIN = 'ADMIN',
   EDITOR = 'EDITOR',
   ALUNO = 'ALUNO'
@@ -17,15 +18,42 @@ export enum MaterialType {
   RECURSO = 'RECURSO'
 }
 
+export const PERMISSIONS = {
+  VIEW_DASHBOARD: 'view_dashboard',
+  MANAGE_USERS: 'manage_users',
+  MANAGE_ROLES: 'manage_roles',
+  MANAGE_CLASSES: 'manage_classes',
+  MANAGE_COURSES: 'manage_courses',
+  MANAGE_CONTENT: 'manage_content', // Materials, CMS
+  VIEW_COURSES: 'view_courses',
+  USE_AI_STUDIO: 'use_ai_studio',
+  MANAGE_SETTINGS: 'manage_settings'
+};
+
+export interface RoleEntity {
+  id: string;
+  name: string;
+  permissions: string[];
+  isSystem?: boolean; // Se true, não pode ser apagado
+}
+
+export interface ClassEntity {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: UserRole; // Legacy support
+  roleId: string; // New dynamic role link
   status: UserStatus;
   allowedCourses: string[]; // Array of Course IDs
+  classId?: string; // Link to ClassEntity
   avatarUrl?: string;
-  password?: string; // Stored in plain text for this demo (should be hashed in production)
+  password?: string;
   mustChangePassword?: boolean;
 }
 

@@ -1,25 +1,64 @@
-import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig } from '../types';
+import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS } from '../types';
 
 const STORAGE_KEYS = {
   USERS: 'edutech_users',
   COURSES: 'edutech_courses',
   MATERIALS: 'edutech_materials',
   PAGES: 'edutech_pages',
+  ROLES: 'edutech_roles',
+  CLASSES: 'edutech_classes',
   CURRENT_USER: 'edutech_current_user',
   EMAIL_CONFIG: 'edutech_email_config'
 };
 
-// Initial Seed Data
-const INITIAL_USERS: User[] = [
+// --- Seed Data ---
+
+const INITIAL_ROLES: RoleEntity[] = [
+  {
+    id: 'role_admin',
+    name: 'Administrador',
+    isSystem: true,
+    permissions: Object.values(PERMISSIONS)
+  },
+  {
+    id: 'role_editor',
+    name: 'Formador',
+    isSystem: true,
+    permissions: [
+      PERMISSIONS.VIEW_DASHBOARD,
+      PERMISSIONS.MANAGE_COURSES,
+      PERMISSIONS.MANAGE_CONTENT,
+      PERMISSIONS.USE_AI_STUDIO,
+      PERMISSIONS.VIEW_COURSES
+    ]
+  },
+  {
+    id: 'role_aluno',
+    name: 'Aluno',
+    isSystem: true,
+    permissions: [
+      PERMISSIONS.VIEW_DASHBOARD,
+      PERMISSIONS.VIEW_COURSES
+    ]
+  }
+];
+
+const INITIAL_CLASSES: ClassEntity[] = [
+  { id: 'class_a', name: 'Turma A - 2024', description: 'Início em Janeiro' },
+  { id: 'class_b', name: 'Turma B - 2024', description: 'Pós-Laboral' }
+];
+
+const INITIAL_USERS_SEED: User[] = [
   {
     id: '1',
     email: 'admin@edutech.pt',
     name: 'Administrador Principal',
     role: UserRole.ADMIN,
+    roleId: 'role_admin',
     status: UserStatus.ACTIVE,
     allowedCourses: [],
     avatarUrl: 'https://picsum.photos/100/100',
-    password: 'admin', // Senha inicial
+    password: 'admin',
     mustChangePassword: false 
   },
   {
@@ -27,6 +66,7 @@ const INITIAL_USERS: User[] = [
     email: 'formador@edutech.pt',
     name: 'Formador Sénior',
     role: UserRole.EDITOR,
+    roleId: 'role_editor',
     status: UserStatus.ACTIVE,
     allowedCourses: [],
     avatarUrl: 'https://picsum.photos/101/101',
@@ -38,8 +78,10 @@ const INITIAL_USERS: User[] = [
     email: 'aluno@edutech.pt',
     name: 'João Aluno',
     role: UserRole.ALUNO,
+    roleId: 'role_aluno',
     status: UserStatus.ACTIVE,
-    allowedCourses: ['101'], // Access to React Course
+    allowedCourses: ['101'],
+    classId: 'class_a',
     avatarUrl: 'https://picsum.photos/102/102',
     password: '123456',
     mustChangePassword: true
@@ -49,6 +91,7 @@ const INITIAL_USERS: User[] = [
     email: 'jpsoliveira.formacao@hotmail.com',
     name: 'JPS Oliveira',
     role: UserRole.ADMIN,
+    roleId: 'role_admin',
     status: UserStatus.ACTIVE,
     allowedCourses: [],
     avatarUrl: 'https://ui-avatars.com/api/?name=J+O&background=4f46e5&color=fff',
@@ -100,28 +143,45 @@ const INITIAL_PAGES: Page[] = [
 
 // Helper to initialize storage
 const initStorage = () => {
+  // Roles & Classes
+  if (!localStorage.getItem(STORAGE_KEYS.ROLES)) {
+    localStorage.setItem(STORAGE_KEYS.ROLES, JSON.stringify(INITIAL_ROLES));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.CLASSES)) {
+    localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify(INITIAL_CLASSES));
+  }
+
   // Users Initialization & Migration
   const storedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
   let users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
 
   if (users.length === 0) {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS));
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS_SEED));
   } else {
-    // Migration: ensure existing users have password fields if they don't
+    // Migration: ensure existing users have password fields and roleId
     let changed = false;
     users = users.map(u => {
-      if (!u.password) {
+      let modified = { ...u };
+      if (!modified.password) {
+        modified.password = '123456';
+        modified.mustChangePassword = true;
         changed = true;
-        return { ...u, password: '123456', mustChangePassword: true };
       }
-      return u;
+      if (!modified.roleId) {
+        // Map old Enum to new Role ID
+        if (modified.role === UserRole.ADMIN) modified.roleId = 'role_admin';
+        else if (modified.role === UserRole.EDITOR) modified.roleId = 'role_editor';
+        else modified.roleId = 'role_aluno';
+        changed = true;
+      }
+      return modified;
     });
 
     // Check if new admins need to be added to existing storage
     const newAdminEmail = 'jpsoliveira.formacao@hotmail.com';
     const hasNewAdmin = users.find(u => u.email === newAdminEmail);
     if (!hasNewAdmin) {
-      const newAdminUser = INITIAL_USERS.find(u => u.email === newAdminEmail);
+      const newAdminUser = INITIAL_USERS_SEED.find(u => u.email === newAdminEmail);
       if (newAdminUser) {
         users.push(newAdminUser);
         changed = true;
@@ -152,6 +212,14 @@ export const storageService = {
   getUsers: (): User[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]'),
   saveUsers: (users: User[]) => localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users)),
   
+  // Roles
+  getRoles: (): RoleEntity[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.ROLES) || '[]'),
+  saveRoles: (roles: RoleEntity[]) => localStorage.setItem(STORAGE_KEYS.ROLES, JSON.stringify(roles)),
+
+  // Classes
+  getClasses: (): ClassEntity[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.CLASSES) || '[]'),
+  saveClasses: (classes: ClassEntity[]) => localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify(classes)),
+
   // Courses
   getCourses: (): Course[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.COURSES) || '[]'),
   saveCourses: (courses: Course[]) => localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(courses)),
@@ -177,22 +245,31 @@ export const storageService = {
     return stored ? JSON.parse(stored) : null;
   },
   
+  // Permission Helper
+  getUserPermissions: (user: User | null): string[] => {
+    if (!user) return [];
+    const roles = JSON.parse(localStorage.getItem(STORAGE_KEYS.ROLES) || '[]') as RoleEntity[];
+    const userRole = roles.find(r => r.id === user.roleId);
+    return userRole ? userRole.permissions : [];
+  },
+
   login: (email: string, password?: string): User => {
     const users = storageService.getUsers();
     let user = users.find(u => u.email === email);
     
     if (!user) {
-      // Auto-register as PENDING if not exists (keep existing functionality but add password)
+      // Auto-register as PENDING
       user = {
         id: Date.now().toString(),
         email,
         name: email.split('@')[0],
-        role: UserRole.ALUNO, // Default role
+        role: UserRole.ALUNO, 
+        roleId: 'role_aluno', // Default
         status: UserStatus.PENDING,
         allowedCourses: [],
         avatarUrl: `https://ui-avatars.com/api/?name=${email}&background=random`,
         password: password || '123456',
-        mustChangePassword: false // Creating own account, so no need to force change
+        mustChangePassword: false
       };
       users.push(user);
       storageService.saveUsers(users);

@@ -18,7 +18,9 @@ import {
   Link as LinkIcon,
   FileQuestion,
   GraduationCap,
-  Mail
+  Mail,
+  Shield,
+  UsersRound
 } from 'lucide-react';
 
 export const Icons = {
@@ -41,5 +43,7 @@ export const Icons = {
   Link: LinkIcon,
   Quiz: FileQuestion,
   Student: GraduationCap,
-  Mail: Mail
+  Mail: Mail,
+  Role: Shield,
+  Class: UsersRound
 };
