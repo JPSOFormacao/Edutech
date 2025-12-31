@@ -19,7 +19,7 @@ export default function Login() {
   const [selectedCourseForEnroll, setSelectedCourseForEnroll] = useState<Course | null>(null);
   const [enrollName, setEnrollName] = useState('');
   const [enrollEmail, setEnrollEmail] = useState('');
-  const [enrollPass, setEnrollPass] = useState('');
+  // const [enrollPass, setEnrollPass] = useState(''); // REMOVIDO: Senha não é pedida na inscrição
   const [enrollLoading, setEnrollLoading] = useState(false);
   const [enrollSuccess, setEnrollSuccess] = useState(false);
 
@@ -69,7 +69,6 @@ export default function Login() {
       setSelectedCourseForEnroll(course);
       setEnrollName('');
       setEnrollEmail('');
-      setEnrollPass('');
       setEnrollSuccess(false);
       setIsEnrollModalOpen(true);
   };
@@ -94,23 +93,22 @@ export default function Login() {
           }
 
           // Criar novo utilizador pendente
+          // A senha é gerada internamente apenas como placeholder, pois o user não consegue fazer login (PENDING)
+          // Quando o admin aprovar, uma nova senha será gerada e enviada por email.
           const newUser: User = {
               id: Date.now().toString(),
               name: enrollName,
               email: cleanEmail,
-              password: enrollPass,
+              password: Math.random().toString(36).slice(-8), // Placeholder
               role: UserRole.ALUNO,
               roleId: 'role_aluno',
               status: UserStatus.PENDING,
               allowedCourses: [selectedCourseForEnroll.id],
-              avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}`,
+              avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}&mouth=smile`,
               mustChangePassword: true
           };
 
           await storageService.saveUser(newUser);
-
-          // Enviar email de notificação (opcional, se configurado)
-          // await emailService.sendNotification(newUser.name, "Nova pré-inscrição realizada.");
 
           setEnrollSuccess(true);
       } catch (err) {
@@ -329,7 +327,7 @@ export default function Login() {
                   <h3 className="text-lg leading-6 font-medium text-gray-900">Pedido Recebido!</h3>
                   <p className="mt-2 text-sm text-gray-500">
                       A sua conta foi criada e a inscrição registada. <br/>
-                      Aguarde a aprovação do Administrador. Receberá um email assim que a conta estiver ativa.
+                      As credenciais de acesso serão enviadas para o seu email após aprovação pelo Administrador.
                   </p>
                   <div className="mt-6">
                       <Button onClick={() => setIsEnrollModalOpen(false)} className="w-full">Fechar</Button>
@@ -338,7 +336,7 @@ export default function Login() {
           ) : (
               <form onSubmit={handleEnrollment} className="space-y-4">
                   <p className="text-sm text-gray-500 mb-4">
-                      Preencha os seus dados para criar uma conta e solicitar inscrição neste curso.
+                      Preencha os seus dados para solicitar inscrição. A senha será enviada posteriormente.
                   </p>
                   
                   <Input 
@@ -354,13 +352,7 @@ export default function Login() {
                       value={enrollEmail}
                       onChange={e => setEnrollEmail(e.target.value)}
                   />
-                   <Input 
-                      label="Definir Senha"
-                      type="password"
-                      required
-                      value={enrollPass}
-                      onChange={e => setEnrollPass(e.target.value)}
-                  />
+                  {/* Campo Senha removido a pedido */}
                   
                   <div className="pt-4 flex justify-end gap-2">
                       <Button type="button" variant="ghost" onClick={() => setIsEnrollModalOpen(false)}>Cancelar</Button>

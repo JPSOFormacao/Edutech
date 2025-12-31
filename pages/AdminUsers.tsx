@@ -224,9 +224,44 @@ export default function UsersPage() {
   };
 
   const approveUser = async (user: User) => {
-      const updated = {...user, status: UserStatus.ACTIVE};
-      await storageService.saveUser(updated);
-      await loadData();
+      setIsSendingEmail(true); // Bloquear UI
+      try {
+          const generatedPass = generateRandomPassword();
+          const updated = {
+              ...user, 
+              status: UserStatus.ACTIVE,
+              password: generatedPass,
+              mustChangePassword: true // Obrigatório mudar no 1º login
+          };
+          
+          await storageService.saveUser(updated);
+          
+          // Enviar Email de Boas-vindas com a nova senha
+          const config = await storageService.getEmailConfig();
+          if (config) {
+             const res = await emailService.sendWelcomeEmail(
+                 updated.name, 
+                 updated.email, 
+                 generatedPass, 
+                 updated.classId, 
+                 updated.allowedCourses
+             );
+             if(!res.success) {
+                 alert("Aviso: Utilizador aprovado, mas falha ao enviar email: " + res.message);
+             } else {
+                 alert("Utilizador aprovado e email enviado com sucesso.");
+             }
+          } else {
+              alert("Utilizador aprovado. Aviso: Email não configurado, envie a senha manualmente.");
+          }
+
+          await loadData();
+      } catch (e) {
+          console.error(e);
+          alert("Erro ao aprovar utilizador.");
+      } finally {
+          setIsSendingEmail(false);
+      }
   }
 
   const getClassName = (id?: string) => classes.find(c => c.id === id)?.name || '-';
@@ -316,7 +351,7 @@ export default function UsersPage() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                      {user.status === UserStatus.PENDING && (
-                         <Button variant="primary" size="sm" className="mr-2" onClick={() => approveUser(user)}>
+                         <Button variant="primary" size="sm" className="mr-2" onClick={() => approveUser(user)} disabled={isSendingEmail}>
                              Aprovar
                          </Button>
                      )}

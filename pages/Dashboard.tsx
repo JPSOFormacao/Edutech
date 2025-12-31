@@ -25,17 +25,32 @@ export default function Dashboard() {
             storageService.getMaterials()
         ]);
 
-        setStats([
-            { name: 'Total de Cursos', value: coursesData.length, icon: Icons.Courses, color: 'bg-indigo-500' },
-            { name: 'Materiais Disponíveis', value: materialsData.length, icon: Icons.Materials, color: 'bg-pink-500' },
-            { name: 'Alunos Registados', value: usersData.filter(u => u.role === UserRole.ALUNO).length, icon: Icons.Users, color: 'bg-green-500' },
-        ]);
-        setCourses(coursesData);
+        if (user?.role === UserRole.ALUNO) {
+            // Lógica para Aluno: Apenas contagens relevantes
+            const myClassUsers = usersData.filter(u => u.classId === user.classId);
+            const myMaterials = materialsData.filter(m => user.allowedCourses.includes(m.courseId));
+            const myCourses = coursesData.filter(c => user.allowedCourses.includes(c.id));
+
+            setStats([
+                { name: 'Meus Cursos', value: myCourses.length, icon: Icons.Courses, color: 'bg-indigo-500' },
+                { name: 'Materiais Disponíveis', value: myMaterials.length, icon: Icons.Materials, color: 'bg-pink-500' },
+                { name: 'Colegas de Turma', value: Math.max(0, myClassUsers.length - 1), icon: Icons.Class, color: 'bg-green-500' }, // Exclui o próprio
+            ]);
+            setCourses(myCourses);
+        } else {
+            // Lógica Admin/Editor: Totais Globais
+            setStats([
+                { name: 'Total de Cursos', value: coursesData.length, icon: Icons.Courses, color: 'bg-indigo-500' },
+                { name: 'Materiais Disponíveis', value: materialsData.length, icon: Icons.Materials, color: 'bg-pink-500' },
+                { name: 'Alunos Registados', value: usersData.filter(u => u.role === UserRole.ALUNO).length, icon: Icons.Users, color: 'bg-green-500' },
+            ]);
+            setCourses(coursesData);
+        }
         setLoading(false);
     };
 
-    loadData();
-  }, []);
+    if (user) loadData();
+  }, [user]);
 
   const StatCard: React.FC<{ item: any }> = ({ item }) => (
     <div className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow">
@@ -83,12 +98,18 @@ export default function Dashboard() {
       {/* Featured Courses / Offerings */}
       <div className="mt-8">
         <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg leading-6 font-bold text-gray-900">A Nossa Oferta Formativa</h3>
+            <h3 className="text-lg leading-6 font-bold text-gray-900">
+                {user?.role === UserRole.ALUNO ? 'Os Meus Cursos' : 'A Nossa Oferta Formativa'}
+            </h3>
             <Link to="/courses" className="text-sm text-indigo-600 hover:text-indigo-800">Ver todos &rarr;</Link>
         </div>
         
         {loading ? (
              <p className="text-center py-10 text-gray-500">A carregar cursos...</p>
+        ) : courses.length === 0 ? (
+             <div className="text-center py-12 bg-white rounded-lg border border-dashed border-gray-300 text-gray-500">
+                 Sem cursos disponíveis.
+             </div>
         ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {courses.map(course => (

@@ -5,16 +5,19 @@ import { Button, Input } from '../components/UI';
 import { Icons } from '../components/Icons';
 import { UserPrivacySettings } from '../types';
 
-// Avatares estilo Cartoon (DiceBear Avataaars)
+// Avatares atualizados: Estilo Cartoon Sorridente + Animais/Criaturas
 const PRESET_AVATARS = [
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Sasha',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Tigger',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Misty',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Coco',
-  'https://api.dicebear.com/7.x/avataaars/svg?seed=Jack'
+  // Humanos Sorridentes (Avataaars)
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&mouth=smile',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka&mouth=smile',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Jack&mouth=smile',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Misty&mouth=smile',
+  
+  // Criaturas/Animais Amigáveis (Big Ears & Bottts)
+  'https://api.dicebear.com/7.x/big-ears/svg?seed=Bear',
+  'https://api.dicebear.com/7.x/big-ears/svg?seed=Cat',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=Robot1',
+  'https://api.dicebear.com/7.x/big-ears/svg?seed=Bunny'
 ];
 
 export default function ProfilePage() {

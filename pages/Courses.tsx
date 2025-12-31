@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
+import { geminiService } from '../services/geminiService';
 import { Course, UserRole } from '../types';
 import { useAuth } from '../App';
 import { Button, Modal, Input, formatCurrency } from '../components/UI';
@@ -12,6 +13,10 @@ export default function Courses() {
   const [editingCourse, setEditingCourse] = useState<Partial<Course>>({});
   const [loading, setLoading] = useState(true);
   
+  // AI States
+  const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+  const [isGeneratingSyl, setIsGeneratingSyl] = useState(false);
+
   const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.EDITOR;
 
   useEffect(() => {
@@ -65,6 +70,34 @@ export default function Courses() {
     
     loadCourses(); 
     setIsModalOpen(false);
+  };
+
+  const generateDescription = async () => {
+      if (!editingCourse.title) {
+          alert("Escreva o título do curso primeiro para gerar a descrição.");
+          return;
+      }
+      setIsGeneratingDesc(true);
+      const prompt = `Escreva uma descrição atrativa e curta (max 3 frases) para um curso chamado "${editingCourse.title}" na categoria "${editingCourse.category || 'Geral'}".`;
+      const text = await geminiService.generateText(prompt);
+      if (text) {
+          setEditingCourse({...editingCourse, description: text});
+      }
+      setIsGeneratingDesc(false);
+  };
+
+  const generateSyllabus = async () => {
+      if (!editingCourse.title) {
+          alert("Escreva o título do curso primeiro.");
+          return;
+      }
+      setIsGeneratingSyl(true);
+      const prompt = `Crie um resumo do conteúdo programático (4-5 módulos com nomes curtos) para o curso "${editingCourse.title}". Formato simples texto.`;
+      const text = await geminiService.generateText(prompt);
+      if (text) {
+          setEditingCourse({...editingCourse, syllabus: text});
+      }
+      setIsGeneratingSyl(false);
   };
 
   if (loading) return <div className="p-8 text-center text-gray-500">A carregar cursos...</div>;
@@ -187,7 +220,18 @@ export default function Courses() {
            />
 
            <div>
-               <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+               <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm font-medium text-gray-700">Descrição</label>
+                    <button 
+                        type="button" 
+                        onClick={generateDescription}
+                        disabled={isGeneratingDesc}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                    >
+                        <Icons.AI className="w-3 h-3" />
+                        {isGeneratingDesc ? 'A gerar...' : 'Gerar com IA'}
+                    </button>
+               </div>
                <textarea 
                  rows={3}
                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md border p-2"
@@ -197,7 +241,18 @@ export default function Courses() {
            </div>
 
            <div>
-               <label className="block text-sm font-medium text-gray-700 mb-1">Conteúdo Programático (Opcional)</label>
+                <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm font-medium text-gray-700">Conteúdo Programático (Opcional)</label>
+                    <button 
+                        type="button" 
+                        onClick={generateSyllabus}
+                        disabled={isGeneratingSyl}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                    >
+                        <Icons.AI className="w-3 h-3" />
+                        {isGeneratingSyl ? 'A gerar...' : 'Gerar com IA'}
+                    </button>
+               </div>
                <textarea 
                  rows={3}
                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md border p-2"

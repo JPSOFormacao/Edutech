@@ -9,6 +9,24 @@ const ai = new GoogleGenAI({ apiKey });
 
 export const geminiService = {
   /**
+   * Generates generic text content based on a prompt.
+   * Useful for descriptions, syllabus, etc.
+   */
+  generateText: async (prompt: string, context: string = ''): Promise<string> => {
+      try {
+        const fullPrompt = `${context}\n\nTarefa: ${prompt}\n\nResponda em Português de Portugal, num tom profissional e convidativo.`;
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: fullPrompt,
+        });
+        return response.text || "";
+      } catch (error) {
+          console.error("Gemini Text Gen Error:", error);
+          return "";
+      }
+  },
+
+  /**
    * Generates a course plan based on a topic.
    */
   generateCoursePlan: async (topic: string): Promise<string> => {
