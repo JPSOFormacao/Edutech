@@ -105,7 +105,14 @@ export default function UsersPage() {
         
         if (isPasswordReset && storageService.getEmailConfig()) {
             setIsSendingEmail(true);
-            const result = await emailService.sendPasswordReset(userToSave.name, userToSave.email, newPassword);
+            // Agora passamos classId e allowedCourses
+            const result = await emailService.sendPasswordReset(
+                userToSave.name, 
+                userToSave.email, 
+                newPassword, 
+                userToSave.classId, 
+                userToSave.allowedCourses
+            );
             setIsSendingEmail(false);
             
             if (result.success) {
@@ -129,7 +136,14 @@ export default function UsersPage() {
         
         if (storageService.getEmailConfig()) {
             setIsSendingEmail(true);
-            const result = await emailService.sendWelcomeEmail(userToSave.name, userToSave.email, newPassword);
+            // Agora passamos classId e allowedCourses
+            const result = await emailService.sendWelcomeEmail(
+                userToSave.name, 
+                userToSave.email, 
+                newPassword, 
+                userToSave.classId, 
+                userToSave.allowedCourses
+            );
             setIsSendingEmail(false);
             
             if (result.success) {

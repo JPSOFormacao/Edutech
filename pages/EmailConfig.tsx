@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
@@ -164,11 +163,14 @@ export default function EmailConfigPage() {
 
                     <div className="bg-white p-3 rounded border border-blue-200">
                         <span className="text-xs font-bold text-gray-500 uppercase block mb-1">Aba "Content" (Corpo do Email)</span>
-                        <p className="text-xs text-gray-600 mb-2">Copie e cole este exemplo (pode usar <b>{"{{name}}"}</b> ou <b>{"{{to_name}}"}</b>):</p>
+                        <p className="text-xs text-gray-600 mb-2">Copie e cole este exemplo para incluir os detalhes da turma/curso:</p>
                         <pre className="text-xs bg-gray-900 text-green-400 p-2 rounded overflow-x-auto">
 {`Olá {{name}},
 
 {{message}}
+
+Detalhes da Inscrição:
+{{training_details}}
 
 As suas credenciais:
 Email: {{to_email}}
@@ -183,11 +185,14 @@ Obrigado.`}
              <div className="space-y-4">
                 <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-sm text-yellow-800">
                     <p className="font-bold flex items-center gap-1">
-                        <span className="text-xl">⚠️</span> Erro "Recipients Empty"
+                        <span className="text-xl">⚠️</span> Protocolos (Variáveis)
                     </p>
-                    <p className="mt-1">
-                        Significa que o campo <b>To Email</b> na aba <i>Settings</i> está vazio. Escreva <code className="font-bold">{"{{to_email}}"}</code>.
-                    </p>
+                    <ul className="mt-1 list-disc list-inside text-xs">
+                        <li><b>{"{{name}}"}</b>: Nome do utilizador</li>
+                        <li><b>{"{{to_email}}"}</b>: Email do utilizador</li>
+                        <li><b>{"{{password}}"}</b>: Senha gerada</li>
+                        <li><b>{"{{training_details}}"}</b>: Informação sobre Turma/Cursos (ou texto de fallback)</li>
+                    </ul>
                 </div>
                 
                 <div className="bg-red-50 p-4 rounded-lg border border-red-200 text-sm text-red-800">

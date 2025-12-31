@@ -1,4 +1,3 @@
-
 import emailjs from '@emailjs/browser';
 import { storageService } from './storageService';
 
@@ -11,6 +10,43 @@ interface EmailResult {
 const SYSTEM_EMAIL = 'EduTechPT@hotmail.com';
 const SYSTEM_NAME = 'EduTech PT Formação';
 
+// Helper para gerar o texto de detalhes da formação
+const getTrainingDetailsString = (classId?: string, courseIds?: string[]): string => {
+    const classes = storageService.getClasses();
+    const courses = storageService.getCourses();
+
+    let detailsParts = [];
+    let hasInfo = false;
+
+    // Verificar Turma
+    if (classId) {
+        const cls = classes.find(c => c.id === classId);
+        if (cls) {
+            detailsParts.push(`Turma: ${cls.name}`);
+            hasInfo = true;
+        }
+    }
+
+    // Verificar Cursos
+    if (courseIds && courseIds.length > 0) {
+        const courseNames = courses
+            .filter(c => courseIds.includes(c.id))
+            .map(c => c.title);
+        
+        if (courseNames.length > 0) {
+            detailsParts.push(`Cursos Inscritos: ${courseNames.join(', ')}`);
+            hasInfo = true;
+        }
+    }
+
+    // Lógica solicitada: Se não houver atribuição, mostrar texto específico
+    if (!hasInfo) {
+        return "A turma e/ou O curso será atribuída oportunamente pelo Formador";
+    }
+
+    return detailsParts.join('\n');
+};
+
 export const emailService = {
   sendTestEmail: async (): Promise<EmailResult> => {
     const config = storageService.getEmailConfig();
@@ -19,13 +55,12 @@ export const emailService = {
     }
 
     const currentUser = storageService.getCurrentUser();
-    // Preferência: Email do utilizador logado, senão usa o email do sistema
     const userEmail = currentUser?.email || SYSTEM_EMAIL;
 
     try {
       const templateParams = {
         to_name: "Administrador (Teste)",
-        name: "Administrador (Teste)", // Suporte para {{name}}
+        name: "Administrador (Teste)",
         
         // Variaveis de Destinatário
         to_email: userEmail,
@@ -35,7 +70,8 @@ export const emailService = {
         to: userEmail,
 
         // Conteúdo
-        message: "O sistema de email está configurado e operacional com a conta EduTechPT@hotmail.com.",
+        message: "O sistema de email está configurado e operacional.",
+        training_details: "Turma: Teste A\nCursos: Curso de Teste", // Exemplo para o teste
         password: "senha-de-teste", 
         
         from_name: SYSTEM_NAME,
@@ -55,17 +91,16 @@ export const emailService = {
   sendNotification: async (toName: string, message: string): Promise<boolean> => {
     const config = storageService.getEmailConfig();
     if (!config) return false;
-
-    const currentUser = storageService.getCurrentUser();
     
     try {
         await emailjs.send(config.serviceId, config.templateId, {
             to_name: toName,
-            name: toName, // Suporte para {{name}}
+            name: toName,
             message: message,
+            training_details: "N/A",
             from_name: SYSTEM_NAME,
             reply_to: SYSTEM_EMAIL,
-            to_email: SYSTEM_EMAIL, // Notificações vão para o sistema
+            to_email: SYSTEM_EMAIL,
             email: SYSTEM_EMAIL,
             password: 'N/A' 
         }, config.publicKey);
@@ -76,18 +111,22 @@ export const emailService = {
     }
   },
 
-  sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string): Promise<EmailResult> => {
+  sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     const config = storageService.getEmailConfig();
     
     if (!config) return { success: false, message: "Configuração de Email inexistente." };
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
 
     const cleanEmail = toEmail.trim();
+    const trainingDetails = getTrainingDetailsString(classId, courseIds);
 
+    // Construímos o corpo da mensagem para funcionar mesmo que o utilizador use apenas {{message}} no template
     const messageBody = `
       Bem-vindo à EduTech PT!
       
       A sua conta foi criada com sucesso.
+      
+      ${trainingDetails}
       
       As suas credenciais de acesso são:
       Email: ${cleanEmail}
@@ -98,7 +137,7 @@ export const emailService = {
 
     const templateParams = {
         to_name: toName,
-        name: toName, // Suporte para {{name}} conforme solicitado
+        name: toName,
         
         // Variáveis de destino
         to_email: cleanEmail, 
@@ -108,10 +147,11 @@ export const emailService = {
         to: cleanEmail,
         
         // Conteúdo
-        message: messageBody,
+        message: messageBody, // Contém tudo concatenado por segurança
+        training_details: trainingDetails, // Variável separada para templates avançados
         password: tempPass,
         
-        // Remetente (Fixo no sistema para garantir consistência)
+        // Remetente
         from_name: SYSTEM_NAME,
         reply_to: SYSTEM_EMAIL
     };
@@ -127,17 +167,20 @@ export const emailService = {
     }
   },
 
-  sendPasswordReset: async (toName: string, toEmail: string, newPass: string): Promise<EmailResult> => {
+  sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     const config = storageService.getEmailConfig();
     if (!config) return { success: false, message: "Configuração de Email inexistente." };
 
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
     const cleanEmail = toEmail.trim();
+    const trainingDetails = getTrainingDetailsString(classId, courseIds);
     
     const messageBody = `
       Olá ${toName},
 
       A sua senha de acesso à plataforma EduTech PT foi redefinida.
+      
+      ${trainingDetails}
 
       Novas credenciais:
       Email: ${cleanEmail}
@@ -146,14 +189,17 @@ export const emailService = {
 
     const templateParams = {
         to_name: toName,
-        name: toName, // Suporte para {{name}}
+        name: toName,
         to_email: cleanEmail, 
         user_email: cleanEmail, 
         email: cleanEmail,
         recipient: cleanEmail,
         to: cleanEmail,
+        
         message: messageBody,
+        training_details: trainingDetails,
         password: newPass,
+        
         from_name: SYSTEM_NAME,
         reply_to: SYSTEM_EMAIL
     };
