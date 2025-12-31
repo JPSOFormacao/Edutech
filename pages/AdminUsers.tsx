@@ -282,7 +282,10 @@ export default function UsersPage() {
                         </div>
                         <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                            <div className="text-sm text-gray-500">{user.email}</div>
+                            <div className="flex items-center gap-1 text-sm text-gray-500">
+                                {user.email}
+                                {user.emailVerified && <span title="Email Verificado"><Icons.Check className="w-3 h-3 text-green-500" /></span>}
+                            </div>
                         </div>
                         </div>
                     </td>
@@ -453,6 +456,17 @@ export default function UsersPage() {
                     <option value={UserStatus.PENDING}>Pendente</option>
                     <option value={UserStatus.BLOCKED}>Bloqueado</option>
                 </select>
+                <div className="mt-2">
+                     <label className="flex items-center text-sm text-gray-700">
+                         <input 
+                            type="checkbox"
+                            checked={!!selectedUser.emailVerified}
+                            onChange={e => setSelectedUser({...selectedUser, emailVerified: e.target.checked})}
+                            className="mr-2"
+                         />
+                         Email Verificado
+                     </label>
+                </div>
             </div>
           </div>
         )}

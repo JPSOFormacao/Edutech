@@ -116,6 +116,46 @@ export const emailService = {
     }
   },
 
+  sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
+    const config = await storageService.getEmailConfig();
+    const templateId = config?.templates?.verificationId || config?.templates?.notificationId;
+
+    if (!config || !templateId) return { success: false, message: "Template de Verificação não configurado." };
+    
+    // Constrói uma mensagem HTML com botão
+    const messageBody = `
+      Olá ${toName},
+      
+      Obrigado pelo seu registo na EduTech PT.
+      Por favor confirme o seu endereço de email clicando no botão abaixo:
+      
+      <br><br>
+      <a href="${verificationLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Confirmar Email</a>
+      <br><br>
+      
+      Se o botão não funcionar, copie este link: ${verificationLink}
+      
+      Após a verificação, a sua conta ficará pendente de aprovação por um Administrador.
+    `;
+
+    try {
+        await emailjs.send(config.serviceId, templateId, {
+            to_name: toName,
+            name: toName,
+            to_email: toEmail,
+            email: toEmail,
+            message: messageBody,
+            from_name: SYSTEM_NAME,
+            reply_to: SYSTEM_EMAIL,
+            verification_link: verificationLink
+        }, config.publicKey);
+        return { success: true };
+    } catch (e: any) {
+        console.error("Erro Email Verificação:", e);
+        return { success: false, message: e?.text || 'Erro no envio.' };
+    }
+  },
+
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
     const templateId = config?.templates?.welcomeId || (config as any)?.templateId;

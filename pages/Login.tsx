@@ -5,7 +5,7 @@ import { Icons } from '../components/Icons';
 import { Button, Input, formatCurrency, Modal } from '../components/UI';
 import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
-import { Course, User, UserRole, UserStatus } from '../types';
+import { Course, User, UserRole, UserStatus, Testimonial, TestimonialStatus } from '../types';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -14,17 +14,29 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // Enrollment State
+  // Enrollment State (Course Click)
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [selectedCourseForEnroll, setSelectedCourseForEnroll] = useState<Course | null>(null);
   const [enrollName, setEnrollName] = useState('');
   const [enrollEmail, setEnrollEmail] = useState('');
-  // const [enrollPass, setEnrollPass] = useState(''); // REMOVIDO: Senha não é pedida na inscrição
   const [enrollLoading, setEnrollLoading] = useState(false);
   const [enrollSuccess, setEnrollSuccess] = useState(false);
 
+  // Register State (New User)
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [regName, setRegName] = useState(''); // Nome Exibido
+  const [regFullName, setRegFullName] = useState(''); // Nome Completo
+  const [regEmail, setRegEmail] = useState('');
+  const [regPass, setRegPass] = useState('');
+  const [regConfirmPass, setRegConfirmPass] = useState('');
+  const [showRegPass, setShowRegPass] = useState(false);
+  const [showRegConfirmPass, setShowRegConfirmPass] = useState(false);
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerSuccess, setRegisterSuccess] = useState(false);
+
   // Public Data
   const [courses, setCourses] = useState<Course[]>([]);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
 
   const { login, user } = useAuth();
@@ -35,18 +47,23 @@ export default function Login() {
   }, [user, navigate]);
 
   React.useEffect(() => {
-      // Fetch public courses for landing page
-      const loadPublicCourses = async () => {
+      // Fetch public data
+      const loadPublicData = async () => {
           try {
-              const data = await storageService.getCourses();
-              setCourses(data);
+              const [coursesData, testimonialsData] = await Promise.all([
+                  storageService.getCourses(),
+                  storageService.getTestimonials()
+              ]);
+              setCourses(coursesData);
+              // Filtrar apenas aprovados
+              setTestimonials(testimonialsData.filter(t => t.status === TestimonialStatus.APPROVED));
           } catch(e) {
-              console.error("Failed to load courses for landing page", e);
+              console.error("Failed to load data for landing page", e);
           } finally {
               setLoadingCourses(false);
           }
       };
-      loadPublicCourses();
+      loadPublicData();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -86,20 +103,16 @@ export default function Login() {
           let existingUser = allUsers.find(u => u.email === cleanEmail);
           
           if (existingUser) {
-              // Se já existe, notificar que deve fazer login
               alert("Já existe uma conta com este email. Por favor faça login para adicionar cursos.");
               setEnrollLoading(false);
               return;
           }
 
-          // Criar novo utilizador pendente
-          // A senha é gerada internamente apenas como placeholder, pois o user não consegue fazer login (PENDING)
-          // Quando o admin aprovar, uma nova senha será gerada e enviada por email.
           const newUser: User = {
               id: Date.now().toString(),
               name: enrollName,
               email: cleanEmail,
-              password: Math.random().toString(36).slice(-8), // Placeholder
+              password: Math.random().toString(36).slice(-8), 
               role: UserRole.ALUNO,
               roleId: 'role_aluno',
               status: UserStatus.PENDING,
@@ -109,7 +122,6 @@ export default function Login() {
           };
 
           await storageService.saveUser(newUser);
-
           setEnrollSuccess(true);
       } catch (err) {
           console.error(err);
@@ -118,6 +130,65 @@ export default function Login() {
           setEnrollLoading(false);
       }
   };
+
+  const openRegisterModal = () => {
+      setRegName('');
+      setRegFullName('');
+      setRegEmail('');
+      setRegPass('');
+      setRegConfirmPass('');
+      setRegisterSuccess(false);
+      setIsRegisterModalOpen(true);
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+      e.preventDefault();
+      
+      if (regPass !== regConfirmPass) {
+          alert("As senhas não coincidem.");
+          return;
+      }
+      if (regPass.length < 5) {
+          alert("A senha deve ter pelo menos 5 caracteres.");
+          return;
+      }
+
+      setRegisterLoading(true);
+
+      try {
+          // 1. Criar utilizador
+          const { user: newUser, token } = await storageService.register({
+              name: regName,
+              fullName: regFullName,
+              email: regEmail,
+              password: regPass
+          });
+
+          // 2. Criar Link de Verificação
+          // Ex: http://localhost:3000/#/verify-email?token=...
+          const verificationLink = `${window.location.origin}/#/verify-email?token=${token}`;
+
+          // 3. Enviar email de verificação com o link
+          await emailService.sendVerificationEmail(regName, regEmail, verificationLink);
+
+          setRegisterSuccess(true);
+      } catch (e: any) {
+          alert(e.message || "Erro ao criar conta.");
+      } finally {
+          setRegisterLoading(false);
+      }
+  };
+
+  // Star Rating Component
+  const StarRating = ({ rating }: { rating: number }) => (
+      <div className="flex text-yellow-400">
+          {[...Array(5)].map((_, i) => (
+              <svg key={i} className={`w-5 h-5 ${i < rating ? 'fill-current' : 'text-gray-300'}`} viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+          ))}
+      </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -131,9 +202,15 @@ export default function Login() {
                      </div>
                      <span className="text-xl font-bold tracking-tight text-gray-900">EduTech <span className="text-indigo-600">PT</span></span>
                   </div>
-                  <div className="flex items-center">
-                      <a href="#courses" className="text-sm font-medium text-gray-500 hover:text-gray-900 mr-4">Cursos</a>
-                      <a href="#login" className="text-sm font-bold text-indigo-600 hover:text-indigo-500">Área de Aluno</a>
+                  <div className="flex items-center gap-4">
+                      <a href="#courses" className="text-sm font-medium text-gray-500 hover:text-gray-900 hidden sm:block">Cursos</a>
+                      <button 
+                        onClick={openRegisterModal}
+                        className="text-sm font-bold text-indigo-600 hover:text-indigo-500 border border-indigo-600 px-3 py-1.5 rounded-md hover:bg-indigo-50 transition-colors"
+                      >
+                          Criar Conta
+                      </button>
+                      <a href="#login" className="text-sm font-bold text-gray-700 hover:text-gray-900">Entrar</a>
                   </div>
               </div>
           </div>
@@ -157,6 +234,9 @@ export default function Login() {
                   <div className="flex items-center text-sm text-gray-500">
                       <Icons.Check className="w-5 h-5 text-green-500 mr-2" /> Acesso Vitalício
                   </div>
+              </div>
+              <div className="pt-4 lg:hidden">
+                   <Button onClick={openRegisterModal} className="w-full sm:w-auto">Registar Agora</Button>
               </div>
           </div>
 
@@ -230,6 +310,9 @@ export default function Login() {
                         </>
                     ) : 'Entrar'}
                   </Button>
+                  <p className="text-center text-sm text-gray-500 mt-4">
+                      Ainda não tem conta? <button type="button" onClick={openRegisterModal} className="text-indigo-600 font-bold hover:underline">Registe-se aqui</button>
+                  </p>
                 </div>
               </form>
             </div>
@@ -312,7 +395,147 @@ export default function Login() {
           </div>
       </div>
 
-      {/* Enrollment Modal */}
+      {/* Testimonials Section */}
+      {testimonials.length > 0 && (
+          <div className="bg-white py-16 border-t border-gray-100">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                  <div className="text-center mb-12">
+                      <h2 className="text-3xl font-extrabold text-gray-900">
+                          O que dizem os nossos alunos
+                      </h2>
+                      <p className="mt-4 text-xl text-gray-500">
+                          Histórias reais de quem transformou a sua carreira com a EduTech PT.
+                      </p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {testimonials.map((t) => (
+                          <div key={t.id} className="bg-gray-50 rounded-xl p-6 shadow-sm border border-gray-100 flex flex-col relative">
+                              <div className="absolute -top-4 left-6 bg-indigo-600 rounded-full p-2">
+                                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C19.5693 16 20.017 15.5523 20.017 15V9C20.017 8.44772 19.5693 8 19.017 8H15.017C14.4647 8 14.017 8.44772 14.017 9V11C14.017 11.5523 13.5693 12 13.017 12H12.017V5H22.017V15C22.017 18.3137 19.3307 21 16.017 21H14.017ZM5.0166 21L5.0166 18C5.0166 16.8954 5.91203 16 7.0166 16H10.0166C10.5689 16 11.0166 15.5523 11.0166 15V9C11.0166 8.44772 10.5689 8 10.0166 8H6.0166C5.46432 8 5.0166 8.44772 5.0166 9V11C5.0166 11.5523 4.56889 12 4.0166 12H3.0166V5H13.0166V15C13.0166 18.3137 10.3303 21 7.0166 21H5.0166Z" /></svg>
+                              </div>
+                              <div className="mb-4 pt-4">
+                                  <StarRating rating={t.rating} />
+                              </div>
+                              <p className="text-gray-600 mb-6 italic flex-1">
+                                  "{t.content}"
+                              </p>
+                              <div className="flex items-center mt-auto border-t border-gray-200 pt-4">
+                                  <img 
+                                      src={t.userAvatar || 'https://via.placeholder.com/50'} 
+                                      alt={t.userName} 
+                                      className="w-10 h-10 rounded-full mr-3 object-cover"
+                                  />
+                                  <div>
+                                      <h4 className="text-sm font-bold text-gray-900">{t.userName}</h4>
+                                      <p className="text-xs text-indigo-600">{t.role}</p>
+                                  </div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Register Modal */}
+      <Modal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        title={registerSuccess ? "Registo Efetuado" : "Criar Nova Conta"}
+        footer={null}
+      >
+          {registerSuccess ? (
+              <div className="text-center py-6">
+                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
+                      <Icons.Mail className="h-6 w-6 text-indigo-600" />
+                  </div>
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">Verifique o seu Email</h3>
+                  <p className="mt-2 text-sm text-gray-500">
+                      A sua conta foi criada com sucesso, mas requer aprovação.
+                      Enviámos um email de verificação para <strong>{regEmail}</strong>.
+                  </p>
+                  <p className="mt-2 text-sm text-gray-500 font-medium">
+                      Assim que confirmar o email e um Administrador aprovar o registo, poderá fazer login.
+                  </p>
+                  <div className="mt-6">
+                      <Button onClick={() => setIsRegisterModalOpen(false)} className="w-full">Entendido</Button>
+                  </div>
+              </div>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-4">
+                <Input 
+                    label="Nome de Exibição (Ex: João S.)"
+                    required
+                    value={regName}
+                    onChange={e => setRegName(e.target.value)}
+                />
+                <Input 
+                    label="Nome Completo"
+                    required
+                    value={regFullName}
+                    onChange={e => setRegFullName(e.target.value)}
+                />
+                <Input 
+                    label="Email"
+                    type="email"
+                    required
+                    value={regEmail}
+                    onChange={e => setRegEmail(e.target.value)}
+                />
+                
+                <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <div className="relative">
+                        <input
+                            type={showRegPass ? "text" : "password"}
+                            required
+                            value={regPass}
+                            onChange={(e) => setRegPass(e.target.value)}
+                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border pr-10"
+                            placeholder="Mínimo 5 caracteres"
+                        />
+                        <button
+                            type="button"
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                            onClick={() => setShowRegPass(!showRegPass)}
+                        >
+                            {showRegPass ? <Icons.EyeOff className="h-5 w-5" /> : <Icons.Eye className="h-5 w-5" />}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Senha</label>
+                    <div className="relative">
+                        <input
+                            type={showRegConfirmPass ? "text" : "password"}
+                            required
+                            value={regConfirmPass}
+                            onChange={(e) => setRegConfirmPass(e.target.value)}
+                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border pr-10"
+                        />
+                        <button
+                            type="button"
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                            onClick={() => setShowRegConfirmPass(!showRegConfirmPass)}
+                        >
+                            {showRegConfirmPass ? <Icons.EyeOff className="h-5 w-5" /> : <Icons.Eye className="h-5 w-5" />}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={() => setIsRegisterModalOpen(false)}>Cancelar</Button>
+                    <Button type="submit" disabled={registerLoading}>
+                        {registerLoading ? 'A Registar...' : 'Criar Conta'}
+                    </Button>
+                </div>
+            </form>
+          )}
+      </Modal>
+
+      {/* Enrollment Modal (Legacy) */}
       <Modal 
          isOpen={isEnrollModalOpen}
          onClose={() => setIsEnrollModalOpen(false)}
@@ -352,7 +575,6 @@ export default function Login() {
                       value={enrollEmail}
                       onChange={e => setEnrollEmail(e.target.value)}
                   />
-                  {/* Campo Senha removido a pedido */}
                   
                   <div className="pt-4 flex justify-end gap-2">
                       <Button type="button" variant="ghost" onClick={() => setIsEnrollModalOpen(false)}>Cancelar</Button>

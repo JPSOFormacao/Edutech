@@ -19,6 +19,12 @@ export enum MaterialType {
   RECURSO = 'RECURSO'
 }
 
+export enum TestimonialStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED'
+}
+
 export const PERMISSIONS = {
   VIEW_DASHBOARD: 'view_dashboard',
   MANAGE_USERS: 'manage_users',
@@ -84,6 +90,8 @@ export interface User {
   mustChangePassword?: boolean;
   bio?: string;
   privacySettings?: UserPrivacySettings;
+  emailVerified?: boolean; // Novo campo
+  verificationToken?: string; // Novo campo
 }
 
 export interface Course {
@@ -115,6 +123,18 @@ export interface Page {
   updatedAt: string;
 }
 
+export interface Testimonial {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  role: string; // Texto livre, ex: "Aluno de Python"
+  content: string;
+  rating: number; // 1 to 5
+  status: TestimonialStatus;
+  createdAt: string;
+}
+
 export interface QuizQuestion {
   id: number;
   question: string;
@@ -132,6 +152,7 @@ export interface EmailTemplates {
     resetPasswordId: string;
     enrollmentId: string;
     notificationId: string;
+    verificationId?: string; // Novo template para verificação
 }
 
 export interface EmailConfig {

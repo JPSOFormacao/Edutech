@@ -14,7 +14,8 @@ export default function EmailConfigPage() {
       welcomeId: '',
       resetPasswordId: '',
       enrollmentId: '',
-      notificationId: ''
+      notificationId: '',
+      verificationId: ''
   });
 
   const [status, setStatus] = useState<{type: 'success' | 'error' | 'info', msg: string} | null>(null);
@@ -35,7 +36,8 @@ export default function EmailConfigPage() {
                   welcomeId: legacyTemplate,
                   resetPasswordId: legacyTemplate,
                   enrollmentId: legacyTemplate,
-                  notificationId: legacyTemplate
+                  notificationId: legacyTemplate,
+                  verificationId: legacyTemplate
               });
           }
         }
@@ -147,19 +149,17 @@ export default function EmailConfigPage() {
                   placeholder="ex: template_reset"
                />
                <Input 
+                  label="Verificação de Email (Novo)" 
+                  value={templates.verificationId} 
+                  onChange={e => setTemplates({...templates, verificationId: e.target.value})} 
+                  placeholder="ex: template_verify"
+               />
+               <Input 
                   label="Notificação Genérica" 
                   value={templates.notificationId} 
                   onChange={e => setTemplates({...templates, notificationId: e.target.value})} 
                   placeholder="ex: template_notify"
                />
-               {/* 
-               <Input 
-                  label="Confirmação de Inscrição" 
-                  value={templates.enrollmentId} 
-                  onChange={e => setTemplates({...templates, enrollmentId: e.target.value})} 
-                  placeholder="ex: template_enroll"
-               /> 
-               */}
           </div>
       </div>
 

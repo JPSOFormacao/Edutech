@@ -1,4 +1,4 @@
-import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS } from '../types';
+import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus } from '../types';
 import { supabase } from './supabaseClient';
 
 const STORAGE_KEYS = {
@@ -26,6 +26,7 @@ const INITIAL_ROLES = [
     isSystem: true,
     permissions: [
       PERMISSIONS.VIEW_DASHBOARD,
+      PERMISSIONS.MANAGE_USERS, // Adicionado para permitir aprovar alunos
       PERMISSIONS.MANAGE_COURSES,
       PERMISSIONS.MANAGE_CONTENT,
       PERMISSIONS.USE_AI_STUDIO,
@@ -161,6 +162,33 @@ export const storageService = {
             { id: 'mat_02', courseId: 'c_py_01', title: 'Exercícios Pandas', type: MaterialType.TRABALHO, linkOrContent: 'https://pandas.pydata.org', createdAt: new Date().toISOString() }
         ];
         await supabase.from('materials').upsert(materials);
+
+        // 6. Criar Testemunhos Iniciais
+        const testimonials: Testimonial[] = [
+          {
+            id: 'tm_1',
+            userId: 'usr_aluno1',
+            userName: 'Maria Silva',
+            userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria',
+            role: 'Aluna de Web Dev',
+            content: "A EduTech mudou a minha carreira! O curso de Web Fullstack é muito prático e consegui emprego em 3 meses.",
+            rating: 5,
+            status: TestimonialStatus.APPROVED,
+            createdAt: new Date().toISOString()
+          },
+          {
+            id: 'tm_2',
+            userId: 'usr_aluno2',
+            userName: 'Pedro Santos',
+            userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Pedro',
+            role: 'Aluno de Python',
+            content: "Excelente plataforma. Os formadores estão sempre disponíveis e os materiais são de topo.",
+            rating: 4,
+            status: TestimonialStatus.APPROVED,
+            createdAt: new Date().toISOString()
+          }
+        ];
+        await supabase.from('testimonials').upsert(testimonials);
         
         console.log("Dados de exemplo criados com sucesso.");
     }
@@ -190,6 +218,60 @@ export const storageService = {
   deleteUser: async (id: string) => {
       const { error } = await supabase.from('users').delete().eq('id', id);
       if (error) throw error;
+  },
+  
+  register: async (user: Partial<User>): Promise<{user: User, token: string}> => {
+      const email = user.email?.toLowerCase().trim();
+      
+      // 1. Verificar duplicados
+      const { data: existing } = await supabase.from('users').select('*').eq('email', email).single();
+      if (existing) {
+          throw new Error("Este email já se encontra registado.");
+      }
+      
+      const verificationToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+      const newUser: User = {
+          id: Date.now().toString(),
+          email: email || '',
+          name: user.name || '',
+          fullName: user.fullName || '',
+          role: UserRole.ALUNO,
+          roleId: 'role_aluno', // Default para alunos
+          status: UserStatus.PENDING, // Bloqueado por defeito
+          password: user.password,
+          allowedCourses: [],
+          avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
+          mustChangePassword: false,
+          emailVerified: false,
+          verificationToken: verificationToken,
+          ...user
+      } as User;
+      
+      const { error } = await supabase.from('users').insert(newUser);
+      if(error) throw error;
+      
+      return { user: newUser, token: verificationToken };
+  },
+
+  verifyUserEmail: async (token: string): Promise<boolean> => {
+      const { data: users, error } = await supabase.from('users').select('*').eq('verificationToken', token);
+      
+      if (error || !users || users.length === 0) {
+          return false;
+      }
+      
+      const user = users[0];
+      
+      // Update
+      const { error: updateError } = await supabase.from('users').update({
+          emailVerified: true,
+          verificationToken: null // Clear token
+      }).eq('id', user.id);
+      
+      if (updateError) return false;
+      
+      return true;
   },
 
   // --- ROLES ---
@@ -258,6 +340,20 @@ export const storageService = {
       await supabase.from('pages').delete().eq('slug', slug);
   },
 
+  // --- TESTIMONIALS ---
+  getTestimonials: async (): Promise<Testimonial[]> => {
+    const { data, error } = await supabase.from('testimonials').select('*');
+    return data || [];
+  },
+  saveTestimonial: async (testimonial: Testimonial) => {
+    const { error } = await supabase.from('testimonials').upsert(testimonial);
+    if (error) throw error;
+  },
+  deleteTestimonial: async (id: string) => {
+    const { error } = await supabase.from('testimonials').delete().eq('id', id);
+    if (error) throw error;
+  },
+
   // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
     const { data } = await supabase.from('email_config').select('*').single();
@@ -321,6 +417,7 @@ export const storageService = {
     }
 
     if (user.role === UserRole.ADMIN) return INITIAL_ROLES.find(r => r.id === 'role_admin')?.permissions || [];
+    // ATENÇÃO: Se não encontrar na DB, faz fallback para o INITIAL_ROLES que já contém MANAGE_USERS agora
     if (user.role === UserRole.EDITOR) return INITIAL_ROLES.find(r => r.id === 'role_editor')?.permissions || [];
     
     return INITIAL_ROLES.find(r => r.id === 'role_aluno')?.permissions || [];
@@ -360,11 +457,14 @@ export const storageService = {
         fullName: normalizedEmail.split('@')[0], // Default FullName
         role: shouldBeAdmin ? UserRole.ADMIN : UserRole.ALUNO, 
         roleId: shouldBeAdmin ? 'role_admin' : 'role_aluno',
+        // AQUI: Define como PENDING se não for admin. 
+        // Isto, combinado com a lógica no App.tsx, garante o bloqueio.
         status: shouldBeAdmin ? UserStatus.ACTIVE : UserStatus.PENDING,
         allowedCourses: [],
         avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedEmail}`,
         password: password || '123456',
-        mustChangePassword: false
+        mustChangePassword: false,
+        emailVerified: false
       };
       
       const { error: createError } = await supabase.from('users').insert(newUser);

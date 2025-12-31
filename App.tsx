@@ -17,6 +17,7 @@ import RolesPage from './pages/Roles';
 import ProfilePage from './pages/Profile';
 import CommunityPage from './pages/Community';
 import CatalogPage from './pages/Catalog';
+import VerifyEmail from './pages/VerifyEmail';
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -159,7 +160,7 @@ const Layout = () => {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Conta Pendente</h2>
           <p className="text-gray-600 mb-6">
             A sua conta aguarda aprovação de um Administrador. <br/>
-            Por favor, contacte a secretaria ou aguarde a ativação.
+            {!user.emailVerified && <span className="block mt-2 font-bold text-orange-600">O seu email ainda não foi verificado. Verifique a sua caixa de entrada.</span>}
           </p>
           
           <div className="flex flex-col gap-3">
@@ -188,6 +189,7 @@ const Layout = () => {
             <div className="mt-6 pt-4 border-t border-gray-100 text-xs text-gray-400 text-left">
                 <p>ID: {user.id}</p>
                 <p>Email: {user.email}</p>
+                <p>Verificado: {user.emailVerified ? 'Sim' : 'Não'}</p>
                 <p>Status: {user.status}</p>
                 <p className="italic text-gray-300">Backend: Supabase</p>
             </div>
@@ -288,6 +290,7 @@ export default function App() {
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />

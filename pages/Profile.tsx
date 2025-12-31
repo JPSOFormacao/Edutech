@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../App';
 import { storageService } from '../services/storageService';
-import { Button, Input } from '../components/UI';
+import { Button, Input, Modal, Badge } from '../components/UI';
 import { Icons } from '../components/Icons';
-import { UserPrivacySettings } from '../types';
+import { UserPrivacySettings, Testimonial, TestimonialStatus, UserRole } from '../types';
 
 // Avatares atualizados: Estilo Cartoon Sorridente + Animais/Criaturas
 const PRESET_AVATARS = [
@@ -37,6 +37,13 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
+  // Testimonial State
+  const [userTestimonial, setUserTestimonial] = useState<Testimonial | null>(null);
+  const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
+  const [testimonialContent, setTestimonialContent] = useState('');
+  const [testimonialRating, setTestimonialRating] = useState(5);
+  const [testimonialRole, setTestimonialRole] = useState('');
+
   useEffect(() => {
     if (user) {
       setName(user.name);
@@ -46,8 +53,23 @@ export default function ProfilePage() {
       if (user.privacySettings) {
         setPrivacy(user.privacySettings);
       }
+      loadUserTestimonial();
     }
   }, [user]);
+
+  const loadUserTestimonial = async () => {
+      if(!user) return;
+      const all = await storageService.getTestimonials();
+      const mine = all.find(t => t.userId === user.id);
+      if(mine) {
+          setUserTestimonial(mine);
+          setTestimonialContent(mine.content);
+          setTestimonialRating(mine.rating);
+          setTestimonialRole(mine.role);
+      } else {
+          setTestimonialRole("Aluno EduTech");
+      }
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -81,6 +103,34 @@ export default function ProfilePage() {
       setSaving(false);
     }
   };
+  
+  const handleSaveTestimonial = async () => {
+      if(!user || !testimonialContent) return;
+      setSaving(true);
+      
+      const newTestimonial: Testimonial = {
+          id: userTestimonial?.id || 'tm_' + Date.now(),
+          userId: user.id,
+          userName: user.name,
+          userAvatar: user.avatarUrl || '',
+          role: testimonialRole,
+          content: testimonialContent,
+          rating: testimonialRating,
+          status: TestimonialStatus.PENDING, // Sempre pendente ao editar/criar
+          createdAt: new Date().toISOString()
+      };
+
+      try {
+          await storageService.saveTestimonial(newTestimonial);
+          await loadUserTestimonial();
+          setIsTestimonialModalOpen(false);
+          alert("Testemunho submetido! Aguarda aprovação do Administrador.");
+      } catch(e) {
+          alert("Erro ao guardar testemunho.");
+      } finally {
+          setSaving(false);
+      }
+  };
 
   const ToggleSwitch = ({ checked, onChange, id }: { checked: boolean, onChange: (val: boolean) => void, id: string }) => (
       <label htmlFor={id} className="relative inline-flex items-center cursor-pointer">
@@ -97,11 +147,22 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-         <div className="bg-indigo-600 p-2 rounded-lg text-white">
-            <Icons.Users className="w-6 h-6" />
+      <div className="flex items-center justify-between mb-2">
+         <div className="flex items-center gap-3">
+             <div className="bg-indigo-600 p-2 rounded-lg text-white">
+                <Icons.Users className="w-6 h-6" />
+             </div>
+             <h2 className="text-2xl font-bold text-gray-900">O Meu Perfil</h2>
          </div>
-         <h2 className="text-2xl font-bold text-gray-900">O Meu Perfil</h2>
+         {user?.role === UserRole.ALUNO && (
+             <Button 
+                variant="secondary" 
+                onClick={() => setIsTestimonialModalOpen(true)}
+                className="hidden sm:flex"
+             >
+                 {userTestimonial ? "Editar o meu Testemunho" : "Escrever Testemunho"}
+             </Button>
+         )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -120,6 +181,14 @@ export default function ProfilePage() {
                 <p className="text-indigo-600 text-sm font-medium mb-1">{user?.role}</p>
                 <p className="text-gray-500 text-xs">{user?.email}</p>
             </div>
+
+            {user?.role === UserRole.ALUNO && (
+                <div className="sm:hidden mb-6">
+                    <Button onClick={() => setIsTestimonialModalOpen(true)} className="w-full">
+                        {userTestimonial ? "Gerir Testemunho" : "Escrever Testemunho"}
+                    </Button>
+                </div>
+            )}
 
             <div className="bg-white p-6 rounded-lg shadow border border-gray-200">
                 <h4 className="font-bold text-gray-800 mb-4 border-b pb-2">Escolher Avatar</h4>
@@ -241,6 +310,68 @@ export default function ProfilePage() {
             </div>
         </div>
       </div>
+
+      {/* Testimonial Modal */}
+      <Modal 
+         isOpen={isTestimonialModalOpen}
+         onClose={() => setIsTestimonialModalOpen(false)}
+         title="O meu Testemunho"
+         footer={
+             <>
+                <Button variant="ghost" onClick={() => setIsTestimonialModalOpen(false)}>Cancelar</Button>
+                <Button onClick={handleSaveTestimonial} disabled={saving}>{saving ? 'A Submeter...' : 'Submeter para Aprovação'}</Button>
+             </>
+         }
+      >
+         <div className="space-y-4">
+             {userTestimonial && (
+                 <div className="bg-yellow-50 p-3 rounded border border-yellow-200 mb-4 flex items-center justify-between">
+                     <span className="text-sm text-yellow-800 font-medium">Estado Atual:</span>
+                     <Badge color={userTestimonial.status === TestimonialStatus.APPROVED ? 'success' : userTestimonial.status === TestimonialStatus.PENDING ? 'warning' : 'danger'}>
+                         {userTestimonial.status}
+                     </Badge>
+                 </div>
+             )}
+             
+             <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Título / Função</label>
+                 <input 
+                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                    value={testimonialRole}
+                    onChange={e => setTestimonialRole(e.target.value)}
+                    placeholder="Ex: Aluno de Python"
+                 />
+             </div>
+             
+             <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Classificação</label>
+                 <div className="flex gap-2">
+                     {[1,2,3,4,5].map(star => (
+                         <button 
+                            key={star} 
+                            type="button"
+                            onClick={() => setTestimonialRating(star)}
+                            className={`text-2xl ${star <= testimonialRating ? 'text-yellow-400' : 'text-gray-300'}`}
+                         >
+                             ★
+                         </button>
+                     ))}
+                 </div>
+             </div>
+
+             <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-1">O seu Comentário</label>
+                 <textarea 
+                    rows={4}
+                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                    value={testimonialContent}
+                    onChange={e => setTestimonialContent(e.target.value)}
+                    placeholder="Partilhe a sua experiência com a EduTech PT..."
+                 />
+                 <p className="text-xs text-gray-500 mt-1">Ao submeter, o seu testemunho ficará pendente até aprovação do administrador.</p>
+             </div>
+         </div>
+      </Modal>
     </div>
   );
 }
