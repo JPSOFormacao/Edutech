@@ -38,6 +38,13 @@ export default function UsersPage() {
     setRoles(storageService.getRoles());
   };
 
+  // --- Helpers ---
+
+  const generateRandomPassword = () => {
+      // Gera uma senha aleatória de 8 caracteres alfanuméricos
+      return Math.random().toString(36).slice(-8);
+  };
+
   // --- CRUD Operations ---
 
   const handleEdit = (user: User) => {
@@ -59,7 +66,8 @@ export default function UsersPage() {
           mustChangePassword: true,
           classId: ''
       });
-      setNewPassword('123456'); 
+      // Gera uma senha aleatória em vez de '123456'
+      setNewPassword(generateRandomPassword()); 
       setIsModalOpen(true);
   };
 
@@ -146,7 +154,8 @@ export default function UsersPage() {
           if(parts.length >= 2) {
               const name = parts[0].trim();
               const email = parts[1].trim();
-              const password = '123456'; // Default
+              // Gera senha única e aleatória para cada utilizador importado
+              const password = generateRandomPassword(); 
               
               if(email.includes('@')) {
                   newUsers.push({
@@ -320,7 +329,7 @@ export default function UsersPage() {
 
             <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
                 <Input 
-                    label={users.find(u => u.id === selectedUser.id) ? "Redefinir Senha (Opcional)" : "Senha Inicial"}
+                    label={users.find(u => u.id === selectedUser.id) ? "Redefinir Senha (Opcional)" : "Senha Inicial (Gerada)"}
                     type="text" 
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
@@ -409,7 +418,7 @@ export default function UsersPage() {
           <div className="space-y-4">
               <p className="text-sm text-gray-600">
                   Adicione um utilizador por linha no formato: <code>Nome; Email</code> ou <code>Nome, Email</code>.
-                  A senha padrão será "123456".
+                  A senha será gerada aleatoriamente.
               </p>
               
               <div className="grid grid-cols-2 gap-4">

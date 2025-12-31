@@ -15,21 +15,12 @@ export const emailService = {
 
     try {
       const templateParams = {
-        // 'to_name': Quem recebe (geralmente o Admin da plataforma)
         to_name: "Administrador", 
-        
-        // 'message': O conteúdo
         message: "Este é um email de teste da plataforma EduTech PT. Se está a ler isto, a configuração está correta.",
-        
-        // 'from_name': Nome de quem enviou (pode ser o nome do user logado)
         from_name: userName,
-
-        // 'reply_to': IMPORTANTE - Quando o admin clicar em responder, vai para este email.
-        // NÃO use isto no campo 'From Email' do template do EmailJS se usar Outlook/Gmail.
         reply_to: userEmail,
-        
-        // Variáveis extra que podem ser usadas no corpo do email
-        user_email: userEmail
+        user_email: userEmail,
+        to_email: userEmail // Adicionado para consistência
       };
 
       await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
@@ -62,7 +53,10 @@ export const emailService = {
 
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string): Promise<boolean> => {
     const config = storageService.getEmailConfig();
-    if (!config) return false;
+    if (!config) {
+        console.error("Email Config missing");
+        return false;
+    }
 
     const currentUser = storageService.getCurrentUser();
     const adminEmail = currentUser?.email || 'admin@edutech.pt';
@@ -79,14 +73,25 @@ export const emailService = {
       Por favor, aceda à plataforma e altere a sua senha no primeiro login.
     `;
 
+    const templateParams = {
+        to_name: toName,
+        // Variáveis de destino
+        to_email: toEmail, 
+        user_email: toEmail, 
+        
+        // Conteúdo
+        message: messageBody,
+        password: tempPass, // CAMPO ADICIONADO: Use {{password}} no template do EmailJS
+        
+        // Remetente
+        from_name: "EduTech PT Admin",
+        reply_to: adminEmail
+    };
+
     try {
-        await emailjs.send(config.serviceId, config.templateId, {
-            to_name: toName,
-            to_email: toEmail, // Email do novo utilizador
-            message: messageBody,
-            from_name: "EduTech PT Admin",
-            reply_to: adminEmail
-        }, config.publicKey);
+        console.log("A enviar email para:", toEmail, "com Params:", templateParams);
+        await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
+        console.log("Email enviado com sucesso pelo SDK.");
         return true;
     } catch (e) {
         console.error("Erro ao enviar welcome email:", e);
