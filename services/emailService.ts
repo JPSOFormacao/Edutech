@@ -1,3 +1,4 @@
+
 import emailjs from '@emailjs/browser';
 import { storageService } from './storageService';
 
@@ -5,6 +6,10 @@ interface EmailResult {
     success: boolean;
     message?: string;
 }
+
+// Email oficial do sistema
+const SYSTEM_EMAIL = 'EduTechPT@hotmail.com';
+const SYSTEM_NAME = 'EduTech PT Formação';
 
 export const emailService = {
   sendTestEmail: async (): Promise<EmailResult> => {
@@ -14,15 +19,15 @@ export const emailService = {
     }
 
     const currentUser = storageService.getCurrentUser();
-    const userEmail = currentUser?.email || 'sistema@edutech.pt';
-    const userName = currentUser?.name || 'Sistema EduTech';
+    // Preferência: Email do utilizador logado, senão usa o email do sistema
+    const userEmail = currentUser?.email || SYSTEM_EMAIL;
 
     try {
-      // Usar a MESMA estrutura do sendWelcomeEmail para garantir que o teste valida o template corretamente
       const templateParams = {
-        to_name: "Administrador (Teste)", 
+        to_name: "Administrador (Teste)",
+        name: "Administrador (Teste)", // Suporte para {{name}}
         
-        // Variaveis de Destinatário (Redundância máxima)
+        // Variaveis de Destinatário
         to_email: userEmail,
         user_email: userEmail,
         email: userEmail,
@@ -30,11 +35,11 @@ export const emailService = {
         to: userEmail,
 
         // Conteúdo
-        message: "Se está a ler isto, o seu template EmailJS está configurado corretamente! O sistema está pronto para enviar senhas.",
-        password: "senha-de-exemplo-123", // Para testar se a variável {{password}} aparece no email
+        message: "O sistema de email está configurado e operacional com a conta EduTechPT@hotmail.com.",
+        password: "senha-de-teste", 
         
-        from_name: userName,
-        reply_to: userEmail,
+        from_name: SYSTEM_NAME,
+        reply_to: SYSTEM_EMAIL,
       };
 
       console.log("Enviando Teste com Params:", templateParams);
@@ -52,16 +57,16 @@ export const emailService = {
     if (!config) return false;
 
     const currentUser = storageService.getCurrentUser();
-    const replyTo = currentUser?.email || 'noreply@edutech.pt';
-
+    
     try {
         await emailjs.send(config.serviceId, config.templateId, {
             to_name: toName,
+            name: toName, // Suporte para {{name}}
             message: message,
-            from_name: currentUser?.name || 'Sistema',
-            reply_to: replyTo,
-            to_email: replyTo, // Importante
-            email: replyTo,
+            from_name: SYSTEM_NAME,
+            reply_to: SYSTEM_EMAIL,
+            to_email: SYSTEM_EMAIL, // Notificações vão para o sistema
+            email: SYSTEM_EMAIL,
             password: 'N/A' 
         }, config.publicKey);
         return true;
@@ -74,17 +79,10 @@ export const emailService = {
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string): Promise<EmailResult> => {
     const config = storageService.getEmailConfig();
     
-    // Validação detalhada
     if (!config) return { success: false, message: "Configuração de Email inexistente." };
-    if (!config.serviceId) return { success: false, message: "Service ID em falta na configuração." };
-    if (!config.templateId) return { success: false, message: "Template ID em falta na configuração." };
-    if (!config.publicKey) return { success: false, message: "Public Key em falta na configuração." };
-
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
 
     const cleanEmail = toEmail.trim();
-    const currentUser = storageService.getCurrentUser();
-    const adminEmail = currentUser?.email || 'admin@edutech.pt';
 
     const messageBody = `
       Bem-vindo à EduTech PT!
@@ -100,7 +98,9 @@ export const emailService = {
 
     const templateParams = {
         to_name: toName,
-        // Variáveis de destino (Redundância para evitar erro "recipients address is empty")
+        name: toName, // Suporte para {{name}} conforme solicitado
+        
+        // Variáveis de destino
         to_email: cleanEmail, 
         user_email: cleanEmail, 
         email: cleanEmail,
@@ -111,9 +111,9 @@ export const emailService = {
         message: messageBody,
         password: tempPass,
         
-        // Remetente
-        from_name: "EduTech PT Admin",
-        reply_to: adminEmail
+        // Remetente (Fixo no sistema para garantir consistência)
+        from_name: SYSTEM_NAME,
+        reply_to: SYSTEM_EMAIL
     };
 
     try {
@@ -134,9 +134,6 @@ export const emailService = {
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
     const cleanEmail = toEmail.trim();
     
-    const currentUser = storageService.getCurrentUser();
-    const adminEmail = currentUser?.email || 'admin@edutech.pt';
-
     const messageBody = `
       Olá ${toName},
 
@@ -149,6 +146,7 @@ export const emailService = {
 
     const templateParams = {
         to_name: toName,
+        name: toName, // Suporte para {{name}}
         to_email: cleanEmail, 
         user_email: cleanEmail, 
         email: cleanEmail,
@@ -156,8 +154,8 @@ export const emailService = {
         to: cleanEmail,
         message: messageBody,
         password: newPass,
-        from_name: "EduTech PT Admin",
-        reply_to: adminEmail
+        from_name: SYSTEM_NAME,
+        reply_to: SYSTEM_EMAIL
     };
 
     try {

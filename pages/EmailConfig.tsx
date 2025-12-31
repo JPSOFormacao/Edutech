@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
@@ -65,8 +66,14 @@ export default function EmailConfigPage() {
       }
     } catch (error: any) {
       let errorMsg = error?.message || 'Falha ao enviar email.';
+      
+      // Deteção inteligente de erros comuns
+      if (errorMsg.toLowerCase().includes('invalid grant') || errorMsg.toLowerCase().includes('reconnect')) {
+          errorMsg = "ERRO DE PERMISSÃO (Invalid Grant): A conexão entre o EmailJS e o seu Outlook/Gmail expirou. Vá ao painel do EmailJS > Email Services e clique em 'Reconnect'.";
+      }
+
       setStatus({ type: 'error', msg: errorMsg });
-      alert("Erro no Teste: " + errorMsg);
+      alert("Erro no Teste:\n" + errorMsg);
     } finally {
       setLoading(false);
     }
@@ -157,9 +164,9 @@ export default function EmailConfigPage() {
 
                     <div className="bg-white p-3 rounded border border-blue-200">
                         <span className="text-xs font-bold text-gray-500 uppercase block mb-1">Aba "Content" (Corpo do Email)</span>
-                        <p className="text-xs text-gray-600 mb-2">Copie e cole este exemplo:</p>
+                        <p className="text-xs text-gray-600 mb-2">Copie e cole este exemplo (pode usar <b>{"{{name}}"}</b> ou <b>{"{{to_name}}"}</b>):</p>
                         <pre className="text-xs bg-gray-900 text-green-400 p-2 rounded overflow-x-auto">
-{`Olá {{to_name}},
+{`Olá {{name}},
 
 {{message}}
 
@@ -173,13 +180,24 @@ Obrigado.`}
                 </div>
              </div>
 
-             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-sm text-yellow-800">
-                 <p className="font-bold flex items-center gap-1">
-                     <span className="text-xl">⚠️</span> Atenção ao erro "Recipients Empty"
-                 </p>
-                 <p className="mt-1">
-                     Se receber este erro, significa que o campo <b>To Email</b> na aba <i>Settings</i> do EmailJS está vazio ou incorreto. Certifique-se que contém <code className="font-bold">{"{{to_email}}"}</code>.
-                 </p>
+             <div className="space-y-4">
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-sm text-yellow-800">
+                    <p className="font-bold flex items-center gap-1">
+                        <span className="text-xl">⚠️</span> Erro "Recipients Empty"
+                    </p>
+                    <p className="mt-1">
+                        Significa que o campo <b>To Email</b> na aba <i>Settings</i> está vazio. Escreva <code className="font-bold">{"{{to_email}}"}</code>.
+                    </p>
+                </div>
+                
+                <div className="bg-red-50 p-4 rounded-lg border border-red-200 text-sm text-red-800">
+                    <p className="font-bold flex items-center gap-1">
+                        <span className="text-xl">🚫</span> Erro "Invalid Grant"
+                    </p>
+                    <p className="mt-1">
+                        A conexão com o Outlook/Gmail expirou. Vá ao painel do EmailJS &gt; <b>Email Services</b> e clique em <b>Reconnect Account</b>.
+                    </p>
+                </div>
              </div>
           </div>
       </div>

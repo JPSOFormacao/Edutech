@@ -1,3 +1,4 @@
+
 export enum UserRole {
   // Mantemos o Enum para retrocompatibilidade, mas a lógica passará para RoleEntity
   ADMIN = 'ADMIN',
@@ -28,6 +29,18 @@ export const PERMISSIONS = {
   VIEW_COURSES: 'view_courses',
   USE_AI_STUDIO: 'use_ai_studio',
   MANAGE_SETTINGS: 'manage_settings'
+};
+
+export const PERMISSION_LABELS: Record<string, string> = {
+  [PERMISSIONS.VIEW_DASHBOARD]: 'Aceder ao Painel Principal (Dashboard)',
+  [PERMISSIONS.MANAGE_USERS]: 'Gerir Utilizadores (Criar, Editar, Apagar)',
+  [PERMISSIONS.MANAGE_ROLES]: 'Gerir Cargos e Permissões',
+  [PERMISSIONS.MANAGE_CLASSES]: 'Gerir Turmas',
+  [PERMISSIONS.MANAGE_COURSES]: 'Criar e Editar Cursos',
+  [PERMISSIONS.MANAGE_CONTENT]: 'Gerir Conteúdos (Materiais e Páginas)',
+  [PERMISSIONS.VIEW_COURSES]: 'Ver Cursos Disponíveis (Acesso Aluno)',
+  [PERMISSIONS.USE_AI_STUDIO]: 'Utilizar Estúdio de Inteligência Artificial',
+  [PERMISSIONS.MANAGE_SETTINGS]: 'Configurações de Sistema (Email, etc.)'
 };
 
 export interface RoleEntity {
