@@ -8,21 +8,23 @@ export const emailService = {
       throw new Error("Configuração de Email não encontrada. Por favor configure o Service ID, Template ID e Public Key.");
     }
 
-    // Obter o utilizador atual para definir como remetente lógico (para o corpo do email e reply-to)
     const currentUser = storageService.getCurrentUser();
     const userEmail = currentUser?.email || 'sistema@edutech.pt';
     const userName = currentUser?.name || 'Sistema EduTech';
 
     try {
+      // Enviamos params redundantes para garantir compatibilidade com diferentes templates
       const templateParams = {
         to_name: "Administrador", 
         message: "Este é um email de teste da plataforma EduTech PT. Se está a ler isto, a configuração está correta.",
         from_name: userName,
         reply_to: userEmail,
+        // Variantes para o destinatário
         user_email: userEmail,
-        to_email: userEmail, // Standard
-        email: userEmail, // Fallback comum
-        recipient: userEmail // Outro fallback comum
+        to_email: userEmail,
+        email: userEmail,
+        recipient: userEmail,
+        to: userEmail
       };
 
       await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
@@ -46,9 +48,9 @@ export const emailService = {
             message: message,
             from_name: currentUser?.name || 'Sistema',
             reply_to: replyTo,
-            // Garantir que variaveis de email estão presentes se o template as usar
             user_email: replyTo,
-            email: replyTo
+            email: replyTo,
+            to: replyTo
         }, config.publicKey);
         return true;
     } catch (e) {
@@ -64,6 +66,12 @@ export const emailService = {
         return false;
     }
 
+    if (!toEmail) {
+        console.error("Tentativa de envio de email sem destinatário.");
+        return false;
+    }
+
+    const cleanEmail = toEmail.trim();
     const currentUser = storageService.getCurrentUser();
     const adminEmail = currentUser?.email || 'admin@edutech.pt';
 
@@ -73,25 +81,24 @@ export const emailService = {
       A sua conta foi criada com sucesso.
       
       As suas credenciais de acesso são:
-      Email: ${toEmail}
+      Email: ${cleanEmail}
       Senha Temporária: ${tempPass}
       
       Por favor, aceda à plataforma e altere a sua senha no primeiro login.
     `;
 
-    // Enviamos múltiplas variações para garantir que o template do EmailJS encontra o destinatário
     const templateParams = {
         to_name: toName,
-        
         // Variáveis de destino (Redundância para evitar erro "recipients address is empty")
-        to_email: toEmail, 
-        user_email: toEmail, 
-        email: toEmail,
-        recipient: toEmail,
+        to_email: cleanEmail, 
+        user_email: cleanEmail, 
+        email: cleanEmail,
+        recipient: cleanEmail,
+        to: cleanEmail,
         
         // Conteúdo
         message: messageBody,
-        password: tempPass, // Variável explícita para usar {{password}} no template
+        password: tempPass,
         
         // Remetente
         from_name: "EduTech PT Admin",
@@ -99,9 +106,8 @@ export const emailService = {
     };
 
     try {
-        console.log("A enviar email para:", toEmail, "com Params:", templateParams);
+        console.log("A enviar email de boas-vindas para:", cleanEmail);
         await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
-        console.log("Email enviado com sucesso pelo SDK.");
         return true;
     } catch (e) {
         console.error("Erro ao enviar welcome email:", e);
@@ -113,6 +119,9 @@ export const emailService = {
     const config = storageService.getEmailConfig();
     if (!config) return false;
 
+    if (!toEmail) return false;
+    const cleanEmail = toEmail.trim();
+    
     const currentUser = storageService.getCurrentUser();
     const adminEmail = currentUser?.email || 'admin@edutech.pt';
 
@@ -122,18 +131,21 @@ export const emailService = {
       A sua senha de acesso à plataforma EduTech PT foi redefinida pelo administrador.
 
       As suas novas credenciais:
-      Email: ${toEmail}
+      Email: ${cleanEmail}
       Nova Senha: ${newPass}
 
-      Terá de alterar esta senha no próximo login.
+      Terá de alterar esta senha obrigatoriamente no próximo login.
     `;
 
     const templateParams = {
         to_name: toName,
-        to_email: toEmail, 
-        user_email: toEmail, 
-        email: toEmail,
-        recipient: toEmail,
+        // Redundância de destinatário
+        to_email: cleanEmail, 
+        user_email: cleanEmail, 
+        email: cleanEmail,
+        recipient: cleanEmail,
+        to: cleanEmail,
+
         message: messageBody,
         password: newPass,
         from_name: "EduTech PT Admin",
@@ -141,6 +153,7 @@ export const emailService = {
     };
 
     try {
+        console.log("A enviar email de reset de senha para:", cleanEmail);
         await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
         return true;
     } catch (e) {

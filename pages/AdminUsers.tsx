@@ -41,7 +41,7 @@ export default function UsersPage() {
   // --- Helpers ---
 
   const generateRandomPassword = () => {
-      // Gera uma senha robusta de 10 caracteres com letras, numeros e simbolos
+      // Gera uma senha robusta de 10 caracteres
       const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
       let retVal = "";
       for (let i = 0; i < 10; ++i) {
@@ -68,10 +68,10 @@ export default function UsersPage() {
           status: UserStatus.ACTIVE,
           allowedCourses: [],
           avatarUrl: 'https://via.placeholder.com/100',
-          mustChangePassword: true,
+          mustChangePassword: true, // Força alteração no primeiro login
           classId: ''
       });
-      // Gera uma senha aleatória inicial robusta
+      // Gera senha aleatória ao criar
       setNewPassword(generateRandomPassword()); 
       setIsModalOpen(true);
   };
@@ -82,9 +82,10 @@ export default function UsersPage() {
     let userToSave = { ...selectedUser };
     let isPasswordReset = false;
 
+    // Se houver nova senha (Criação ou Redefinição)
     if (newPassword) {
         userToSave.password = newPassword;
-        userToSave.mustChangePassword = true; 
+        userToSave.mustChangePassword = true; // REQUISITO: Pedir para alterar na próxima vez
         isPasswordReset = true;
     }
     
@@ -100,35 +101,32 @@ export default function UsersPage() {
     let updatedUsers = [...users];
 
     if (exists) {
-        // --- ATUALIZAÇÃO DE UTILIZADOR ---
+        // --- MODO EDIÇÃO ---
         updatedUsers = users.map(u => u.id === userToSave.id ? userToSave : u);
         storageService.saveUsers(updatedUsers);
         setUsers(updatedUsers);
         
-        // Se houve redefinição de senha, enviar notificação
+        // Se a senha foi alterada manualmente pelo admin, notificar o utilizador
         if (isPasswordReset && storageService.getEmailConfig()) {
             setIsSendingEmail(true);
             const success = await emailService.sendPasswordReset(userToSave.name, userToSave.email, newPassword);
             setIsSendingEmail(false);
             
             if (success) {
-                alert("Utilizador atualizado e email de nova senha enviado com sucesso.");
+                alert("Utilizador atualizado e email com nova senha enviado.");
             } else {
-                alert("Utilizador atualizado, mas FALHA ao enviar o email. Verifique as configurações.");
+                alert("Utilizador atualizado, mas FALHA ao enviar email de nova senha.");
             }
-        } else {
-             // alert("Utilizador atualizado com sucesso.");
         }
         setIsModalOpen(false);
 
     } else {
-        // --- CRIAÇÃO DE UTILIZADOR ---
+        // --- MODO CRIAÇÃO ---
         if (!userToSave.email || !newPassword) {
-            alert("Nome, Email e Senha são obrigatórios para novos utilizadores.");
+            alert("Nome, Email e Senha são obrigatórios.");
             return;
         }
         
-        // Adicionar novo utilizador
         updatedUsers.push(userToSave);
         storageService.saveUsers(updatedUsers);
         setUsers(updatedUsers);
@@ -142,10 +140,10 @@ export default function UsersPage() {
             if (success) {
                 alert(`Utilizador criado e notificado por email.`);
             } else {
-                alert(`Utilizador criado, mas o envio do email FALHOU. Verifique as configurações de Email.`);
+                alert(`Utilizador criado, mas o envio do email FALHOU.`);
             }
         } else {
-             alert("Utilizador criado (Sem configuração de email ativa).");
+            alert("Utilizador criado (Sem configuração de email).");
         }
         
         setIsModalOpen(false);
@@ -189,8 +187,8 @@ export default function UsersPage() {
           if(parts.length >= 2) {
               const name = parts[0].trim();
               const email = parts[1].trim();
-              // Gera senha única e aleatória para cada utilizador importado
-              const password = generateRandomPassword(); 
+              // Senha aleatória para importação em massa também
+              const password = generateRandomPassword();
               
               if(email.includes('@')) {
                   newUsers.push({
@@ -203,7 +201,7 @@ export default function UsersPage() {
                       classId: bulkClassId || undefined,
                       status: UserStatus.ACTIVE,
                       allowedCourses: [],
-                      mustChangePassword: true,
+                      mustChangePassword: true, // Força alteração
                       avatarUrl: `https://ui-avatars.com/api/?name=${name}&background=random`
                   });
               }
@@ -216,9 +214,10 @@ export default function UsersPage() {
           setUsers(updated);
           setIsBulkAddOpen(false);
           setBulkText('');
-          alert(`${newUsers.length} utilizadores adicionados.`);
+          alert(`${newUsers.length} utilizadores adicionados. As senhas foram geradas (ver console ou implementar envio em massa).`);
+          console.log("Senhas geradas:", newUsers.map(u => ({email: u.email, pass: u.password})));
       } else {
-          alert("Nenhum utilizador válido encontrado. Use o formato: Nome; Email");
+          alert("Nenhum utilizador válido encontrado.");
       }
   };
 
@@ -364,12 +363,15 @@ export default function UsersPage() {
 
             <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
                 <Input 
-                    label={users.find(u => u.id === selectedUser.id) ? "Redefinir Senha (Opcional)" : "Senha Inicial (Gerada)"}
+                    label={users.find(u => u.id === selectedUser.id) ? "Redefinir Senha (Gera notificação)" : "Senha Inicial (Gerada)"}
                     type="text" 
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
-                    placeholder="Deixe em branco para manter a atual"
+                    placeholder={users.find(u => u.id === selectedUser.id) ? "Deixe em branco para manter a atual" : "Senha"}
                 />
+                {users.find(u => u.id === selectedUser.id) && (
+                    <p className="text-xs text-yellow-700 mt-1">Ao definir uma nova senha, o utilizador será notificado e obrigado a alterá-la no próximo login.</p>
+                )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
