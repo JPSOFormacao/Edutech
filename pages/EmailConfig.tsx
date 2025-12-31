@@ -34,16 +34,29 @@ export default function EmailConfigPage() {
 
   const handleTest = async () => {
     setLoading(true);
-    setStatus({ type: 'info', msg: 'A tentar enviar email de teste...' });
+    setStatus({ type: 'info', msg: 'A iniciar teste de envio...' });
     
     // Save current values first to ensure test uses latest
     storageService.saveEmailConfig({ serviceId, templateId, publicKey });
 
     try {
       await emailService.sendTestEmail();
-      setStatus({ type: 'success', msg: 'Email de teste enviado com sucesso! Verifique a sua caixa de correio (configurada no EmailJS).' });
+      const successMsg = 'Email de teste enviado com sucesso! Verifique a sua caixa de entrada.';
+      setStatus({ type: 'success', msg: successMsg });
+      // Alert added for explicit feedback as requested
+      alert(successMsg);
     } catch (error: any) {
-      setStatus({ type: 'error', msg: 'Falha ao enviar email. Verifique as credenciais na consola ou no EmailJS.' });
+      let errorMsg = 'Falha ao enviar email.';
+      
+      // Try to extract EmailJS specific error text
+      if (error?.text) {
+          errorMsg += ` Erro: ${error.text}`;
+      } else if (error?.message) {
+          errorMsg += ` Erro: ${error.message}`;
+      }
+
+      setStatus({ type: 'error', msg: errorMsg });
+      alert(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -93,10 +106,10 @@ export default function EmailConfigPage() {
          />
 
          {status && (
-             <div className={`p-3 rounded text-sm ${
-                 status.type === 'success' ? 'bg-green-100 text-green-700' : 
-                 status.type === 'error' ? 'bg-red-100 text-red-700' : 
-                 'bg-blue-100 text-blue-700'
+             <div className={`p-4 rounded-md text-sm font-medium border ${
+                 status.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 
+                 status.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 
+                 'bg-blue-50 text-blue-700 border-blue-200'
              }`}>
                  {status.msg}
              </div>
@@ -104,7 +117,11 @@ export default function EmailConfigPage() {
 
          <div className="flex justify-between pt-4 border-t mt-4">
              <Button variant="secondary" onClick={handleTest} disabled={loading}>
-                 {loading ? 'A Enviar...' : 'Testar Envio'}
+                 {loading ? (
+                    <span className="flex items-center">
+                        <span className="animate-spin mr-2">⟳</span> A Enviar...
+                    </span>
+                 ) : 'Testar Envio'}
              </Button>
              <Button onClick={handleSave}>
                  Guardar Configuração
