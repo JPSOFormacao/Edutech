@@ -18,28 +18,36 @@ export const emailService = {
     const userName = currentUser?.name || 'Sistema EduTech';
 
     try {
+      // Usar a MESMA estrutura do sendWelcomeEmail para garantir que o teste valida o template corretamente
       const templateParams = {
-        to_name: "Administrador", 
-        message: "Email de teste EduTech PT.",
-        from_name: userName,
-        reply_to: userEmail,
-        user_email: userEmail,
+        to_name: "Administrador (Teste)", 
+        
+        // Variaveis de Destinatário (Redundância máxima)
         to_email: userEmail,
+        user_email: userEmail,
         email: userEmail,
         recipient: userEmail,
-        to: userEmail
+        to: userEmail,
+
+        // Conteúdo
+        message: "Se está a ler isto, o seu template EmailJS está configurado corretamente! O sistema está pronto para enviar senhas.",
+        password: "senha-de-exemplo-123", // Para testar se a variável {{password}} aparece no email
+        
+        from_name: userName,
+        reply_to: userEmail,
       };
+
+      console.log("Enviando Teste com Params:", templateParams);
 
       await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
       return { success: true };
     } catch (error: any) {
       console.error("EmailJS Error:", error);
-      return { success: false, message: error?.text || error?.message || 'Erro desconhecido' };
+      return { success: false, message: error?.text || error?.message || 'Erro desconhecido no envio.' };
     }
   },
 
   sendNotification: async (toName: string, message: string): Promise<boolean> => {
-    // Mantido simples para compatibilidade, mas idealmente deve ser migrado
     const config = storageService.getEmailConfig();
     if (!config) return false;
 
@@ -52,8 +60,9 @@ export const emailService = {
             message: message,
             from_name: currentUser?.name || 'Sistema',
             reply_to: replyTo,
-            to_email: replyTo,
-            email: replyTo
+            to_email: replyTo, // Importante
+            email: replyTo,
+            password: 'N/A' 
         }, config.publicKey);
         return true;
     } catch (e) {
@@ -91,24 +100,28 @@ export const emailService = {
 
     const templateParams = {
         to_name: toName,
+        // Variáveis de destino (Redundância para evitar erro "recipients address is empty")
         to_email: cleanEmail, 
         user_email: cleanEmail, 
         email: cleanEmail,
         recipient: cleanEmail,
         to: cleanEmail,
+        
+        // Conteúdo
         message: messageBody,
         password: tempPass,
+        
+        // Remetente
         from_name: "EduTech PT Admin",
         reply_to: adminEmail
     };
 
     try {
-        console.log("Tentando enviar via EmailJS:", config.serviceId, config.templateId);
+        console.log("A enviar email de boas-vindas para:", cleanEmail);
         await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
         return { success: true };
     } catch (e: any) {
         console.error("Erro Fatal EmailJS:", e);
-        // Tentar extrair a mensagem de erro real do objeto EmailJS
         const errorMsg = e?.text || e?.message || JSON.stringify(e);
         return { success: false, message: errorMsg };
     }

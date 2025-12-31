@@ -47,7 +47,6 @@ export default function EmailConfigPage() {
     setLoading(true);
     setStatus({ type: 'info', msg: 'A iniciar teste de envio...' });
     
-    // Save current values first to ensure test uses latest
     const cleanConfig = { 
         serviceId: serviceId.trim(), 
         templateId: templateId.trim(), 
@@ -74,7 +73,7 @@ export default function EmailConfigPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
         <div className="bg-orange-500 p-2 rounded-lg text-white">
             <Icons.Mail className="w-6 h-6" />
@@ -85,59 +84,104 @@ export default function EmailConfigPage() {
         </div>
       </div>
 
-      <div className="bg-white shadow rounded-lg p-6 space-y-4">
-         <div className="bg-blue-50 p-4 rounded-md border border-blue-100 text-sm text-blue-700 mb-4">
-            <p className="font-semibold mb-1">Como configurar:</p>
-            <ol className="list-decimal list-inside space-y-1">
-                <li>Crie uma conta em <a href="https://www.emailjs.com/" target="_blank" className="underline hover:text-blue-900">EmailJS.com</a>.</li>
-                <li>Adicione um Serviço de Email (ex: Gmail).</li>
-                <li>Crie um Template de Email.</li>
-                <li>Copie o <b>Service ID</b>, <b>Template ID</b> e <b>Public Key</b> (Account &gt; General).</li>
-            </ol>
-         </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          {/* Coluna Esquerda: Formulário */}
+          <div className="bg-white shadow rounded-lg p-6 space-y-4">
+             <h3 className="font-bold text-gray-900 border-b pb-2 mb-4">Credenciais API</h3>
+             <Input 
+                label="Service ID" 
+                value={serviceId} 
+                onChange={e => setServiceId(e.target.value)} 
+                placeholder="ex: service_xxxxxx"
+             />
+             <Input 
+                label="Template ID" 
+                value={templateId} 
+                onChange={e => setTemplateId(e.target.value)} 
+                placeholder="ex: template_xxxxxx"
+             />
+             <Input 
+                label="Public Key" 
+                value={publicKey} 
+                onChange={e => setPublicKey(e.target.value)} 
+                placeholder="ex: user_xxxxxx ou chave pública"
+                type="password"
+             />
 
-         <Input 
-            label="Service ID" 
-            value={serviceId} 
-            onChange={e => setServiceId(e.target.value)} 
-            placeholder="ex: service_xxxxxx"
-         />
-         <Input 
-            label="Template ID" 
-            value={templateId} 
-            onChange={e => setTemplateId(e.target.value)} 
-            placeholder="ex: template_xxxxxx"
-         />
-         <Input 
-            label="Public Key" 
-            value={publicKey} 
-            onChange={e => setPublicKey(e.target.value)} 
-            placeholder="ex: user_xxxxxx ou chave pública"
-            type="password"
-         />
+             {status && (
+                 <div className={`p-4 rounded-md text-sm font-medium border ${
+                     status.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 
+                     status.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 
+                     'bg-blue-50 text-blue-700 border-blue-200'
+                 }`}>
+                     {status.msg}
+                 </div>
+             )}
 
-         {status && (
-             <div className={`p-4 rounded-md text-sm font-medium border ${
-                 status.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 
-                 status.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 
-                 'bg-blue-50 text-blue-700 border-blue-200'
-             }`}>
-                 {status.msg}
+             <div className="flex justify-between pt-4 border-t mt-4">
+                 <Button variant="secondary" onClick={handleTest} disabled={loading}>
+                     {loading ? (
+                        <span className="flex items-center">
+                            <span className="animate-spin mr-2">⟳</span> A Enviar...
+                        </span>
+                     ) : 'Testar Envio'}
+                 </Button>
+                 <Button onClick={handleSave}>
+                     Guardar
+                 </Button>
              </div>
-         )}
+          </div>
 
-         <div className="flex justify-between pt-4 border-t mt-4">
-             <Button variant="secondary" onClick={handleTest} disabled={loading}>
-                 {loading ? (
-                    <span className="flex items-center">
-                        <span className="animate-spin mr-2">⟳</span> A Enviar...
-                    </span>
-                 ) : 'Testar Envio'}
-             </Button>
-             <Button onClick={handleSave}>
-                 Guardar Configuração
-             </Button>
-         </div>
+          {/* Coluna Direita: Instruções */}
+          <div className="space-y-6">
+              <div className="bg-blue-50 p-5 rounded-lg border border-blue-100 text-blue-900">
+                <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
+                    <Icons.Settings className="w-5 h-5" /> 
+                    Como Configurar o Template
+                </h3>
+                <p className="text-sm mb-4">
+                    No painel do EmailJS, vá a <b>Email Templates</b>, selecione o seu template e configure os campos exatamente assim:
+                </p>
+
+                <div className="space-y-4">
+                    <div className="bg-white p-3 rounded border border-blue-200">
+                        <span className="text-xs font-bold text-gray-500 uppercase block mb-1">Aba "Settings" (Importante!)</span>
+                        <div className="text-sm">
+                            <span className="font-semibold">To Email:</span> <code className="bg-gray-100 px-1 rounded text-red-600">{"{{to_email}}"}</code>
+                        </div>
+                        <div className="text-sm mt-1">
+                            <span className="font-semibold">From Name:</span> <code className="bg-gray-100 px-1 rounded">{"{{from_name}}"}</code>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-3 rounded border border-blue-200">
+                        <span className="text-xs font-bold text-gray-500 uppercase block mb-1">Aba "Content" (Corpo do Email)</span>
+                        <p className="text-xs text-gray-600 mb-2">Copie e cole este exemplo:</p>
+                        <pre className="text-xs bg-gray-900 text-green-400 p-2 rounded overflow-x-auto">
+{`Olá {{to_name}},
+
+{{message}}
+
+As suas credenciais:
+Email: {{to_email}}
+Senha: {{password}}
+
+Obrigado.`}
+                        </pre>
+                    </div>
+                </div>
+             </div>
+
+             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 text-sm text-yellow-800">
+                 <p className="font-bold flex items-center gap-1">
+                     <span className="text-xl">⚠️</span> Atenção ao erro "Recipients Empty"
+                 </p>
+                 <p className="mt-1">
+                     Se receber este erro, significa que o campo <b>To Email</b> na aba <i>Settings</i> do EmailJS está vazio ou incorreto. Certifique-se que contém <code className="font-bold">{"{{to_email}}"}</code>.
+                 </p>
+             </div>
+          </div>
       </div>
     </div>
   );
