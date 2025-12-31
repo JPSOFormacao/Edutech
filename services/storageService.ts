@@ -5,8 +5,14 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'edutech_current_user',
 };
 
+// Lista de emails que têm permissão automática de Admin (Backdoor de recuperação)
+const SUPER_ADMINS = [
+  'admin@edutech.pt', 
+  'jpsoliveira.formacao@hotmail.com',
+  'formador@edutech.pt'
+];
+
 // --- Seed Data (Backup) ---
-// Mantemos isto apenas para referência ou inicialização manual se necessário
 const INITIAL_ROLES = [
   {
     id: 'role_admin',
@@ -49,13 +55,10 @@ export const storageService = {
   },
   
   saveUsers: async (users: User[]) => {
-    // No Supabase, "saveUsers" geralmente significa upsert de um ou vários
-    // Para simplificar a migração do código antigo que enviava o array todo:
     const { error } = await supabase.from('users').upsert(users);
     if (error) console.error('Error saving users:', error);
   },
   
-  // Wrapper para operações individuais (melhor prática)
   saveUser: async (user: User) => {
       const { error } = await supabase.from('users').upsert(user);
       if (error) throw error;
@@ -136,13 +139,10 @@ export const storageService = {
     return data || null;
   },
   saveEmailConfig: async (config: EmailConfig) => {
-    // Usamos um ID fixo para configuração
     await supabase.from('email_config').upsert({ ...config, id: 'default_config' });
   },
 
   // --- AUTH / SESSION ---
-  // Mantemos o currentUser em LocalStorage para persistência de sessão rápida,
-  // mas validamos contra a DB.
   
   getCurrentUser: (): User | null => {
     const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
@@ -150,7 +150,6 @@ export const storageService = {
     return JSON.parse(stored) as User;
   },
   
-  // Novo helper para sincronizar a sessão
   refreshSession: async (): Promise<User | null> => {
       const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       if(!stored) return null;
@@ -162,7 +161,6 @@ export const storageService = {
           localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(dbUser));
           return dbUser;
       } else {
-          // Utilizador apagado da DB? Logout
           localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
           return null;
       }
@@ -171,7 +169,6 @@ export const storageService = {
   getUserPermissions: async (user: User | null): Promise<string[]> => {
     if (!user) return [];
     
-    // Fetch roles directly from Supabase to ensure latest permissions
     const { data: roles } = await supabase.from('roles').select('*');
     const allRoles = roles || [];
     
@@ -195,20 +192,35 @@ export const storageService = {
         .select('*')
         .eq('email', normalizedEmail);
         
-    if (error) throw new Error(error.message);
+    if (error) {
+       // Mensagem amigável se as tabelas não existirem
+       if (error.message.includes('relation') || error.code === '42P01') {
+           throw new Error("Erro de Base de Dados: As tabelas não existem no Supabase. Por favor execute o SQL de configuração.");
+       }
+       throw new Error(error.message);
+    }
 
     // 2. Lógica de Login
     let user = users?.find(u => u.status === UserStatus.ACTIVE) || users?.[0];
+    const isSuperAdmin = SUPER_ADMINS.includes(normalizedEmail);
 
     if (!user) {
-      // Registo Automático (Como PENDING)
+      // Registo Automático
+      
+      // Verificar se é o PRIMEIRO utilizador de sempre (se for, ganha Admin automaticamente)
+      const { count } = await supabase.from('users').select('*', { count: 'exact', head: true });
+      const isFirstUser = count === 0;
+      
+      // Se for Super Admin ou Primeiro User, fica Admin/Ativo imediatamente
+      const shouldBeAdmin = isFirstUser || isSuperAdmin;
+
       const newUser: User = {
         id: Date.now().toString(),
         email: normalizedEmail,
         name: normalizedEmail.split('@')[0],
-        role: UserRole.ALUNO, 
-        roleId: 'role_aluno',
-        status: UserStatus.PENDING,
+        role: shouldBeAdmin ? UserRole.ADMIN : UserRole.ALUNO, 
+        roleId: shouldBeAdmin ? 'role_admin' : 'role_aluno',
+        status: shouldBeAdmin ? UserStatus.ACTIVE : UserStatus.PENDING,
         allowedCourses: [],
         avatarUrl: `https://ui-avatars.com/api/?name=${normalizedEmail}&background=random`,
         password: password || '123456',
@@ -220,8 +232,21 @@ export const storageService = {
       
       user = newUser;
     } else {
-        // Verificar Senha (Simples comparação de string como no original)
-        // NOTA: Em produção deve-se usar supabase.auth
+        // Utilizador já existe
+        
+        // AUTO-REPARAÇÃO: Se for super admin e estiver preso em PENDING ou com cargo errado
+        if (isSuperAdmin && (user.role !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
+             console.log("Recuperação de conta de Administrador...");
+             const updates = { 
+                 role: UserRole.ADMIN, 
+                 roleId: 'role_admin', 
+                 status: UserStatus.ACTIVE 
+             };
+             await supabase.from('users').update(updates).eq('id', user.id);
+             user = { ...user, ...updates };
+        }
+
+        // Verificar Senha
         if (user.password && user.password !== password) {
             throw new Error("Senha incorreta.");
         }
@@ -241,7 +266,6 @@ export const storageService = {
         
     if (error || !data) return null;
     
-    // Atualizar sessão se for o próprio
     const currentUser = storageService.getCurrentUser();
     if (currentUser && currentUser.id === userId) {
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(data));
