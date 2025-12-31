@@ -41,8 +41,13 @@ export default function UsersPage() {
   // --- Helpers ---
 
   const generateRandomPassword = () => {
-      // Gera uma senha aleatória de 8 caracteres alfanuméricos
-      return Math.random().toString(36).slice(-8);
+      // Gera uma senha robusta de 10 caracteres com letras, numeros e simbolos
+      const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
+      let retVal = "";
+      for (let i = 0; i < 10; ++i) {
+          retVal += charset.charAt(Math.floor(Math.random() * charset.length));
+      }
+      return retVal;
   };
 
   // --- CRUD Operations ---
@@ -66,7 +71,7 @@ export default function UsersPage() {
           mustChangePassword: true,
           classId: ''
       });
-      // Gera uma senha aleatória em vez de '123456'
+      // Gera uma senha aleatória inicial robusta
       setNewPassword(generateRandomPassword()); 
       setIsModalOpen(true);
   };

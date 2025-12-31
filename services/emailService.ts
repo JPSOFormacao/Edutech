@@ -20,7 +20,9 @@ export const emailService = {
         from_name: userName,
         reply_to: userEmail,
         user_email: userEmail,
-        to_email: userEmail // Adicionado para consistência
+        to_email: userEmail, // Standard
+        email: userEmail, // Fallback comum
+        recipient: userEmail // Outro fallback comum
       };
 
       await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
@@ -36,13 +38,17 @@ export const emailService = {
     if (!config) return false;
 
     const currentUser = storageService.getCurrentUser();
+    const replyTo = currentUser?.email || 'noreply@edutech.pt';
 
     try {
         await emailjs.send(config.serviceId, config.templateId, {
             to_name: toName,
             message: message,
             from_name: currentUser?.name || 'Sistema',
-            reply_to: currentUser?.email || 'noreply@edutech.pt'
+            reply_to: replyTo,
+            // Garantir que variaveis de email estão presentes se o template as usar
+            user_email: replyTo,
+            email: replyTo
         }, config.publicKey);
         return true;
     } catch (e) {
@@ -73,15 +79,19 @@ export const emailService = {
       Por favor, aceda à plataforma e altere a sua senha no primeiro login.
     `;
 
+    // Enviamos múltiplas variações para garantir que o template do EmailJS encontra o destinatário
     const templateParams = {
         to_name: toName,
-        // Variáveis de destino
+        
+        // Variáveis de destino (Redundância para evitar erro "recipients address is empty")
         to_email: toEmail, 
         user_email: toEmail, 
+        email: toEmail,
+        recipient: toEmail,
         
         // Conteúdo
         message: messageBody,
-        password: tempPass, // CAMPO ADICIONADO: Use {{password}} no template do EmailJS
+        password: tempPass, // Variável explícita para usar {{password}} no template
         
         // Remetente
         from_name: "EduTech PT Admin",
