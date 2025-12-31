@@ -107,5 +107,45 @@ export const emailService = {
         console.error("Erro ao enviar welcome email:", e);
         return false;
     }
+  },
+
+  sendPasswordReset: async (toName: string, toEmail: string, newPass: string): Promise<boolean> => {
+    const config = storageService.getEmailConfig();
+    if (!config) return false;
+
+    const currentUser = storageService.getCurrentUser();
+    const adminEmail = currentUser?.email || 'admin@edutech.pt';
+
+    const messageBody = `
+      Olá ${toName},
+
+      A sua senha de acesso à plataforma EduTech PT foi redefinida pelo administrador.
+
+      As suas novas credenciais:
+      Email: ${toEmail}
+      Nova Senha: ${newPass}
+
+      Terá de alterar esta senha no próximo login.
+    `;
+
+    const templateParams = {
+        to_name: toName,
+        to_email: toEmail, 
+        user_email: toEmail, 
+        email: toEmail,
+        recipient: toEmail,
+        message: messageBody,
+        password: newPass,
+        from_name: "EduTech PT Admin",
+        reply_to: adminEmail
+    };
+
+    try {
+        await emailjs.send(config.serviceId, config.templateId, templateParams, config.publicKey);
+        return true;
+    } catch (e) {
+        console.error("Erro ao enviar reset email:", e);
+        return false;
+    }
   }
 };

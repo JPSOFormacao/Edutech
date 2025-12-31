@@ -80,9 +80,12 @@ export default function UsersPage() {
     if (!selectedUser) return;
     
     let userToSave = { ...selectedUser };
+    let isPasswordReset = false;
+
     if (newPassword) {
         userToSave.password = newPassword;
         userToSave.mustChangePassword = true; 
+        isPasswordReset = true;
     }
     
     // Sync Legacy Enum for compatibility
@@ -97,28 +100,55 @@ export default function UsersPage() {
     let updatedUsers = [...users];
 
     if (exists) {
+        // --- ATUALIZAÇÃO DE UTILIZADOR ---
         updatedUsers = users.map(u => u.id === userToSave.id ? userToSave : u);
         storageService.saveUsers(updatedUsers);
         setUsers(updatedUsers);
+        
+        // Se houve redefinição de senha, enviar notificação
+        if (isPasswordReset && storageService.getEmailConfig()) {
+            setIsSendingEmail(true);
+            const success = await emailService.sendPasswordReset(userToSave.name, userToSave.email, newPassword);
+            setIsSendingEmail(false);
+            
+            if (success) {
+                alert("Utilizador atualizado e email de nova senha enviado com sucesso.");
+            } else {
+                alert("Utilizador atualizado, mas FALHA ao enviar o email. Verifique as configurações.");
+            }
+        } else {
+             // alert("Utilizador atualizado com sucesso.");
+        }
         setIsModalOpen(false);
-        // alert("Utilizador atualizado com sucesso.");
+
     } else {
+        // --- CRIAÇÃO DE UTILIZADOR ---
         if (!userToSave.email || !newPassword) {
             alert("Nome, Email e Senha são obrigatórios para novos utilizadores.");
             return;
         }
+        
+        // Adicionar novo utilizador
         updatedUsers.push(userToSave);
         storageService.saveUsers(updatedUsers);
         setUsers(updatedUsers);
-        setIsModalOpen(false);
-
-        // Send Welcome Email
+        
+        // Enviar Email de Boas-vindas
         if (storageService.getEmailConfig()) {
             setIsSendingEmail(true);
-            await emailService.sendWelcomeEmail(userToSave.name, userToSave.email, newPassword);
+            const success = await emailService.sendWelcomeEmail(userToSave.name, userToSave.email, newPassword);
             setIsSendingEmail(false);
-            alert(`Utilizador criado e notificado.`);
+            
+            if (success) {
+                alert(`Utilizador criado e notificado por email.`);
+            } else {
+                alert(`Utilizador criado, mas o envio do email FALHOU. Verifique as configurações de Email.`);
+            }
+        } else {
+             alert("Utilizador criado (Sem configuração de email ativa).");
         }
+        
+        setIsModalOpen(false);
     }
   };
 
