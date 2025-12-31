@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { storageService } from '../services/storageService';
 import { useAuth } from '../App';
 import { Icons } from '../components/Icons';
@@ -8,15 +8,34 @@ import { formatCurrency } from '../components/UI';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const users = storageService.getUsers();
-  const courses = storageService.getCourses();
-  const materials = storageService.getMaterials();
+  const [stats, setStats] = useState([
+      { name: 'Total de Cursos', value: 0, icon: Icons.Courses, color: 'bg-indigo-500' },
+      { name: 'Materiais Disponíveis', value: 0, icon: Icons.Materials, color: 'bg-pink-500' },
+      { name: 'Alunos Registados', value: 0, icon: Icons.Users, color: 'bg-green-500' },
+  ]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const stats = [
-    { name: 'Total de Cursos', value: courses.length, icon: Icons.Courses, color: 'bg-indigo-500' },
-    { name: 'Materiais Disponíveis', value: materials.length, icon: Icons.Materials, color: 'bg-pink-500' },
-    { name: 'Alunos Registados', value: users.filter(u => u.role === UserRole.ALUNO).length, icon: Icons.Users, color: 'bg-green-500' },
-  ];
+  useEffect(() => {
+    const loadData = async () => {
+        setLoading(true);
+        const [usersData, coursesData, materialsData] = await Promise.all([
+            storageService.getUsers(),
+            storageService.getCourses(),
+            storageService.getMaterials()
+        ]);
+
+        setStats([
+            { name: 'Total de Cursos', value: coursesData.length, icon: Icons.Courses, color: 'bg-indigo-500' },
+            { name: 'Materiais Disponíveis', value: materialsData.length, icon: Icons.Materials, color: 'bg-pink-500' },
+            { name: 'Alunos Registados', value: usersData.filter(u => u.role === UserRole.ALUNO).length, icon: Icons.Users, color: 'bg-green-500' },
+        ]);
+        setCourses(coursesData);
+        setLoading(false);
+    };
+
+    loadData();
+  }, []);
 
   const StatCard: React.FC<{ item: any }> = ({ item }) => (
     <div className="bg-white overflow-hidden shadow rounded-lg hover:shadow-md transition-shadow">
@@ -31,7 +50,9 @@ export default function Dashboard() {
             <dl>
               <dt className="text-sm font-medium text-gray-500 truncate">{item.name}</dt>
               <dd>
-                <div className="text-lg font-medium text-gray-900">{item.value}</div>
+                <div className="text-lg font-medium text-gray-900">
+                    {loading ? '...' : item.value}
+                </div>
               </dd>
             </dl>
           </div>
@@ -48,13 +69,8 @@ export default function Dashboard() {
             Olá, {user?.name.split(' ')[0]}!
           </h2>
           <p className="mt-1 text-sm text-gray-500">
-            Bem-vindo à EduTech PT. Aqui estão as novidades e a nossa oferta formativa.
+            Bem-vindo à EduTech PT (Base de dados: Supabase).
           </p>
-        </div>
-        <div className="mt-4 flex md:mt-0 md:ml-4">
-            <span className="text-sm text-gray-500">
-                {new Date().toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </span>
         </div>
       </div>
 
@@ -71,33 +87,38 @@ export default function Dashboard() {
             <Link to="/courses" className="text-sm text-indigo-600 hover:text-indigo-800">Ver todos &rarr;</Link>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {courses.map(course => (
-            <div key={course.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all border border-gray-200 flex flex-col group">
-              <div className="h-40 w-full relative overflow-hidden rounded-t-lg">
-                <img src={course.imageUrl} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                <div className="absolute top-2 right-2">
-                    <span className="bg-white/90 backdrop-blur px-2 py-1 text-xs font-bold rounded-full text-indigo-700 shadow-sm">
-                        {course.category}
-                    </span>
+        {loading ? (
+             <p className="text-center py-10 text-gray-500">A carregar cursos...</p>
+        ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {courses.map(course => (
+                <div key={course.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-all border border-gray-200 flex flex-col group">
+                  <div className="h-40 w-full relative overflow-hidden rounded-t-lg">
+                    <img src={course.imageUrl} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <div className="absolute top-2 right-2">
+                        <span className="bg-white/90 backdrop-blur px-2 py-1 text-xs font-bold rounded-full text-indigo-700 shadow-sm">
+                            {course.category}
+                        </span>
+                    </div>
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="text-md font-bold text-gray-900 mb-1">{course.title}</h3>
+                    <p className="text-sm text-gray-500 line-clamp-2 mb-3">{course.description}</p>
+                    
+                    <div className="flex items-center justify-between mt-auto">
+                        <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                            {course.duration}
+                        </span>
+                        <span className="text-lg font-bold text-indigo-600">{formatCurrency(course.price)}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="p-4 flex-1 flex flex-col">
-                <h3 className="text-md font-bold text-gray-900 mb-1">{course.title}</h3>
-                <p className="text-sm text-gray-500 line-clamp-2 mb-3">{course.description}</p>
-                
-                <div className="flex items-center justify-between mt-auto">
-                    <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                        {course.duration}
-                    </span>
-                    <span className="text-lg font-bold text-indigo-600">{formatCurrency(course.price)}</span>
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+        )}
       </div>
-
+      
+      {/* Links */}
       <div className="mt-8 bg-white shadow rounded-lg p-6">
         <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Recursos Úteis</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -1,19 +1,13 @@
 import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS } from '../types';
+import { supabase } from './supabaseClient';
 
 const STORAGE_KEYS = {
-  USERS: 'edutech_users',
-  COURSES: 'edutech_courses',
-  MATERIALS: 'edutech_materials',
-  PAGES: 'edutech_pages',
-  ROLES: 'edutech_roles',
-  CLASSES: 'edutech_classes',
   CURRENT_USER: 'edutech_current_user',
-  EMAIL_CONFIG: 'edutech_email_config'
 };
 
-// --- Seed Data ---
-
-const INITIAL_ROLES: RoleEntity[] = [
+// --- Seed Data (Backup) ---
+// Mantemos isto apenas para referência ou inicialização manual se necessário
+const INITIAL_ROLES = [
   {
     id: 'role_admin',
     name: 'Administrador',
@@ -43,280 +37,144 @@ const INITIAL_ROLES: RoleEntity[] = [
   }
 ];
 
-const INITIAL_CLASSES: ClassEntity[] = [
-  { id: 'class_a', name: 'Turma A - 2024', description: 'Início em Janeiro' },
-  { id: 'class_b', name: 'Turma B - 2024', description: 'Pós-Laboral' }
-];
-
-const INITIAL_USERS_SEED: User[] = [
-  {
-    id: '1',
-    email: 'admin@edutech.pt',
-    name: 'Administrador Principal',
-    role: UserRole.ADMIN,
-    roleId: 'role_admin',
-    status: UserStatus.ACTIVE,
-    allowedCourses: [],
-    avatarUrl: 'https://picsum.photos/100/100',
-    password: 'admin',
-    mustChangePassword: false 
-  },
-  {
-    id: '2',
-    email: 'formador@edutech.pt',
-    name: 'Formador Sénior',
-    role: UserRole.EDITOR,
-    roleId: 'role_editor',
-    status: UserStatus.ACTIVE,
-    allowedCourses: [],
-    avatarUrl: 'https://picsum.photos/101/101',
-    password: '123456',
-    mustChangePassword: true
-  },
-  {
-    id: '3',
-    email: 'aluno@edutech.pt',
-    name: 'João Aluno',
-    role: UserRole.ALUNO,
-    roleId: 'role_aluno',
-    status: UserStatus.ACTIVE,
-    allowedCourses: ['101'],
-    classId: 'class_a',
-    avatarUrl: 'https://picsum.photos/102/102',
-    password: '123456',
-    mustChangePassword: true
-  },
-  {
-    id: '4',
-    email: 'jpsoliveira.formacao@hotmail.com',
-    name: 'JPS Oliveira',
-    role: UserRole.ADMIN,
-    roleId: 'role_admin',
-    status: UserStatus.ACTIVE,
-    allowedCourses: [],
-    avatarUrl: 'https://ui-avatars.com/api/?name=J+O&background=4f46e5&color=fff',
-    password: '123456',
-    mustChangePassword: true
-  }
-];
-
-const INITIAL_COURSES: Course[] = [
-  {
-    id: '101',
-    title: 'Master em React & TypeScript',
-    category: 'Desenvolvimento Web',
-    description: 'Curso avançado para dominar o ecossistema React.',
-    imageUrl: 'https://picsum.photos/400/250',
-    duration: '40 Horas',
-    price: 499.00
-  },
-  {
-    id: '102',
-    title: 'Inteligência Artificial com Gemini',
-    category: 'AI & Machine Learning',
-    description: 'Aprenda a integrar modelos LLM em aplicações web.',
-    imageUrl: 'https://picsum.photos/400/251',
-    duration: '25 Horas',
-    price: 299.50
-  }
-];
-
-const INITIAL_MATERIALS: Material[] = [
-  {
-    id: 'm1',
-    courseId: '101',
-    title: 'Ficha de Diagnóstico Inicial',
-    type: MaterialType.DIAGNOSTICO,
-    linkOrContent: '#',
-    createdAt: new Date().toISOString()
-  }
-];
-
-const INITIAL_PAGES: Page[] = [
-  {
-    slug: 'regulamento',
-    title: 'Regulamento Interno',
-    content: '<h1>Regulamento EduTech PT</h1><p>Todos os alunos devem cumprir...</p>',
-    updatedAt: new Date().toISOString()
-  }
-];
-
-// Helper to initialize storage and CLEAN DUPLICATES
-const initStorage = () => {
-  // Roles & Classes
-  if (!localStorage.getItem(STORAGE_KEYS.ROLES)) {
-    localStorage.setItem(STORAGE_KEYS.ROLES, JSON.stringify(INITIAL_ROLES));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.CLASSES)) {
-    localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify(INITIAL_CLASSES));
-  }
-
-  // Users Initialization & Migration
-  const storedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
-  let users: User[] = storedUsers ? JSON.parse(storedUsers) : [];
-
-  if (users.length === 0) {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS_SEED));
-  } else {
-    // 1. Migration: ensure existing users have password fields and roleId
-    let changed = false;
-    users = users.map(u => {
-      let modified = { ...u };
-      if (!modified.password) {
-        modified.password = '123456';
-        modified.mustChangePassword = true;
-        changed = true;
-      }
-      if (!modified.roleId) {
-        // Map old Enum to new Role ID
-        if (modified.role === UserRole.ADMIN) modified.roleId = 'role_admin';
-        else if (modified.role === UserRole.EDITOR) modified.roleId = 'role_editor';
-        else modified.roleId = 'role_aluno';
-        changed = true;
-      }
-      // Ensure email is always lowercase
-      if (modified.email !== modified.email.toLowerCase()) {
-          modified.email = modified.email.toLowerCase();
-          changed = true;
-      }
-      return modified;
-    });
-
-    // 2. CRITICAL FIX: Remove duplicate PENDING users if an ACTIVE user exists with same email
-    const uniqueUsersMap = new Map<string, User>();
-    const usersToKeep: User[] = [];
-    
-    // Sort users: Active users come first, then others. This ensures map prefers Active.
-    const sortedUsers = [...users].sort((a, b) => {
-        if (a.status === UserStatus.ACTIVE && b.status !== UserStatus.ACTIVE) return -1;
-        if (a.status !== UserStatus.ACTIVE && b.status === UserStatus.ACTIVE) return 1;
-        return 0;
-    });
-
-    sortedUsers.forEach(u => {
-        const email = u.email.trim().toLowerCase();
-        if (!uniqueUsersMap.has(email)) {
-            uniqueUsersMap.set(email, u);
-            usersToKeep.push(u);
-        } else {
-            // Duplicate found. Since we sorted Active first, this duplicate is likely the Pending one we want to discard.
-            console.log(`Removing duplicate/pending user for email: ${email}`);
-            changed = true;
-        }
-    });
-
-    if (changed || users.length !== usersToKeep.length) {
-        users = usersToKeep;
-        
-        // Add default admin if missing after cleanup (safety check)
-        const newAdminEmail = 'jpsoliveira.formacao@hotmail.com';
-        const hasNewAdmin = users.find(u => u.email === newAdminEmail);
-        if (!hasNewAdmin) {
-           const newAdminUser = INITIAL_USERS_SEED.find(u => u.email === newAdminEmail);
-           if (newAdminUser) users.push(newAdminUser);
-        }
-        
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-    }
-  }
-
-  // Other entities
-  if (!localStorage.getItem(STORAGE_KEYS.COURSES)) {
-    localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(INITIAL_COURSES));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.MATERIALS)) {
-    localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(INITIAL_MATERIALS));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.PAGES)) {
-    localStorage.setItem(STORAGE_KEYS.PAGES, JSON.stringify(INITIAL_PAGES));
-  }
-};
-
-initStorage();
-
 export const storageService = {
-  // Users
-  getUsers: (): User[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]'),
-  saveUsers: (users: User[]) => localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users)),
-  
-  // Roles
-  getRoles: (): RoleEntity[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.ROLES) || '[]'),
-  saveRoles: (roles: RoleEntity[]) => localStorage.setItem(STORAGE_KEYS.ROLES, JSON.stringify(roles)),
-
-  // Classes
-  getClasses: (): ClassEntity[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.CLASSES) || '[]'),
-  saveClasses: (classes: ClassEntity[]) => localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify(classes)),
-
-  // Courses
-  getCourses: (): Course[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.COURSES) || '[]'),
-  saveCourses: (courses: Course[]) => localStorage.setItem(STORAGE_KEYS.COURSES, JSON.stringify(courses)),
-
-  // Materials
-  getMaterials: (): Material[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.MATERIALS) || '[]'),
-  saveMaterials: (materials: Material[]) => localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(materials)),
-
-  // Pages
-  getPages: (): Page[] => JSON.parse(localStorage.getItem(STORAGE_KEYS.PAGES) || '[]'),
-  savePages: (pages: Page[]) => localStorage.setItem(STORAGE_KEYS.PAGES, JSON.stringify(pages)),
-
-  // Email Config
-  getEmailConfig: (): EmailConfig | null => {
-    const stored = localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG);
-    return stored ? JSON.parse(stored) : null;
+  // --- USERS ---
+  getUsers: async (): Promise<User[]> => {
+    const { data, error } = await supabase.from('users').select('*');
+    if (error) {
+        console.error('Error fetching users:', error);
+        return [];
+    }
+    return data || [];
   },
-  saveEmailConfig: (config: EmailConfig) => localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config)),
+  
+  saveUsers: async (users: User[]) => {
+    // No Supabase, "saveUsers" geralmente significa upsert de um ou vários
+    // Para simplificar a migração do código antigo que enviava o array todo:
+    const { error } = await supabase.from('users').upsert(users);
+    if (error) console.error('Error saving users:', error);
+  },
+  
+  // Wrapper para operações individuais (melhor prática)
+  saveUser: async (user: User) => {
+      const { error } = await supabase.from('users').upsert(user);
+      if (error) throw error;
+  },
+  
+  deleteUser: async (id: string) => {
+      const { error } = await supabase.from('users').delete().eq('id', id);
+      if (error) throw error;
+  },
 
-  // Auth Simulation
+  // --- ROLES ---
+  getRoles: async (): Promise<RoleEntity[]> => {
+    const { data, error } = await supabase.from('roles').select('*');
+    if (error) return [];
+    
+    // Seed inicial se vazio
+    if (!data || data.length === 0) {
+        await supabase.from('roles').upsert(INITIAL_ROLES);
+        return INITIAL_ROLES;
+    }
+    return data;
+  },
+  saveRoles: async (roles: RoleEntity[]) => {
+    await supabase.from('roles').upsert(roles);
+  },
+
+  // --- CLASSES ---
+  getClasses: async (): Promise<ClassEntity[]> => {
+    const { data, error } = await supabase.from('classes').select('*');
+    return data || [];
+  },
+  saveClasses: async (classes: ClassEntity[]) => {
+    await supabase.from('classes').upsert(classes);
+  },
+  deleteClass: async (id: string) => {
+      await supabase.from('classes').delete().eq('id', id);
+  },
+
+  // --- COURSES ---
+  getCourses: async (): Promise<Course[]> => {
+    const { data } = await supabase.from('courses').select('*');
+    return data || [];
+  },
+  saveCourses: async (courses: Course[]) => {
+    await supabase.from('courses').upsert(courses);
+  },
+  deleteCourse: async (id: string) => {
+      await supabase.from('courses').delete().eq('id', id);
+  },
+
+  // --- MATERIALS ---
+  getMaterials: async (): Promise<Material[]> => {
+    const { data } = await supabase.from('materials').select('*');
+    return data || [];
+  },
+  saveMaterials: async (materials: Material[]) => {
+    await supabase.from('materials').upsert(materials);
+  },
+  deleteMaterial: async (id: string) => {
+      await supabase.from('materials').delete().eq('id', id);
+  },
+
+  // --- PAGES ---
+  getPages: async (): Promise<Page[]> => {
+    const { data } = await supabase.from('pages').select('*');
+    return data || [];
+  },
+  savePages: async (pages: Page[]) => {
+    await supabase.from('pages').upsert(pages);
+  },
+  deletePage: async (slug: string) => {
+      await supabase.from('pages').delete().eq('slug', slug);
+  },
+
+  // --- EMAIL CONFIG ---
+  getEmailConfig: async (): Promise<EmailConfig | null> => {
+    const { data } = await supabase.from('email_config').select('*').single();
+    return data || null;
+  },
+  saveEmailConfig: async (config: EmailConfig) => {
+    // Usamos um ID fixo para configuração
+    await supabase.from('email_config').upsert({ ...config, id: 'default_config' });
+  },
+
+  // --- AUTH / SESSION ---
+  // Mantemos o currentUser em LocalStorage para persistência de sessão rápida,
+  // mas validamos contra a DB.
+  
   getCurrentUser: (): User | null => {
     const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     if (!stored) return null;
-    
-    const sessionUser = JSON.parse(stored) as User;
-    const allUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]') as User[];
-    
-    // 1. Tenta encontrar o utilizador pelo ID exato
-    let freshUser = allUsers.find(u => u.id === sessionUser.id);
-    
-    // 2. CORREÇÃO INTELIGENTE DE SESSÃO:
-    // Se o utilizador atual não existir ou estiver PENDING, mas existir um utilizador ATIVO com o mesmo email,
-    // o sistema assume que houve uma duplicação e "promove" a sessão para o utilizador correto (Ativo).
-    if (!freshUser || (freshUser.status === UserStatus.PENDING)) {
-        const email = (freshUser?.email || sessionUser.email).trim().toLowerCase();
-        
-        // Procura a "melhor" versão deste utilizador
-        const betterMatch = allUsers.find(u => 
-            u.email.trim().toLowerCase() === email && 
-            u.status === UserStatus.ACTIVE
-        );
-
-        if (betterMatch) {
-            console.log("Correção de Sessão: Trocando utilizador Pendente por Ativo encontrado.");
-            freshUser = betterMatch;
-            // Atualiza o storage imediatamente
-            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(freshUser));
-        }
-    }
-    
-    // Se mesmo assim não existir ou continuar pendente sem alternativa, mantemos a lógica normal
-    if (!freshUser) {
-        localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-        return null;
-    }
-
-    // Sync se houve alterações de dados (roles, etc)
-    if (JSON.stringify(freshUser) !== stored) {
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(freshUser));
-    }
-    
-    return freshUser;
+    return JSON.parse(stored) as User;
   },
   
-  // Permission Helper
-  getUserPermissions: (user: User | null): string[] => {
+  // Novo helper para sincronizar a sessão
+  refreshSession: async (): Promise<User | null> => {
+      const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      if(!stored) return null;
+      
+      const sessionUser = JSON.parse(stored) as User;
+      const { data: dbUser } = await supabase.from('users').select('*').eq('id', sessionUser.id).single();
+      
+      if (dbUser) {
+          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(dbUser));
+          return dbUser;
+      } else {
+          // Utilizador apagado da DB? Logout
+          localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+          return null;
+      }
+  },
+  
+  getUserPermissions: async (user: User | null): Promise<string[]> => {
     if (!user) return [];
-    const roles = JSON.parse(localStorage.getItem(STORAGE_KEYS.ROLES) || '[]') as RoleEntity[];
     
-    // Fallback: If roleId is missing (legacy session), try to map from old role enum
+    // Fetch roles directly from Supabase to ensure latest permissions
+    const { data: roles } = await supabase.from('roles').select('*');
+    const allRoles = roles || [];
+    
     let roleId = user.roleId;
     if (!roleId) {
          if (user.role === UserRole.ADMIN) roleId = 'role_admin';
@@ -324,40 +182,46 @@ export const storageService = {
          else roleId = 'role_aluno';
     }
 
-    const userRole = roles.find(r => r.id === roleId);
-    // Return permissions or empty array
+    const userRole = allRoles.find(r => r.id === roleId);
     return userRole ? userRole.permissions : [];
   },
 
-  login: (email: string, password?: string): User => {
-    // Normalizar email para evitar duplicação por Case Sensitivity
+  login: async (email: string, password?: string): Promise<User> => {
     const normalizedEmail = email.trim().toLowerCase();
-    const users = storageService.getUsers();
     
-    // 1. Encontrar todos com este email
-    const matches = users.filter(u => u.email.trim().toLowerCase() === normalizedEmail);
-    
-    // 2. Preferir conta ATIVA. Se houver duplicados, pega a ativa.
-    let user = matches.find(u => u.status === UserStatus.ACTIVE) || matches[0];
-    
+    // 1. Procurar utilizador na DB
+    const { data: users, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', normalizedEmail);
+        
+    if (error) throw new Error(error.message);
+
+    // 2. Lógica de Login
+    let user = users?.find(u => u.status === UserStatus.ACTIVE) || users?.[0];
+
     if (!user) {
-      // Auto-register as PENDING
-      user = {
+      // Registo Automático (Como PENDING)
+      const newUser: User = {
         id: Date.now().toString(),
-        email: normalizedEmail, // Save as lowercase
+        email: normalizedEmail,
         name: normalizedEmail.split('@')[0],
         role: UserRole.ALUNO, 
-        roleId: 'role_aluno', // Default
+        roleId: 'role_aluno',
         status: UserStatus.PENDING,
         allowedCourses: [],
         avatarUrl: `https://ui-avatars.com/api/?name=${normalizedEmail}&background=random`,
         password: password || '123456',
         mustChangePassword: false
       };
-      users.push(user);
-      storageService.saveUsers(users);
+      
+      const { error: createError } = await supabase.from('users').insert(newUser);
+      if (createError) throw new Error("Erro ao criar conta: " + createError.message);
+      
+      user = newUser;
     } else {
-        // Verify password
+        // Verificar Senha (Simples comparação de string como no original)
+        // NOTA: Em produção deve-se usar supabase.auth
         if (user.password && user.password !== password) {
             throw new Error("Senha incorreta.");
         }
@@ -367,28 +231,23 @@ export const storageService = {
     return user;
   },
 
-  updatePassword: (userId: string, newPassword: string): User | null => {
-    const users = storageService.getUsers();
-    const userIndex = users.findIndex(u => u.id === userId);
+  updatePassword: async (userId: string, newPassword: string): Promise<User | null> => {
+    const { data, error } = await supabase
+        .from('users')
+        .update({ password: newPassword, mustChangePassword: false })
+        .eq('id', userId)
+        .select()
+        .single();
+        
+    if (error || !data) return null;
     
-    if (userIndex === -1) return null;
-    
-    const updatedUser = { 
-        ...users[userIndex], 
-        password: newPassword, 
-        mustChangePassword: false 
-    };
-    
-    users[userIndex] = updatedUser;
-    storageService.saveUsers(users);
-    
-    // Update current session if it's the same user
+    // Atualizar sessão se for o próprio
     const currentUser = storageService.getCurrentUser();
     if (currentUser && currentUser.id === userId) {
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updatedUser));
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(data));
     }
 
-    return updatedUser;
+    return data;
   },
 
   logout: () => {

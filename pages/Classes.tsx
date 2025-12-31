@@ -9,22 +9,25 @@ export default function ClassesPage() {
   const [selectedClass, setSelectedClass] = useState<ClassEntity | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userCounts, setUserCounts] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = () => {
-    const cls = storageService.getClasses();
+  const loadData = async () => {
+    setLoading(true);
+    const cls = await storageService.getClasses();
     setClasses(cls);
     
     // Count users per class
-    const users = storageService.getUsers();
+    const users = await storageService.getUsers();
     const counts: Record<string, number> = {};
     cls.forEach(c => {
         counts[c.id] = users.filter(u => u.classId === c.id).length;
     });
     setUserCounts(counts);
+    setLoading(false);
   };
 
   const handleEdit = (cls: ClassEntity) => {
@@ -41,34 +44,26 @@ export default function ClassesPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedClass || !selectedClass.name) return;
     
-    const existing = classes.find(c => c.id === selectedClass.id);
-    let updatedClasses = [...classes];
-    
-    if (existing) {
-        updatedClasses = classes.map(c => c.id === selectedClass.id ? selectedClass : c);
-    } else {
-        updatedClasses.push(selectedClass);
-    }
-
-    storageService.saveClasses(updatedClasses);
-    loadData(); // Reload to refresh
+    await storageService.saveClasses([selectedClass]);
+    loadData(); 
     setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (userCounts[id] > 0) {
         alert("Não é possível apagar uma turma que tem alunos associados. Remova os alunos primeiro.");
         return;
     }
     if (confirm('Eliminar esta turma permanentemente?')) {
-        const updated = classes.filter(c => c.id !== id);
-        storageService.saveClasses(updated);
+        await storageService.deleteClass(id);
         loadData();
     }
   };
+
+  if (loading) return <div className="p-10 text-center">A carregar turmas...</div>;
 
   return (
     <div className="space-y-6">

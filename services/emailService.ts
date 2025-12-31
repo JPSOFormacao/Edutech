@@ -11,9 +11,9 @@ const SYSTEM_EMAIL = 'EduTechPT@hotmail.com';
 const SYSTEM_NAME = 'EduTech PT Formação';
 
 // Helper para gerar o texto de detalhes da formação
-const getTrainingDetailsString = (classId?: string, courseIds?: string[]): string => {
-    const classes = storageService.getClasses();
-    const courses = storageService.getCourses();
+const getTrainingDetailsString = async (classId?: string, courseIds?: string[]): Promise<string> => {
+    const classes = await storageService.getClasses();
+    const courses = await storageService.getCourses();
 
     let detailsParts = [];
     let hasInfo = false;
@@ -49,7 +49,7 @@ const getTrainingDetailsString = (classId?: string, courseIds?: string[]): strin
 
 export const emailService = {
   sendTestEmail: async (): Promise<EmailResult> => {
-    const config = storageService.getEmailConfig();
+    const config = await storageService.getEmailConfig();
     if (!config || !config.serviceId || !config.templateId || !config.publicKey) {
       throw new Error("Configuração incompleta. Verifique Service ID, Template ID e Public Key.");
     }
@@ -89,7 +89,7 @@ export const emailService = {
   },
 
   sendNotification: async (toName: string, message: string): Promise<boolean> => {
-    const config = storageService.getEmailConfig();
+    const config = await storageService.getEmailConfig();
     if (!config) return false;
     
     try {
@@ -112,13 +112,13 @@ export const emailService = {
   },
 
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
-    const config = storageService.getEmailConfig();
+    const config = await storageService.getEmailConfig();
     
     if (!config) return { success: false, message: "Configuração de Email inexistente." };
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
 
     const cleanEmail = toEmail.trim();
-    const trainingDetails = getTrainingDetailsString(classId, courseIds);
+    const trainingDetails = await getTrainingDetailsString(classId, courseIds);
 
     // Construímos o corpo da mensagem para funcionar mesmo que o utilizador use apenas {{message}} no template
     const messageBody = `
@@ -168,12 +168,12 @@ export const emailService = {
   },
 
   sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
-    const config = storageService.getEmailConfig();
+    const config = await storageService.getEmailConfig();
     if (!config) return { success: false, message: "Configuração de Email inexistente." };
 
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
     const cleanEmail = toEmail.trim();
-    const trainingDetails = getTrainingDetailsString(classId, courseIds);
+    const trainingDetails = await getTrainingDetailsString(classId, courseIds);
     
     const messageBody = `
       Olá ${toName},

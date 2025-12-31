@@ -12,8 +12,8 @@ import CMS from './pages/CMS';
 import AIStudio from './pages/AIStudio';
 import PageViewer from './pages/PageViewer';
 import EmailConfigPage from './pages/EmailConfig';
-import ClassesPage from './pages/Classes'; // New
-import RolesPage from './pages/Roles'; // New
+import ClassesPage from './pages/Classes'; 
+import RolesPage from './pages/Roles';
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -21,7 +21,7 @@ import { Input, Button } from './components/UI';
 interface AuthContextType {
   user: User | null;
   permissions: string[];
-  login: (email: string, password?: string) => void;
+  login: (email: string, password?: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => void;
   updatePassword: (password: string) => void;
@@ -100,19 +100,17 @@ const Layout = () => {
 
   // Pending users block
   if (user.status === UserStatus.PENDING) {
-    // Auto-refresh poll: check status every 3 seconds
     // eslint-disable-next-line react-hooks/rules-of-hooks
     React.useEffect(() => {
         const interval = setInterval(() => {
             handleRefresh();
-        }, 3000);
+        }, 5000); // Polling slower for remote DB
         return () => clearInterval(interval);
     }, []);
 
     const handleRefresh = () => {
         setIsVerifying(true);
         refreshUser();
-        // Visual delay just to show activity
         setTimeout(() => setIsVerifying(false), 800);
     };
 
@@ -141,11 +139,11 @@ const Layout = () => {
              )}
              
             <Button onClick={handleRefresh} variant="primary" disabled={isVerifying}>
-                {isVerifying ? 'A Verificar...' : 'Verificar Agora Manualmente'}
+                {isVerifying ? 'A Verificar...' : 'Verificar Agora'}
             </Button>
             
             <Button onClick={handleHardReload} variant="secondary" className="mt-2">
-                Recarregar Aplicação (Forçar)
+                Recarregar Aplicação
             </Button>
 
             <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700 mt-4 border-t pt-4">
@@ -154,13 +152,12 @@ const Layout = () => {
                     Voltar ao Login
                 </div>
             </button>
-
-            {/* Debug Info Footer */}
+            
             <div className="mt-6 pt-4 border-t border-gray-100 text-xs text-gray-400 text-left">
-                <p className="font-mono"><strong>Debug Info:</strong></p>
                 <p>ID: {user.id}</p>
                 <p>Email: {user.email}</p>
                 <p>Status: {user.status}</p>
+                <p className="italic text-gray-300">Backend: Supabase</p>
             </div>
           </div>
         </div>
@@ -184,16 +181,42 @@ export default function App() {
   const [permissions, setPermissions] = useState<string[]>([]);
 
   useEffect(() => {
-    if (user) {
-        setPermissions(storageService.getUserPermissions(user));
-    } else {
-        setPermissions([]);
-    }
-  }, [user]);
+    const init = async () => {
+        if (user) {
+            // Validate session and get perms
+            const freshUser = await storageService.refreshSession();
+            if (freshUser) {
+                 setUser(freshUser);
+                 const perms = await storageService.getUserPermissions(freshUser);
+                 setPermissions(perms);
+            } else {
+                 // Invalid session
+                 setUser(null);
+                 setPermissions([]);
+            }
+        } else {
+            setPermissions([]);
+        }
+    };
+    init();
+  }, []); // Run once on mount to validate session
 
-  const login = (email: string, password?: string) => {
-    const loggedUser = storageService.login(email, password);
+  // Watch for user changes to update permissions
+  useEffect(() => {
+      const updatePerms = async () => {
+          if (user) {
+              const perms = await storageService.getUserPermissions(user);
+              setPermissions(perms);
+          }
+      };
+      updatePerms();
+  }, [user?.id, user?.roleId]); // Re-fetch if role changes
+
+  const login = async (email: string, password?: string) => {
+    const loggedUser = await storageService.login(email, password);
     setUser(loggedUser);
+    const perms = await storageService.getUserPermissions(loggedUser);
+    setPermissions(perms);
   };
 
   const logout = () => {
@@ -201,17 +224,18 @@ export default function App() {
     setUser(null);
   };
 
-  const refreshUser = () => {
-    const current = storageService.getCurrentUser();
+  const refreshUser = async () => {
+    const current = await storageService.refreshSession();
     if (current) {
-        // Force new object reference to trigger React re-render properly
         setUser({ ...current });
+        const perms = await storageService.getUserPermissions(current);
+        setPermissions(perms);
     }
   };
   
-  const updatePassword = (pass: string) => {
+  const updatePassword = async (pass: string) => {
       if (user) {
-          const updated = storageService.updatePassword(user.id, pass);
+          const updated = await storageService.updatePassword(user.id, pass);
           if (updated) setUser(updated);
       }
   }

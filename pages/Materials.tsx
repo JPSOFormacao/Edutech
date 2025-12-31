@@ -11,6 +11,7 @@ export default function Materials() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<Partial<Material>>({});
+  const [loading, setLoading] = useState(true);
   
   const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.EDITOR;
 
@@ -18,9 +19,12 @@ export default function Materials() {
     loadData();
   }, [user]);
 
-  const loadData = () => {
-    const allCourses = storageService.getCourses();
-    const allMaterials = storageService.getMaterials();
+  const loadData = async () => {
+    setLoading(true);
+    const [allCourses, allMaterials] = await Promise.all([
+        storageService.getCourses(),
+        storageService.getMaterials()
+    ]);
     
     if (user?.role === UserRole.ALUNO) {
         // Only courses allowed
@@ -32,6 +36,7 @@ export default function Materials() {
         setCourses(allCourses);
         setMaterials(allMaterials);
     }
+    setLoading(false);
   };
 
   const handleCreate = () => {
@@ -46,29 +51,17 @@ export default function Materials() {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingMaterial.title || !editingMaterial.courseId) return;
     
-    const allMaterials = storageService.getMaterials();
-    const index = allMaterials.findIndex(m => m.id === editingMaterial.id);
-    const newMaterials = [...allMaterials];
-    
-    if (index >= 0) {
-      newMaterials[index] = editingMaterial as Material;
-    } else {
-      newMaterials.push(editingMaterial as Material);
-    }
-
-    storageService.saveMaterials(newMaterials);
+    await storageService.saveMaterials([editingMaterial as Material]);
     loadData();
     setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Eliminar este material?')) {
-        const allMaterials = storageService.getMaterials();
-        const updated = allMaterials.filter(m => m.id !== id);
-        storageService.saveMaterials(updated);
+        await storageService.deleteMaterial(id);
         loadData();
     }
   };
@@ -91,6 +84,8 @@ export default function Materials() {
           default: return type;
       }
   };
+
+  if (loading) return <div className="p-10 text-center">A carregar materiais...</div>;
 
   return (
     <div className="space-y-6">
@@ -159,6 +154,7 @@ export default function Materials() {
           </>
         }
       >
+          {/* ... Modal content same as before ... */}
           <div className="space-y-4">
             <Input 
                 label="Título do Material" 

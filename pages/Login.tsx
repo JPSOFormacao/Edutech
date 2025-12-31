@@ -8,6 +8,7 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
@@ -15,16 +16,19 @@ export default function Login() {
     if (user) navigate('/');
   }, [user, navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     if (email && password) {
       try {
-        // CORREÇÃO: Enviar sempre minúsculo para evitar erros de case sensitivity
-        login(email.trim().toLowerCase(), password);
+        await login(email.trim().toLowerCase(), password);
       } catch (err: any) {
         setError(err.message || "Erro ao fazer login");
+        setLoading(false);
       }
+    } else {
+        setLoading(false);
     }
   };
 
@@ -74,8 +78,8 @@ export default function Login() {
             />
 
             <div>
-              <Button type="submit" className="w-full flex justify-center">
-                Entrar / Registar
+              <Button type="submit" className="w-full flex justify-center" disabled={loading}>
+                {loading ? 'A verificar...' : 'Entrar / Registar'}
               </Button>
             </div>
           </form>

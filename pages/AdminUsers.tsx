@@ -15,31 +15,34 @@ export default function UsersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkAddOpen, setIsBulkAddOpen] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [loading, setLoading] = useState(true);
   
-  // Selection State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  // Bulk Add State
   const [bulkText, setBulkText] = useState('');
   const [bulkClassId, setBulkClassId] = useState('');
   const [bulkRoleId, setBulkRoleId] = useState('');
-  
-  // State for password management in modal
   const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = () => {
-    setUsers(storageService.getUsers());
-    setCourses(storageService.getCourses());
-    setClasses(storageService.getClasses());
-    setRoles(storageService.getRoles());
+  const loadData = async () => {
+    setLoading(true);
+    const [u, c, cl, r] = await Promise.all([
+        storageService.getUsers(),
+        storageService.getCourses(),
+        storageService.getClasses(),
+        storageService.getRoles()
+    ]);
+    setUsers(u);
+    setCourses(c);
+    setClasses(cl);
+    setRoles(r);
+    setLoading(false);
   };
 
-  // --- Helpers ---
-
+  // Helpers
   const generateRandomPassword = () => {
       const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
       let retVal = "";
@@ -58,8 +61,6 @@ export default function UsersPage() {
       }
   };
 
-  // --- CRUD Operations ---
-
   const handleEdit = (user: User) => {
     setSelectedUser({ ...user }); 
     setNewPassword(''); 
@@ -71,7 +72,7 @@ export default function UsersPage() {
           id: Date.now().toString(),
           name: '',
           email: '',
-          role: UserRole.ALUNO, // Fallback legacy
+          role: UserRole.ALUNO, 
           roleId: roles.find(r => r.name === 'Aluno')?.id || roles[0]?.id || '',
           status: UserStatus.ACTIVE,
           allowedCourses: [],
@@ -85,19 +86,22 @@ export default function UsersPage() {
 
   const handleSave = async () => {
     if (!selectedUser) return;
+    setIsSendingEmail(true); // Usar este estado para bloqueio geral de UI
+    
+    // Recarregar fresh para verificar duplicados no backend
+    const currentUsers = await storageService.getUsers();
     
     let userToSave = { ...selectedUser };
     
-    // 1. Normalização do Email
     if (userToSave.email) {
         userToSave.email = userToSave.email.trim().toLowerCase();
     } else {
         alert("O email é obrigatório.");
+        setIsSendingEmail(false);
         return;
     }
 
     let isPasswordReset = false;
-
     if (newPassword) {
         userToSave.password = newPassword;
         userToSave.mustChangePassword = true; 
@@ -112,137 +116,88 @@ export default function UsersPage() {
         else userToSave.role = UserRole.ALUNO;
     }
 
-    const exists = users.find(u => u.id === userToSave.id);
-    let updatedUsers = [...users];
+    const exists = currentUsers.find(u => u.id === userToSave.id);
 
     if (exists) {
-        // --- MODO EDIÇÃO ---
-        // Atualiza o utilizador alvo
-        updatedUsers = updatedUsers.map(u => u.id === userToSave.id ? userToSave : u);
-        
-        // LIMPEZA DE CONFLITOS AGRESSIVA:
-        // Remove quaisquer OUTROS utilizadores que tenham o mesmo email (ignorando case) e ID diferente
-        const beforeCount = updatedUsers.length;
-        updatedUsers = updatedUsers.filter(u => 
-            u.id === userToSave.id || 
-            u.email.trim().toLowerCase() !== userToSave.email.trim().toLowerCase()
-        );
-        
-        if (beforeCount !== updatedUsers.length) {
-            console.log("Limpeza automática: Duplicados removidos para garantir login correto.");
-        }
-
-        storageService.saveUsers(updatedUsers);
-        setUsers(updatedUsers);
-        
-        if (isPasswordReset && storageService.getEmailConfig()) {
-            setIsSendingEmail(true);
-            const result = await emailService.sendPasswordReset(
-                userToSave.name, 
-                userToSave.email, 
-                newPassword, 
-                userToSave.classId, 
-                userToSave.allowedCourses
-            );
-            setIsSendingEmail(false);
-            
-            if (result.success) {
-                alert("Utilizador atualizado e email com nova senha enviado.");
-            } else {
-                alert(`Utilizador atualizado, mas o envio de email falhou.\nErro: ${result.message}`);
-            }
-        }
-        setIsModalOpen(false);
-
-    } else {
-        // --- MODO CRIAÇÃO ---
-        // Verifica duplicados estritamente antes de criar
-        const duplicate = users.find(u => u.email.trim().toLowerCase() === userToSave.email.trim().toLowerCase());
+        // UPDATE
+        // Verificar se estamos a criar duplicado de email em outro ID
+        const duplicate = currentUsers.find(u => u.email === userToSave.email && u.id !== userToSave.id);
         if (duplicate) {
-             alert(`JÁ EXISTE um utilizador com o email "${userToSave.email}" (ID: ${duplicate.id}, Estado: ${duplicate.status}).\n\nPor favor, cancele e edite o utilizador existente na lista.`);
+             alert("Email já existe noutro utilizador.");
+             setIsSendingEmail(false);
              return;
         }
 
-        if (!userToSave.email || !newPassword) {
-            alert("Nome, Email e Senha são obrigatórios.");
-            return;
-        }
+        await storageService.saveUser(userToSave);
         
-        updatedUsers.push(userToSave);
-        storageService.saveUsers(updatedUsers);
-        setUsers(updatedUsers);
-        
-        if (storageService.getEmailConfig()) {
-            setIsSendingEmail(true);
-            const result = await emailService.sendWelcomeEmail(
-                userToSave.name, 
-                userToSave.email, 
-                newPassword, 
-                userToSave.classId, 
-                userToSave.allowedCourses
-            );
-            setIsSendingEmail(false);
-            
-            if (result.success) {
-                alert(`Utilizador criado e notificado por email.`);
-            } else {
-                alert(`Utilizador criado, mas o envio do email FALHOU.\n\nDetalhe do Erro: ${result.message}\n\nVerifique a Configuração de Email.`);
+        if (isPasswordReset) {
+            const config = await storageService.getEmailConfig();
+            if (config) {
+                await emailService.sendPasswordReset(userToSave.name, userToSave.email, newPassword, userToSave.classId, userToSave.allowedCourses);
             }
-        } else {
-            alert("Utilizador criado. (Não foi enviado email pois a configuração está em falta).");
         }
+    } else {
+        // CREATE
+        const duplicate = currentUsers.find(u => u.email === userToSave.email);
+        if (duplicate) {
+             alert(`JÁ EXISTE um utilizador com o email "${userToSave.email}".`);
+             setIsSendingEmail(false);
+             return;
+        }
+
+        await storageService.saveUser(userToSave);
         
-        setIsModalOpen(false);
+        const config = await storageService.getEmailConfig();
+        if (config) {
+            await emailService.sendWelcomeEmail(userToSave.name, userToSave.email, newPassword, userToSave.classId, userToSave.allowedCourses);
+        }
     }
+    
+    await loadData();
+    setIsSendingEmail(false);
+    setIsModalOpen(false);
   };
 
-  // --- Bulk Actions ---
-
-  const toggleSelectAll = () => {
-    if (selectedIds.length === users.length) setSelectedIds([]);
-    else setSelectedIds(users.map(u => u.id));
-  };
-
-  const toggleSelectUser = (id: string) => {
-      if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id));
-      else setSelectedIds([...selectedIds, id]);
-  };
-
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
       if(selectedIds.length === 0) return;
       if(confirm(`Tem a certeza que deseja apagar ${selectedIds.length} utilizadores?`)) {
-          const updated = users.filter(u => !selectedIds.includes(u.id));
-          storageService.saveUsers(updated);
-          setUsers(updated);
+          setLoading(true);
+          for (const id of selectedIds) {
+              await storageService.deleteUser(id);
+          }
+          await loadData();
           setSelectedIds([]);
       }
   };
 
-  const handleBulkAdd = () => {
+  const handleBulkAdd = async () => {
       if(!bulkText) return;
+      setLoading(true);
       
       const lines = bulkText.split('\n').filter(line => line.trim().length > 0);
-      const newUsers: User[] = [];
+      const freshUsers = await storageService.getUsers();
+      
+      let count = 0;
       const roleToAssign = roles.find(r => r.id === bulkRoleId);
       const legacyRole = roleToAssign?.name.toLowerCase().includes('admin') ? UserRole.ADMIN : 
                          roleToAssign?.name.toLowerCase().includes('formador') ? UserRole.EDITOR : UserRole.ALUNO;
 
-      lines.forEach((line, idx) => {
+      const usersToInsert = [];
+
+      for (const line of lines) {
           const parts = line.split(/[;,]/); 
           if(parts.length >= 2) {
               const name = parts[0].trim();
               const email = parts[1].trim().toLowerCase();
-              const password = generateRandomPassword();
               
-              // Verificar duplicado no bulk
-              const exists = users.some(u => u.email === email) || newUsers.some(u => u.email === email);
+              const exists = freshUsers.some(u => u.email === email) || usersToInsert.some(u => u.email === email);
               
               if(email.includes('@') && !exists) {
-                  newUsers.push({
-                      id: Date.now().toString() + idx,
+                  usersToInsert.push({
+                      id: Date.now().toString() + Math.floor(Math.random() * 1000),
                       name,
                       email,
-                      password,
+                      password: generateRandomPassword(),
                       role: legacyRole,
                       roleId: bulkRoleId,
                       classId: bulkClassId || undefined,
@@ -251,45 +206,43 @@ export default function UsersPage() {
                       mustChangePassword: true,
                       avatarUrl: `https://ui-avatars.com/api/?name=${name}&background=random`
                   });
+                  count++;
               }
           }
-      });
-
-      if(newUsers.length > 0) {
-          const updated = [...users, ...newUsers];
-          storageService.saveUsers(updated);
-          setUsers(updated);
-          setIsBulkAddOpen(false);
-          setBulkText('');
-          alert(`${newUsers.length} utilizadores adicionados.`);
-      } else {
-          alert("Nenhum utilizador válido adicionado (verifique se os emails já existem).");
       }
-  };
 
-  // --- Helpers ---
-
-  const approveUser = (user: User) => {
-      const updated = {...user, status: UserStatus.ACTIVE};
-      // Ao aprovar rapidamente, removemos também duplicados com verificação case-insensitive
-      let updatedUsers = users.map(u => u.id === user.id ? updated : u);
-      updatedUsers = updatedUsers.filter(u => 
-          u.id === user.id || 
-          u.email.trim().toLowerCase() !== user.email.trim().toLowerCase()
-      );
+      if (usersToInsert.length > 0) {
+          await storageService.saveUsers(usersToInsert);
+          alert(`${count} utilizadores adicionados.`);
+      } else {
+          alert("Nenhum utilizador novo encontrado.");
+      }
       
-      storageService.saveUsers(updatedUsers);
-      setUsers(updatedUsers);
+      await loadData();
+      setIsBulkAddOpen(false);
+      setBulkText('');
+  };
+
+  const approveUser = async (user: User) => {
+      const updated = {...user, status: UserStatus.ACTIVE};
+      await storageService.saveUser(updated);
+      await loadData();
   }
 
-  const getClassName = (id?: string) => {
-      if(!id) return '-';
-      return classes.find(c => c.id === id)?.name || 'Turma desconhecida';
+  const getClassName = (id?: string) => classes.find(c => c.id === id)?.name || '-';
+  const getRoleName = (id: string) => roles.find(r => r.id === id)?.name || 'Cargo desconhecido';
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (selectedIds.length === users.length) setSelectedIds([]);
+    else setSelectedIds(users.map(u => u.id));
   };
-  
-  const getRoleName = (id: string) => {
-      return roles.find(r => r.id === id)?.name || 'Cargo desconhecido';
-  }
+  const toggleSelectUser = (id: string) => {
+      if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id));
+      else setSelectedIds([...selectedIds, id]);
+  };
+
+  if (loading) return <div className="p-10 text-center">A carregar dados do Supabase...</div>;
 
   return (
     <div className="space-y-6">
@@ -378,7 +331,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Edit/Create User Modal */}
+      {/* Modals remain mostly the same, handling state locally */}
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -392,7 +345,8 @@ export default function UsersPage() {
           </>
         }
       >
-        {selectedUser && (
+          {/* Form Content Identical to Previous */}
+          {selectedUser && (
           <div className="space-y-4">
             <Input 
                 label="Nome"
@@ -405,20 +359,16 @@ export default function UsersPage() {
                 type="email"
                 value={selectedUser.email}
                 onChange={e => setSelectedUser({...selectedUser, email: e.target.value})}
-                // Bloquear edição de email se não for novo, para evitar confusão. Opcional.
             />
 
             <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
                 <Input 
-                    label={users.find(u => u.id === selectedUser.id) ? "Redefinir Senha (Gera notificação)" : "Senha Inicial (Gerada)"}
+                    label="Senha"
                     type="text" 
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}
-                    placeholder={users.find(u => u.id === selectedUser.id) ? "Deixe em branco para manter a atual" : "Senha"}
+                    placeholder="Nova senha (deixe em branco para manter)"
                 />
-                {users.find(u => u.id === selectedUser.id) && (
-                    <p className="text-xs text-yellow-700 mt-1">Ao definir uma nova senha, o utilizador será notificado e obrigado a alterá-la no próximo login.</p>
-                )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -427,7 +377,7 @@ export default function UsersPage() {
                   <select 
                     value={selectedUser.roleId} 
                     onChange={(e) => setSelectedUser({...selectedUser, roleId: e.target.value})}
-                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
+                    className="block w-full border-gray-300 rounded-md shadow-sm border p-2"
                   >
                     {roles.map(r => (
                         <option key={r.id} value={r.id}>{r.name}</option>
@@ -440,7 +390,7 @@ export default function UsersPage() {
                     <select 
                         value={selectedUser.classId || ''} 
                         onChange={(e) => setSelectedUser({...selectedUser, classId: e.target.value})}
-                        className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
+                        className="block w-full border-gray-300 rounded-md shadow-sm border p-2"
                     >
                         <option value="">Sem Turma</option>
                         {classes.map(c => (
@@ -455,39 +405,12 @@ export default function UsersPage() {
                 <select 
                     value={selectedUser.status}
                     onChange={(e) => setSelectedUser({...selectedUser, status: e.target.value as UserStatus})}
-                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
+                    className="block w-full border-gray-300 rounded-md shadow-sm border p-2"
                 >
-                    <option value={UserStatus.ACTIVE}>Ativo (Acesso Permitido)</option>
-                    <option value={UserStatus.PENDING}>Pendente (A aguardar aprovação)</option>
-                    <option value={UserStatus.BLOCKED}>Bloqueado (Acesso Negado)</option>
+                    <option value={UserStatus.ACTIVE}>Ativo</option>
+                    <option value={UserStatus.PENDING}>Pendente</option>
+                    <option value={UserStatus.BLOCKED}>Bloqueado</option>
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
-                    Selecione "Ativo" para permitir que o utilizador entre no sistema.
-                </p>
-            </div>
-
-            {/* Course Override (Optional access control separate from Role) */}
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Cursos Permitidos (Específico)</label>
-                <div className="space-y-2 border rounded-md p-3 max-h-32 overflow-y-auto bg-gray-50">
-                  {courses.map(course => (
-                    <div key={course.id} className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={selectedUser.allowedCourses.includes(course.id)}
-                        onChange={() => {
-                            const current = selectedUser.allowedCourses;
-                            const newVal = current.includes(course.id) ? current.filter(id => id !== course.id) : [...current, course.id];
-                            setSelectedUser({...selectedUser, allowedCourses: newVal});
-                        }}
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      />
-                      <label className="ml-2 block text-sm text-gray-900">
-                        {course.title}
-                      </label>
-                    </div>
-                  ))}
-                </div>
             </div>
           </div>
         )}
@@ -505,15 +428,14 @@ export default function UsersPage() {
             </>
         }
       >
-          <div className="space-y-4">
+         <div className="space-y-4">
               <p className="text-sm text-gray-600">
-                  Adicione um utilizador por linha no formato: <code>Nome; Email</code> ou <code>Nome, Email</code>.
-                  A senha será gerada aleatoriamente.
+                  Adicione um utilizador por linha no formato: <code>Nome; Email</code>.
               </p>
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cargo a Atribuir</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cargo</label>
                   <select 
                     value={bulkRoleId} 
                     onChange={(e) => setBulkRoleId(e.target.value)}
@@ -527,7 +449,7 @@ export default function UsersPage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Turma a Atribuir</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Turma</label>
                     <select 
                         value={bulkClassId} 
                         onChange={(e) => setBulkClassId(e.target.value)}

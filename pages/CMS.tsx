@@ -11,8 +11,13 @@ export default function CMS() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    setPages(storageService.getPages());
+    loadPages();
   }, []);
+
+  const loadPages = async () => {
+    const data = await storageService.getPages();
+    setPages(data);
+  };
 
   const handleCreate = () => {
     setSelectedPage({
@@ -23,29 +28,19 @@ export default function CMS() {
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedPage) return;
-    const allPages = storageService.getPages();
-    const index = allPages.findIndex(p => p.slug === selectedPage.slug);
     
-    // Warning: changing slug breaks links, but keeping simple for demo
-    let newPages = [...allPages];
-    if (index >= 0) {
-      newPages[index] = { ...selectedPage, updatedAt: new Date().toISOString() };
-    } else {
-      newPages.push({ ...selectedPage, updatedAt: new Date().toISOString() });
-    }
+    await storageService.savePages([{ ...selectedPage, updatedAt: new Date().toISOString() }]);
     
-    storageService.savePages(newPages);
-    setPages(newPages);
+    await loadPages();
     setSelectedPage(null);
   };
 
-  const handleDelete = (slug: string) => {
+  const handleDelete = async (slug: string) => {
       if (confirm('Eliminar esta página?')) {
-          const newPages = pages.filter(p => p.slug !== slug);
-          storageService.savePages(newPages);
-          setPages(newPages);
+          await storageService.deletePage(slug);
+          await loadPages();
           if (selectedPage?.slug === slug) setSelectedPage(null);
       }
   };

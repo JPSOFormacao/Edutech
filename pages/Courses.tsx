@@ -10,6 +10,7 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Partial<Course>>({});
+  const [loading, setLoading] = useState(true);
   
   const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.EDITOR;
 
@@ -17,13 +18,15 @@ export default function Courses() {
     loadCourses();
   }, [user]);
 
-  const loadCourses = () => {
-    const allCourses = storageService.getCourses();
+  const loadCourses = async () => {
+    setLoading(true);
+    const allCourses = await storageService.getCourses();
     if (user?.role === UserRole.ALUNO) {
       setCourses(allCourses.filter(c => user.allowedCourses.includes(c.id)));
     } else {
       setCourses(allCourses);
     }
+    setLoading(false);
   };
 
   const handleCreate = () => {
@@ -44,32 +47,24 @@ export default function Courses() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Tem a certeza que deseja eliminar este curso? Esta ação é irreversível.')) {
-      const updated = courses.filter(c => c.id !== id);
-      storageService.saveCourses(updated);
-      setCourses(updated);
+      await storageService.deleteCourse(id);
+      loadCourses();
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editingCourse.title) return;
     
-    const allCourses = storageService.getCourses();
-    // Check if updating or creating
-    const index = allCourses.findIndex(c => c.id === editingCourse.id);
-    let newCourses = [...allCourses];
+    // Como é upsert, basta mandar o objeto
+    await storageService.saveCourses([editingCourse as Course]);
     
-    if (index >= 0) {
-      newCourses[index] = editingCourse as Course;
-    } else {
-      newCourses.push(editingCourse as Course);
-    }
-
-    storageService.saveCourses(newCourses);
-    loadCourses(); // Reload
+    loadCourses(); 
     setIsModalOpen(false);
   };
+
+  if (loading) return <div className="p-8 text-center text-gray-500">A carregar cursos...</div>;
 
   return (
     <div className="space-y-6">

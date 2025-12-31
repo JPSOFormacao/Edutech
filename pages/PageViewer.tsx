@@ -6,12 +6,20 @@ import { Page } from '../types';
 export default function PageViewer() {
   const { slug } = useParams<{ slug: string }>();
   const [page, setPage] = useState<Page | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const pages = storageService.getPages();
-    const found = pages.find(p => p.slug === slug);
-    setPage(found || null);
+    const load = async () => {
+        setLoading(true);
+        const pages = await storageService.getPages();
+        const found = pages.find(p => p.slug === slug);
+        setPage(found || null);
+        setLoading(false);
+    }
+    load();
   }, [slug]);
+
+  if (loading) return <div className="p-10 text-center">A carregar conteúdo...</div>;
 
   if (!page) {
     return (
