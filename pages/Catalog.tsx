@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
 import { Course, UserRole } from '../types';
 import { useAuth } from '../App';
-import { Button, formatCurrency } from '../components/UI';
+import { Button, formatCurrency, Modal } from '../components/UI';
 import { Icons } from '../components/Icons';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,6 +11,9 @@ export default function CatalogPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  
+  // Modal State
+  const [courseToEnroll, setCourseToEnroll] = useState<string | null>(null);
 
   useEffect(() => {
     const loadCourses = async () => {
@@ -21,9 +24,13 @@ export default function CatalogPage() {
     loadCourses();
   }, []);
 
-  const handleEnrollRequest = async (courseId: string) => {
+  const openEnrollModal = (courseId: string) => {
       if(!user) return;
-      if (!confirm("Deseja enviar um pedido de inscrição para este curso? O Administrador terá de aprovar.")) return;
+      setCourseToEnroll(courseId);
+  };
+
+  const confirmEnrollment = async () => {
+      if (!user || !courseToEnroll) return;
 
       const currentRequests = user.enrollmentRequests || [];
       const updatedUser = {
@@ -31,7 +38,7 @@ export default function CatalogPage() {
           enrollmentRequests: [
               ...currentRequests, 
               {
-                  courseId,
+                  courseId: courseToEnroll,
                   requestedAt: new Date().toISOString(),
                   status: 'PENDING'
               }
@@ -45,6 +52,8 @@ export default function CatalogPage() {
           alert("Pedido enviado com sucesso!");
       } catch(e) {
           alert("Erro ao enviar pedido.");
+      } finally {
+          setCourseToEnroll(null);
       }
   };
 
@@ -117,7 +126,7 @@ export default function CatalogPage() {
                                     Aprovação Pendente
                                 </Button>
                             ) : (
-                                <Button className="w-full" onClick={() => handleEnrollRequest(course.id)}>
+                                <Button className="w-full" onClick={() => openEnrollModal(course.id)}>
                                     Inscrever-se
                                 </Button>
                             )}
@@ -127,6 +136,36 @@ export default function CatalogPage() {
             );
           })}
       </div>
+
+      {/* Enrollment Confirmation Modal */}
+      <Modal 
+        isOpen={!!courseToEnroll} 
+        onClose={() => setCourseToEnroll(null)} 
+        title="Confirmar Pedido de Inscrição"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCourseToEnroll(null)}>Cancelar</Button>
+            <Button variant="primary" onClick={confirmEnrollment}>Confirmar e Enviar</Button>
+          </>
+        }
+      >
+        <div className="space-y-4 p-2 text-center">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-2">
+                <Icons.Mail className="h-6 w-6 text-indigo-600" />
+            </div>
+            <p className="text-lg font-medium text-gray-900">
+                Deseja enviar um pedido de inscrição para este curso?
+            </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 text-sm text-yellow-800">
+                <p>
+                    O Administrador só irá aprovar após o pagamento ser confirmado.
+                </p>
+                <p className="font-bold mt-2">
+                    Deve enviar o comprovativo de pagamento para o email da <span className="underline">EduTech PT</span> com o seu nome completo.
+                </p>
+            </div>
+        </div>
+      </Modal>
     </div>
   );
 }

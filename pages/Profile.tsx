@@ -23,6 +23,7 @@ const PRESET_AVATARS = [
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const [name, setName] = useState('');
+  const [fullName, setFullName] = useState(''); // Estado para o Nome Completo
   const [bio, setBio] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
@@ -39,6 +40,7 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       setName(user.name);
+      setFullName(user.fullName || ''); // Carregar nome completo
       setBio(user.bio || '');
       setAvatarUrl(user.avatarUrl || '');
       if (user.privacySettings) {
@@ -56,6 +58,7 @@ export default function ProfilePage() {
       const updatedUser = {
         ...user, // IMPORTANTE: Manter todos os campos do utilizador (id, role, etc)
         name,
+        fullName, // Guardar nome completo
         bio,
         avatarUrl: customAvatarUrl || avatarUrl,
         privacySettings: privacy
@@ -157,6 +160,13 @@ export default function ProfilePage() {
                         label="Nome de Exibição"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
+                    />
+
+                    <Input 
+                        label="Nome Completo (Real)"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="Insira o seu nome completo"
                     />
                     
                     <div>

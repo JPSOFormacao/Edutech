@@ -71,7 +71,8 @@ export interface EnrollmentRequest {
 export interface User {
   id: string;
   email: string;
-  name: string;
+  name: string; // Nome de Exibição
+  fullName?: string; // Nome Completo Real
   role: UserRole; // Legacy support
   roleId: string; // New dynamic role link
   status: UserStatus;
