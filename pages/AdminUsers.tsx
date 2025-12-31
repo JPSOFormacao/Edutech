@@ -78,6 +78,11 @@ export default function UsersPage() {
     if (!selectedUser) return;
     
     let userToSave = { ...selectedUser };
+    // CORREÇÃO: Forçar email minúsculo
+    if (userToSave.email) {
+        userToSave.email = userToSave.email.trim().toLowerCase();
+    }
+
     let isPasswordReset = false;
 
     if (newPassword) {
@@ -195,7 +200,7 @@ export default function UsersPage() {
           const parts = line.split(/[;,]/); 
           if(parts.length >= 2) {
               const name = parts[0].trim();
-              const email = parts[1].trim();
+              const email = parts[1].trim().toLowerCase(); // CORREÇÃO: Minúsculas
               const password = generateRandomPassword();
               
               if(email.includes('@')) {

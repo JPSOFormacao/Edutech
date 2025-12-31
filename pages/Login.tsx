@@ -20,7 +20,8 @@ export default function Login() {
     setError('');
     if (email && password) {
       try {
-        login(email, password);
+        // CORREÇÃO: Enviar sempre minúsculo para evitar erros de case sensitivity
+        login(email.trim().toLowerCase(), password);
       } catch (err: any) {
         setError(err.message || "Erro ao fazer login");
       }

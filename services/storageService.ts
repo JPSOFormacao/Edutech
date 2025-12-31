@@ -247,6 +247,8 @@ export const storageService = {
     // Get fresh data from Users list to ensure permissions/roles are up to date
     const sessionUser = JSON.parse(stored) as User;
     const allUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]') as User[];
+    
+    // Find user safely ignoring case issues in ID, but best to rely on ID match
     const freshUser = allUsers.find(u => u.id === sessionUser.id);
     
     // If user was deleted or not found, logout effectively
@@ -282,20 +284,24 @@ export const storageService = {
   },
 
   login: (email: string, password?: string): User => {
+    // CORREÇÃO: Normalizar email para evitar duplicação por Case Sensitivity
+    const normalizedEmail = email.trim().toLowerCase();
+    
     const users = storageService.getUsers();
-    let user = users.find(u => u.email === email);
+    // Procura ignorando maiúsculas/minúsculas
+    let user = users.find(u => u.email.toLowerCase() === normalizedEmail);
     
     if (!user) {
       // Auto-register as PENDING
       user = {
         id: Date.now().toString(),
-        email,
-        name: email.split('@')[0],
+        email: normalizedEmail, // Save as lowercase
+        name: normalizedEmail.split('@')[0],
         role: UserRole.ALUNO, 
         roleId: 'role_aluno', // Default
         status: UserStatus.PENDING,
         allowedCourses: [],
-        avatarUrl: `https://ui-avatars.com/api/?name=${email}&background=random`,
+        avatarUrl: `https://ui-avatars.com/api/?name=${normalizedEmail}&background=random`,
         password: password || '123456',
         mustChangePassword: false
       };
