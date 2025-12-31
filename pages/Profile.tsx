@@ -64,7 +64,13 @@ export default function ProfilePage() {
       setCustomAvatarUrl(''); // Reset custom input if saved
     } catch (e: any) {
       console.error(e);
-      setMsg({ type: 'error', text: 'Erro ao guardar perfil: ' + e.message });
+      let errorMessage = 'Erro ao guardar perfil.';
+      if (e.message && e.message.includes('column') && e.message.includes('users')) {
+          errorMessage = 'Erro de Sistema: Colunas em falta na base de dados. Por favor, execute o script SQL de atualização.';
+      } else {
+          errorMessage += ' ' + e.message;
+      }
+      setMsg({ type: 'error', text: errorMessage });
     } finally {
       setSaving(false);
     }
