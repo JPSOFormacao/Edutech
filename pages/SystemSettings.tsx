@@ -14,6 +14,7 @@ export default function SystemSettings() {
   
   const [status, setStatus] = useState<{type: 'success' | 'error', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState<string | null>(null);
 
   useEffect(() => {
     loadConfig();
@@ -53,6 +54,45 @@ export default function SystemSettings() {
     } finally {
         setLoading(false);
     }
+  };
+
+  const handleTestWebhook = async (url: string, type: 'upload' | 'delete') => {
+      if (!url) {
+          alert("Guarde um URL primeiro antes de testar.");
+          return;
+      }
+      
+      setTesting(type);
+      try {
+          // Payload fictício para o Pipedream reconhecer a estrutura
+          const payload = type === 'upload' 
+            ? { 
+                filename: "teste_conexao.txt", 
+                originalFilename: "teste_conexao.txt",
+                mimetype: "text/plain",
+                size: 1024,
+                fileData: "VGhpcyBpcyBhIHRlc3QgZmlsZSBmb3IgUGlwZWRyZWFtIGNvbmZpZ3VyYXRpb24u", // Base64 dummy
+                uploadedBy: "Admin Teste", 
+                timestamp: new Date().toISOString() 
+              }
+            : { 
+                fileId: "TESTE_ID_123", 
+                action: "delete" 
+              };
+
+          // Disparar sem esperar resposta complexa, apenas para gerar o evento lá
+          await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+          
+          alert(`Dados de teste enviados para o ${type === 'upload' ? 'Upload' : 'Delete'}!\n\nVá agora ao Pipedream e verifique se o evento apareceu.`);
+      } catch (e: any) {
+          alert("Erro ao tentar contactar o Webhook: " + e.message);
+      } finally {
+          setTesting(null);
+      }
   };
 
   return (
@@ -99,23 +139,57 @@ export default function SystemSettings() {
                       <Icons.Cloud className="w-4 h-4" /> Integrações (Pipedream)
                   </h3>
                   <div>
-                      <Input 
-                          label="Webhook Upload (Enviar Ficheiro)" 
-                          value={pipedreamWebhook} 
-                          onChange={e => setPipedreamWebhook(e.target.value)} 
-                          placeholder="https://eo..."
-                      />
+                      <div className="flex items-end gap-2 mb-4">
+                          <div className="flex-1">
+                              <Input 
+                                  label="Webhook Upload (Enviar Ficheiro)" 
+                                  value={pipedreamWebhook} 
+                                  onChange={e => setPipedreamWebhook(e.target.value)} 
+                                  placeholder="https://eo..."
+                                  className="mb-0"
+                              />
+                          </div>
+                          <div className="pb-1">
+                              <Button 
+                                type="button" 
+                                size="sm" 
+                                variant="secondary" 
+                                onClick={() => handleTestWebhook(pipedreamWebhook, 'upload')}
+                                disabled={!pipedreamWebhook || testing === 'upload'}
+                                title="Enviar dados de teste"
+                              >
+                                  {testing === 'upload' ? '...' : 'Testar'}
+                              </Button>
+                          </div>
+                      </div>
                       
-                      <Input 
-                          label="Webhook Delete (Apagar Ficheiro)" 
-                          value={pipedreamDeleteUrl} 
-                          onChange={e => setPipedreamDeleteUrl(e.target.value)} 
-                          placeholder="https://eo..."
-                      />
+                      <div className="flex items-end gap-2">
+                          <div className="flex-1">
+                              <Input 
+                                  label="Webhook Delete (Apagar Ficheiro)" 
+                                  value={pipedreamDeleteUrl} 
+                                  onChange={e => setPipedreamDeleteUrl(e.target.value)} 
+                                  placeholder="https://eo..."
+                                  className="mb-0"
+                              />
+                          </div>
+                          <div className="pb-1">
+                              <Button 
+                                type="button" 
+                                size="sm" 
+                                variant="secondary" 
+                                onClick={() => handleTestWebhook(pipedreamDeleteUrl, 'delete')}
+                                disabled={!pipedreamDeleteUrl || testing === 'delete'}
+                                title="Enviar dados de teste"
+                              >
+                                  {testing === 'delete' ? '...' : 'Testar'}
+                              </Button>
+                          </div>
+                      </div>
                       
-                      <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-200 mt-2">
+                      <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-200 mt-4">
                           <p>
-                              Configure ambos os Webhooks no Pipedream para permitir o envio e a eliminação bidirecional de ficheiros.
+                              <strong>Dica:</strong> Se o evento não aparecer no Pipedream, clique no botão "Testar" acima. Isso enviará dados fictícios para que o Pipedream detete a estrutura necessária.
                           </p>
                       </div>
                   </div>
