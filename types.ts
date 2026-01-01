@@ -46,7 +46,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   [PERMISSIONS.MANAGE_CONTENT]: 'Gerir Conteúdos (Materiais e Páginas)',
   [PERMISSIONS.VIEW_COURSES]: 'Ver Cursos Disponíveis (Acesso Aluno)',
   [PERMISSIONS.USE_AI_STUDIO]: 'Utilizar Estúdio de Inteligência Artificial',
-  [PERMISSIONS.MANAGE_SETTINGS]: 'Configurações de Sistema (Email, etc.)'
+  [PERMISSIONS.MANAGE_SETTINGS]: 'Configurações de Sistema (Email, Branding)'
 };
 
 export interface RoleEntity {
@@ -159,4 +159,10 @@ export interface EmailConfig {
   serviceId: string;
   publicKey: string;
   templates: EmailTemplates;
+}
+
+export interface SystemConfig {
+  logoUrl?: string;
+  faviconUrl?: string;
+  platformName?: string;
 }

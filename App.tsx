@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { User, UserRole, UserStatus, PERMISSIONS } from './types';
+import { User, UserRole, UserStatus, PERMISSIONS, SystemConfig } from './types';
 import { storageService } from './services/storageService';
 import { Sidebar } from './components/Sidebar';
 import Login from './pages/Login';
@@ -18,6 +18,7 @@ import ProfilePage from './pages/Profile';
 import CommunityPage from './pages/Community';
 import CatalogPage from './pages/Catalog';
 import VerifyEmail from './pages/VerifyEmail';
+import SystemSettings from './pages/SystemSettings'; // Nova Página
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -25,9 +26,11 @@ import { Input, Button } from './components/UI';
 interface AuthContextType {
   user: User | null;
   permissions: string[];
+  systemConfig: SystemConfig | null; // Adicionado
   login: (email: string, password?: string) => Promise<void>;
   logout: () => void;
-  refreshUser: () => void;
+  refreshUser: () => Promise<void>;
+  refreshSystemConfig: () => Promise<void>; // Adicionado
   updatePassword: (password: string) => void;
   hasPermission: (permission: string) => boolean;
 }
@@ -38,7 +41,7 @@ export const useAuth = () => useContext(AuthContext);
 
 // --- Layout Component ---
 const Layout = () => {
-  const { user, logout, updatePassword, hasPermission, refreshUser } = useAuth();
+  const { user, logout, updatePassword, hasPermission, refreshUser, systemConfig } = useAuth();
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [error, setError] = useState('');
@@ -199,9 +202,10 @@ const Layout = () => {
     );
   }
 
+  // Pass systemConfig to Sidebar to update Logo dynamically
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <Sidebar user={user} onLogout={logout} hasPermission={hasPermission} />
+      <Sidebar user={user} onLogout={logout} hasPermission={hasPermission} systemConfig={systemConfig} />
       <main className="flex-1 ml-64 p-8 overflow-y-auto h-screen fade-in">
         <Outlet />
       </main>
@@ -213,6 +217,7 @@ const Layout = () => {
 export default function App() {
   const [user, setUser] = useState<User | null>(storageService.getCurrentUser());
   const [permissions, setPermissions] = useState<string[]>([]);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -222,6 +227,8 @@ export default function App() {
         } catch(e) {
             console.warn("Erro ao verificar Seed:", e);
         }
+
+        await refreshSystemConfig(); // Carregar config de branding
 
         if (user) {
             // Validate session and get perms
@@ -253,6 +260,27 @@ export default function App() {
       updatePerms();
   }, [user?.id, user?.roleId]); // Re-fetch if role changes
 
+  // Atualizar DOM (Favicon e Title) quando systemConfig muda
+  useEffect(() => {
+      if (systemConfig) {
+          if (systemConfig.platformName) {
+              document.title = `${systemConfig.platformName} - Gestão de Formação`;
+          }
+          if (systemConfig.faviconUrl) {
+              const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+              if (link) {
+                  link.href = systemConfig.faviconUrl;
+              } else {
+                  // Fallback se não existir
+                  const newLink = document.createElement('link');
+                  newLink.rel = 'icon';
+                  newLink.href = systemConfig.faviconUrl;
+                  document.head.appendChild(newLink);
+              }
+          }
+      }
+  }, [systemConfig]);
+
   const login = async (email: string, password?: string) => {
     const loggedUser = await storageService.login(email, password);
     setUser(loggedUser);
@@ -273,6 +301,11 @@ export default function App() {
         setPermissions(perms);
     }
   };
+
+  const refreshSystemConfig = async () => {
+      const config = await storageService.getSystemConfig();
+      setSystemConfig(config);
+  };
   
   const updatePassword = async (pass: string) => {
       if (user) {
@@ -286,7 +319,7 @@ export default function App() {
   };
 
   return (
-    <AuthContext.Provider value={{ user, permissions, login, logout, refreshUser, updatePassword, hasPermission }}>
+    <AuthContext.Provider value={{ user, permissions, systemConfig, login, logout, refreshUser, refreshSystemConfig, updatePassword, hasPermission }}>
       <HashRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -325,6 +358,9 @@ export default function App() {
             } />
             <Route path="/email-config" element={
               hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <EmailConfigPage /> : <Navigate to="/" />
+            } />
+             <Route path="/system-settings" element={
+              hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <SystemSettings /> : <Navigate to="/" />
             } />
           </Route>
 

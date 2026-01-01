@@ -1,15 +1,16 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { Icons } from './Icons';
-import { User, PERMISSIONS } from '../types';
+import { User, PERMISSIONS, SystemConfig } from '../types';
 
 interface SidebarProps {
   user: User;
   onLogout: () => void;
   hasPermission: (perm: string) => boolean;
+  systemConfig?: SystemConfig | null; // Configuração dinâmica
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission, systemConfig }) => {
   
   const NavItem = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => (
     <NavLink
@@ -29,12 +30,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission 
 
   return (
     <div className="w-64 bg-slate-900 text-white flex flex-col h-full fixed left-0 top-0 border-r border-slate-800 z-10 shadow-xl">
-      <div className="flex items-center justify-center h-16 border-b border-slate-800">
-        <div className="flex items-center gap-2">
-           <div className="bg-indigo-600 p-1.5 rounded-lg">
-             <Icons.Student className="text-white w-6 h-6" />
-           </div>
-           <h1 className="text-xl font-bold tracking-tight">EduTech <span className="text-indigo-500">PT</span></h1>
+      <div className="flex items-center justify-center h-16 border-b border-slate-800 px-4">
+        {/* Lógica de Logo Dinâmico */}
+        <div className="flex items-center gap-2 overflow-hidden">
+           {systemConfig?.logoUrl ? (
+               <img src={systemConfig.logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
+           ) : (
+               <div className="bg-indigo-600 p-1.5 rounded-lg flex-shrink-0">
+                 <Icons.Student className="text-white w-6 h-6" />
+               </div>
+           )}
+           
+           <h1 className="text-xl font-bold tracking-tight truncate">
+               {systemConfig?.platformName ? (
+                   <span className="text-white">{systemConfig.platformName}</span>
+               ) : (
+                   <>EduTech <span className="text-indigo-500">PT</span></>
+               )}
+           </h1>
         </div>
       </div>
 
@@ -89,7 +102,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission 
             )}
              
             {hasPermission(PERMISSIONS.MANAGE_SETTINGS) && (
-               <NavItem to="/email-config" icon={Icons.Mail} label="Configuração Email" />
+               <>
+                   <NavItem to="/email-config" icon={Icons.Mail} label="Configuração Email" />
+                   <NavItem to="/system-settings" icon={Icons.Settings} label="Branding & Sistema" />
+               </>
              )}
           </>
         )}

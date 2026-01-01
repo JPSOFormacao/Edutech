@@ -63,8 +63,8 @@ export default function EmailConfigPage() {
     try {
         await storageService.saveEmailConfig(config);
         
-        // Recarregar da DB para confirmar persistência
-        await load();
+        // AVISO: Removido await load() para não substituir o estado local por dados potencialmente desatualizados
+        // ou causar flickering. O utilizador já vê os dados que acabou de inserir.
         
         setStatus({ type: 'success', msg: 'Configurações guardadas com sucesso!' });
         setTimeout(() => setStatus(null), 3000);

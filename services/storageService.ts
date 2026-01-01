@@ -1,4 +1,4 @@
-import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus } from '../types';
+import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig } from '../types';
 import { supabase } from './supabaseClient';
 
 const STORAGE_KEYS = {
@@ -385,6 +385,15 @@ export const storageService = {
   },
   saveEmailConfig: async (config: EmailConfig) => {
     await supabase.from('email_config').upsert({ ...config, id: 'default_config' });
+  },
+
+  // --- SYSTEM CONFIG (Branding) ---
+  getSystemConfig: async (): Promise<SystemConfig | null> => {
+    const { data } = await supabase.from('system_config').select('*').single();
+    return data || null;
+  },
+  saveSystemConfig: async (config: SystemConfig) => {
+      await supabase.from('system_config').upsert({ ...config, id: 'default_system_config' });
   },
 
   // --- AUTH / SESSION ---
