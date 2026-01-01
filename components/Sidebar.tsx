@@ -31,14 +31,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
             }
         }
     };
+    // Executar imediatamente e sempre que mudar a rota
     checkPendingUsers();
-  }, [user, location.pathname, hasPermission]); // Atualiza ao navegar
+  }, [user, location.pathname, hasPermission]); 
 
   const NavItem = ({ to, icon: Icon, label, badgeCount }: { to: string; icon: any; label: string, badgeCount?: number }) => (
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center justify-between px-4 py-3 text-sm font-medium rounded-md transition-colors mb-1 ${
+        `flex items-center justify-between px-4 py-3 text-sm font-medium rounded-md transition-colors mb-1 group ${
           isActive
             ? 'bg-slate-800 text-indigo-400 border-r-4 border-indigo-500'
             : 'text-slate-400 hover:bg-slate-800 hover:text-white'
@@ -50,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
           {label}
       </div>
       {badgeCount !== undefined && badgeCount > 0 && (
-          <span className="bg-yellow-400 text-slate-900 text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
+          <span className="flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 ml-2 rounded-full bg-yellow-400 text-slate-900 text-xs font-bold shadow-sm">
               {badgeCount}
           </span>
       )}
