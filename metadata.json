@@ -1,5 +1,7 @@
 {
   "name": "EduTech PT",
   "description": "Plataforma de Gestão de Formação em Novas Tecnologias com integração IA, controlo de acessos (RBAC) e gestão de conteúdos.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

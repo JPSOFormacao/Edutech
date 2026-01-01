@@ -22,7 +22,11 @@ import {
   Shield,
   UsersRound,
   Eye,
-  EyeOff
+  EyeOff,
+  Mic,
+  Square,
+  Volume2,
+  Zap
 } from 'lucide-react';
 
 export const Icons = {
@@ -51,5 +55,9 @@ export const Icons = {
   Class: UsersRound,
   UsersRound: UsersRound,
   Eye: Eye,
-  EyeOff: EyeOff
+  EyeOff: EyeOff,
+  Mic: Mic,
+  Stop: Square,
+  Volume: Volume2,
+  Active: Zap
 };

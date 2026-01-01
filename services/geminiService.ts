@@ -5,7 +5,7 @@ import { QuizData } from "../types";
 // For this frontend-only demo, we use the env variable directly as instructed.
 const apiKey = process.env.API_KEY || ''; 
 
-const ai = new GoogleGenAI({ apiKey });
+export const ai = new GoogleGenAI({ apiKey });
 
 export const geminiService = {
   /**
