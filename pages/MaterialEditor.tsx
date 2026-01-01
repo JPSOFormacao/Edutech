@@ -134,11 +134,13 @@ export default function MaterialEditor() {
 
         try {
             const base64Data = await convertToBase64(file);
+            
             const response = await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    filename: file.name,
+                    filename: file.name, // Nome Original
+                    originalFilename: file.name,
                     mimetype: file.type,
                     size: file.size,
                     fileData: base64Data,

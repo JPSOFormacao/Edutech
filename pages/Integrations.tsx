@@ -68,7 +68,8 @@ export default function IntegrationsPage() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    filename: file.name,
+                    filename: file.name, // Nome original
+                    originalFilename: file.name,
                     mimetype: file.type,
                     size: file.size,
                     fileData: base64Data, // Payload Base64
@@ -94,7 +95,7 @@ export default function IntegrationsPage() {
                 if (user) {
                     const newFile: UploadedFile = {
                         id: 'file_' + Date.now(),
-                        fileName: file.name,
+                        fileName: file.name, 
                         fileType: file.type,
                         size: file.size,
                         uploadedBy: user.id,

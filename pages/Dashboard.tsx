@@ -27,9 +27,12 @@ export default function Dashboard() {
 
         if (user?.role === UserRole.ALUNO) {
             // Lógica para Aluno: Apenas contagens relevantes
+            // Defesa contra allowedCourses undefined
+            const userCourses = user.allowedCourses || [];
+            
             const myClassUsers = usersData.filter(u => u.classId === user.classId);
-            const myMaterials = materialsData.filter(m => user.allowedCourses.includes(m.courseId));
-            const myCourses = coursesData.filter(c => user.allowedCourses.includes(c.id));
+            const myMaterials = materialsData.filter(m => userCourses.includes(m.courseId));
+            const myCourses = coursesData.filter(c => userCourses.includes(c.id));
 
             setStats([
                 { name: 'Meus Cursos', value: myCourses.length, icon: Icons.Courses, color: 'bg-indigo-500', link: '/courses' },

@@ -30,26 +30,40 @@ export default function FileManager() {
   };
 
   const handleDelete = async (file: UploadedFile) => {
-      const confirmMsg = file.driveFileId && systemConfig?.pipedreamDeleteUrl
+      const hasDriveId = !!file.driveFileId;
+      const confirmMsg = hasDriveId && systemConfig?.pipedreamDeleteUrl
         ? 'Tem a certeza? Isto irá apagar o ficheiro do Google Drive e da aplicação.'
         : 'Tem a certeza que deseja remover o registo? (O ficheiro pode manter-se no Drive se não houver ID associado)';
 
       if (confirm(confirmMsg)) {
           setDeleting(file.id);
           try {
-              // Tentar apagar no Drive via Pipedream se configurado
-              if (file.driveFileId && systemConfig?.pipedreamDeleteUrl) {
-                  await fetch(systemConfig.pipedreamDeleteUrl, {
+              // Tentar apagar no Drive via Pipedream se configurado e se tivermos ID
+              if (hasDriveId && systemConfig?.pipedreamDeleteUrl) {
+                  // FIX: Enviar fileId na Query String E no Body para garantir que o Pipedream o encontra
+                  // independentemente da configuração do Trigger (GET vs POST parsing)
+                  const deleteUrl = new URL(systemConfig.pipedreamDeleteUrl);
+                  deleteUrl.searchParams.append('fileId', file.driveFileId!);
+
+                  console.log(`[FileManager] A solicitar delete do ficheiro Drive: ${file.driveFileId}`);
+
+                  await fetch(deleteUrl.toString(), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ fileId: file.driveFileId })
+                      body: JSON.stringify({ 
+                          fileId: file.driveFileId,
+                          action: 'delete'
+                      })
                   });
+              } else if (hasDriveId && !systemConfig?.pipedreamDeleteUrl) {
+                  console.warn("URL de Delete do Pipedream não configurado nas Definições de Sistema.");
               }
               
               // Apagar Registo Local
               await storageService.deleteFile(file.id);
               loadFiles();
           } catch (e) {
+              console.error(e);
               alert("Erro ao apagar ficheiro.");
           } finally {
               setDeleting(null);
@@ -82,8 +96,9 @@ export default function FileManager() {
       </div>
 
       {!systemConfig?.pipedreamDeleteUrl && (
-          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded text-sm mb-4">
-              <strong>Atenção:</strong> O URL de Delete não está configurado. Apagar ficheiros aqui removerá apenas o registo na aplicação, mantendo o ficheiro no Google Drive.
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded text-sm mb-4 flex items-center gap-2">
+              <Icons.Settings className="w-4 h-4" />
+              <span><strong>Atenção:</strong> O URL de Delete não está configurado em "Config. Sistema". Os ficheiros apagados aqui continuarão a existir no Google Drive.</span>
           </div>
       )}
 
@@ -98,6 +113,7 @@ export default function FileManager() {
                   <thead className="bg-gray-50">
                       <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado Drive</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contexto</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tamanho</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enviado por</th>
@@ -119,6 +135,17 @@ export default function FileManager() {
                                           <span className="text-sm font-medium text-gray-900 truncate max-w-xs" title={file.fileName}>{file.fileName}</span>
                                       )}
                                   </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                  {file.driveFileId ? (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800" title={`ID: ${file.driveFileId}`}>
+                                          <Icons.Cloud className="w-3 h-3 mr-1" /> Sincronizado
+                                      </span>
+                                  ) : (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                                          Local
+                                      </span>
+                                  )}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                   <Badge color={file.context === 'material' ? 'info' : 'success'}>
@@ -146,7 +173,7 @@ export default function FileManager() {
                                       ) : (
                                           <>
                                             <Icons.Delete className="w-4 h-4" /> 
-                                            {file.driveFileId && systemConfig?.pipedreamDeleteUrl ? 'Apagar (Drive)' : 'Remover'}
+                                            {file.driveFileId && systemConfig?.pipedreamDeleteUrl ? 'Apagar' : 'Remover'}
                                           </>
                                       )}
                                   </button>
