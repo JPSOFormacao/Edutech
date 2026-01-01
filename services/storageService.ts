@@ -537,6 +537,13 @@ export const storageService = {
   getUserPermissions: async (user: User | null): Promise<string[]> => {
     if (!user) return [];
     
+    // AUTOMATIC ADMIN PERMISSIONS:
+    // Garante que Administradores têm SEMPRE todas as permissões definidas no código,
+    // independentemente do que possa estar desatualizado na base de dados.
+    if (user.role === UserRole.ADMIN || user.roleId === 'role_admin') {
+        return Object.values(PERMISSIONS);
+    }
+    
     const roles = await storageService.getRoles();
     
     // Determinar Role ID
@@ -591,7 +598,7 @@ export const storageService = {
       }
     } else {
         // Auto-reparação de Super Admin
-        if (isSuperAdmin && (user.role !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
+        if (isSuperAdmin && ((user.role as UserRole) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
              user = { ...user, role: UserRole.ADMIN, roleId: 'role_admin', status: UserStatus.ACTIVE };
              await storageService.saveUser(user);
         }
