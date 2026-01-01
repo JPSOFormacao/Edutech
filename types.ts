@@ -34,7 +34,8 @@ export const PERMISSIONS = {
   MANAGE_CONTENT: 'manage_content', // Materials, CMS
   VIEW_COURSES: 'view_courses',
   USE_AI_STUDIO: 'use_ai_studio',
-  MANAGE_SETTINGS: 'manage_settings'
+  MANAGE_SETTINGS: 'manage_settings',
+  USE_PIPEDREAM: 'use_pipedream' // Nova permissão
 };
 
 export const PERMISSION_LABELS: Record<string, string> = {
@@ -46,7 +47,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   [PERMISSIONS.MANAGE_CONTENT]: 'Gerir Conteúdos (Materiais e Páginas)',
   [PERMISSIONS.VIEW_COURSES]: 'Ver Cursos Disponíveis (Acesso Aluno)',
   [PERMISSIONS.USE_AI_STUDIO]: 'Utilizar Estúdio de Inteligência Artificial',
-  [PERMISSIONS.MANAGE_SETTINGS]: 'Configurações de Sistema (Email, Branding)'
+  [PERMISSIONS.MANAGE_SETTINGS]: 'Configurações de Sistema (Email, Branding)',
+  [PERMISSIONS.USE_PIPEDREAM]: 'Utilizar Integrações (Upload Google Drive/Pipedream)'
 };
 
 export interface RoleEntity {
@@ -173,4 +175,5 @@ export interface SystemConfig {
   logoUrl?: string;
   faviconUrl?: string;
   platformName?: string;
+  pipedreamWebhookUrl?: string; // Novo campo para integração
 }

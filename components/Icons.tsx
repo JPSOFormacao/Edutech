@@ -26,7 +26,9 @@ import {
   Mic,
   Square,
   Volume2,
-  Zap
+  Zap,
+  Cloud,
+  Upload
 } from 'lucide-react';
 
 export const Icons = {
@@ -59,5 +61,7 @@ export const Icons = {
   Mic: Mic,
   Stop: Square,
   Volume: Volume2,
-  Active: Zap
+  Active: Zap,
+  Cloud: Cloud,
+  Upload: Upload
 };

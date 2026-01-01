@@ -130,6 +130,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
             {hasPermission(PERMISSIONS.USE_AI_STUDIO) && (
                  <NavItem to="/ai-studio" icon={Icons.AI} label="Estúdio IA" />
             )}
+
+            {hasPermission(PERMISSIONS.USE_PIPEDREAM) && (
+                 <NavItem to="/integrations" icon={Icons.Cloud} label="Integrações / Drive" />
+            )}
              
             {hasPermission(PERMISSIONS.MANAGE_SETTINGS) && (
                <>

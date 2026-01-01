@@ -19,7 +19,8 @@ import CommunityPage from './pages/Community';
 import CatalogPage from './pages/Catalog';
 import VerifyEmail from './pages/VerifyEmail';
 import SystemSettings from './pages/SystemSettings'; 
-import DatabaseTest from './pages/DatabaseTest'; // Nova Página
+import DatabaseTest from './pages/DatabaseTest'; 
+import IntegrationsPage from './pages/Integrations'; // Nova Página
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -357,6 +358,11 @@ export default function App() {
              <Route path="/ai-studio" element={
               hasPermission(PERMISSIONS.USE_AI_STUDIO) ? <AIStudio /> : <Navigate to="/" />
             } />
+
+            <Route path="/integrations" element={
+              hasPermission(PERMISSIONS.USE_PIPEDREAM) ? <IntegrationsPage /> : <Navigate to="/" />
+            } />
+
             <Route path="/email-config" element={
               hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <EmailConfigPage /> : <Navigate to="/" />
             } />

@@ -39,7 +39,8 @@ const INITIAL_ROLES = [
       PERMISSIONS.MANAGE_COURSES,
       PERMISSIONS.MANAGE_CONTENT,
       PERMISSIONS.USE_AI_STUDIO,
-      PERMISSIONS.VIEW_COURSES
+      PERMISSIONS.VIEW_COURSES,
+      PERMISSIONS.USE_PIPEDREAM // Formadores podem usar Pipedream
     ]
   },
   {
@@ -481,7 +482,8 @@ export const storageService = {
              dbConfig = {
                  logoUrl: data.logo_url,
                  faviconUrl: data.favicon_url,
-                 platformName: data.platform_name
+                 platformName: data.platform_name,
+                 pipedreamWebhookUrl: data.pipedream_webhook_url // Handle new field
              };
         }
     } catch(e) {}
@@ -502,7 +504,8 @@ export const storageService = {
               id: 'default_system_config',
               logo_url: config.logoUrl,
               favicon_url: config.faviconUrl,
-              platform_name: config.platformName
+              platform_name: config.platformName,
+              pipedream_webhook_url: config.pipedreamWebhookUrl // Handle new field
           });
       } catch (e) {}
   },
