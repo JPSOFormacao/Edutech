@@ -463,7 +463,7 @@ export default function UsersPage() {
                   
                   // Lógica de Cor: Selecionado > Atenção > Zebra
                   let rowClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-                  if (needsAttention) rowClass = 'bg-amber-50';
+                  if (needsAttention) rowClass = 'bg-yellow-50';
                   if (isSelected) rowClass = 'bg-indigo-50';
                   
                   return (

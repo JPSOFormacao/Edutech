@@ -50,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
           {label}
       </div>
       {badgeCount !== undefined && badgeCount > 0 && (
-          <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+          <span className="bg-yellow-400 text-slate-900 text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
               {badgeCount}
           </span>
       )}
