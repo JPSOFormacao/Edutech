@@ -21,6 +21,13 @@ export default function UsersPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [newPassword, setNewPassword] = useState('');
 
+  // Estados para Importação em Massa
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkClassId, setBulkClassId] = useState('');
+  const [bulkImportLog, setBulkImportLog] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+
   // Tabs: 'staff' (Admin/Editor) or 'students' (Aluno)
   const [activeTab, setActiveTab] = useState<'staff' | 'students'>('staff');
 
@@ -123,6 +130,103 @@ export default function UsersPage() {
       });
       setNewPassword(generateRandomPassword()); 
       setIsModalOpen(true);
+  };
+
+  const handleOpenBulkImport = () => {
+      setBulkText('');
+      setBulkClassId('');
+      setBulkImportLog([]);
+      setIsImporting(false);
+      setIsBulkModalOpen(true);
+  };
+
+  const processBulkImport = async () => {
+      if (!bulkText.trim()) return;
+      
+      setIsImporting(true);
+      setBulkImportLog(['A iniciar importação...']);
+      
+      const lines = bulkText.split('\n');
+      const processedUsers: User[] = [];
+      let successCount = 0;
+
+      // Recarregar utilizadores para garantir unicidade
+      const currentUsers = await storageService.getUsers();
+      
+      for (const line of lines) {
+          if (!line.trim()) continue;
+          
+          const parts = line.split(',');
+          if (parts.length < 2) {
+              setBulkImportLog(prev => [...prev, `❌ Formato inválido: "${line}" (Use: Nome, Email)`]);
+              continue;
+          }
+
+          const name = parts[0].trim();
+          const email = parts[1].trim().toLowerCase();
+
+          if (!email.includes('@')) {
+              setBulkImportLog(prev => [...prev, `❌ Email inválido: "${email}"`]);
+              continue;
+          }
+
+          // Verificar duplicados
+          if (currentUsers.find(u => u.email === email) || processedUsers.find(u => u.email === email)) {
+              setBulkImportLog(prev => [...prev, `⚠️ Ignorado (Já existe): ${email}`]);
+              continue;
+          }
+
+          // Criar User
+          const tempPassword = generateRandomPassword();
+          const newUser: User = {
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+              name: name,
+              email: email,
+              role: UserRole.ALUNO,
+              roleId: 'role_aluno', // Hardcoded para Aluno no Bulk
+              status: UserStatus.ACTIVE, // Importação Admin = Ativo
+              allowedCourses: [],
+              enrollmentRequests: [],
+              avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
+              mustChangePassword: true,
+              classId: bulkClassId || undefined,
+              emailVerified: true
+          };
+
+          try {
+              await storageService.saveUser(newUser);
+              processedUsers.push(newUser);
+              
+              // Enviar Email
+              const config = await storageService.getEmailConfig();
+              if (config && config.serviceId) {
+                  setBulkImportLog(prev => [...prev, `📧 A enviar email para ${email}...`]);
+                  const emailRes = await emailService.sendWelcomeEmail(
+                      newUser.name,
+                      newUser.email,
+                      tempPassword,
+                      newUser.classId,
+                      []
+                  );
+                  
+                  if (emailRes.success) {
+                       setBulkImportLog(prev => [...prev, `✅ Criado e Email enviado: ${name}`]);
+                  } else {
+                       setBulkImportLog(prev => [...prev, `⚠️ Criado, mas falha no email: ${name} (${emailRes.message})`]);
+                  }
+              } else {
+                  setBulkImportLog(prev => [...prev, `✅ Criado (Email não configurado): ${name}`]);
+              }
+              
+              successCount++;
+          } catch (e: any) {
+              setBulkImportLog(prev => [...prev, `❌ Erro ao guardar ${name}: ${e.message}`]);
+          }
+      }
+
+      setBulkImportLog(prev => [...prev, `--- Concluído: ${successCount} utilizadores importados ---`]);
+      setIsImporting(false);
+      await loadData(); // Refresh table
   };
 
   const handleDelete = async (userId: string) => {
@@ -374,6 +478,7 @@ export default function UsersPage() {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Gestão de Utilizadores</h2>
         <div className="flex gap-2">
+            <Button onClick={handleOpenBulkImport} variant="secondary" icon={Icons.Users}>Importar Alunos</Button>
             <Button onClick={handleCreate} icon={Icons.Plus}>Novo Utilizador</Button>
         </div>
       </div>
@@ -463,7 +568,7 @@ export default function UsersPage() {
                   
                   // Lógica de Cor: Selecionado > Atenção > Zebra
                   let rowClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-                  if (needsAttention) rowClass = 'bg-yellow-100'; // Cor mais forte
+                  if (needsAttention) rowClass = 'bg-yellow-100'; // Cor de atenção amarela
                   if (isSelected) rowClass = 'bg-indigo-50';
                   
                   return (
@@ -553,7 +658,7 @@ export default function UsersPage() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal Edição Individual */}
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -702,6 +807,69 @@ export default function UsersPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal Importação em Massa */}
+      <Modal
+        isOpen={isBulkModalOpen}
+        onClose={() => !isImporting && setIsBulkModalOpen(false)}
+        title="Importar Alunos em Massa"
+        footer={
+            <>
+                <Button variant="ghost" onClick={() => setIsBulkModalOpen(false)} disabled={isImporting}>
+                    Fechar
+                </Button>
+                <Button variant="primary" onClick={processBulkImport} disabled={isImporting || !bulkText.trim()}>
+                    {isImporting ? 'A Processar...' : 'Iniciar Importação'}
+                </Button>
+            </>
+        }
+      >
+          <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-100 p-3 rounded text-sm text-blue-800">
+                  <p className="font-bold mb-1">Instruções:</p>
+                  <p>Cole a lista de alunos abaixo, um por linha, no formato:</p>
+                  <code className="block bg-white p-1 rounded mt-1 border">Nome do Aluno, email@exemplo.com</code>
+                  <p className="mt-2 text-xs">Os alunos serão criados com estado <strong>ATIVO</strong> e receberão um email de boas-vindas com uma senha temporária.</p>
+              </div>
+
+              <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lista de Alunos</label>
+                  <textarea 
+                      className="w-full h-40 border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2 text-sm font-mono"
+                      placeholder="Joana Silva, joana@email.com&#10;Pedro Santos, pedro@email.com"
+                      value={bulkText}
+                      onChange={e => setBulkText(e.target.value)}
+                      disabled={isImporting}
+                  />
+              </div>
+
+              <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Atribuir à Turma (Opcional)</label>
+                  <select 
+                      className="block w-full border-gray-300 rounded-md shadow-sm border p-2"
+                      value={bulkClassId}
+                      onChange={e => setBulkClassId(e.target.value)}
+                      disabled={isImporting}
+                  >
+                      <option value="">-- Nenhuma --</option>
+                      {classes.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                  </select>
+              </div>
+
+              {/* Log de Importação */}
+              {bulkImportLog.length > 0 && (
+                  <div className="mt-4 bg-gray-50 p-2 rounded border border-gray-200 h-32 overflow-y-auto text-xs font-mono">
+                      {bulkImportLog.map((log, idx) => (
+                          <div key={idx} className={`mb-1 ${log.includes('❌') ? 'text-red-600' : log.includes('✅') ? 'text-green-600' : 'text-gray-600'}`}>
+                              {log}
+                          </div>
+                      ))}
+                  </div>
+              )}
+          </div>
       </Modal>
     </div>
   );
