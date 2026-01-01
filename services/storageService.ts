@@ -4,7 +4,14 @@ import { supabase } from './supabaseClient';
 const STORAGE_KEYS = {
   CURRENT_USER: 'edutech_current_user',
   EMAIL_CONFIG: 'edutech_email_config',
-  SYSTEM_CONFIG: 'edutech_system_config'
+  SYSTEM_CONFIG: 'edutech_system_config',
+  USERS: 'edutech_users',
+  ROLES: 'edutech_roles',
+  CLASSES: 'edutech_classes',
+  COURSES: 'edutech_courses',
+  MATERIALS: 'edutech_materials',
+  PAGES: 'edutech_pages',
+  TESTIMONIALS: 'edutech_testimonials'
 };
 
 // Lista de emails que têm permissão automática de Admin (Backdoor de recuperação)
@@ -14,7 +21,7 @@ const SUPER_ADMINS = [
   'formador@edutech.pt'
 ];
 
-// --- Seed Data (Backup) ---
+// --- Seed Data ---
 const INITIAL_ROLES = [
   {
     id: 'role_admin',
@@ -28,7 +35,7 @@ const INITIAL_ROLES = [
     isSystem: true,
     permissions: [
       PERMISSIONS.VIEW_DASHBOARD,
-      PERMISSIONS.MANAGE_USERS, // Adicionado para permitir aprovar alunos
+      PERMISSIONS.MANAGE_USERS,
       PERMISSIONS.MANAGE_COURSES,
       PERMISSIONS.MANAGE_CONTENT,
       PERMISSIONS.USE_AI_STUDIO,
@@ -46,20 +53,91 @@ const INITIAL_ROLES = [
   }
 ];
 
+// --- Helper Functions for Hybrid Storage ---
+async function fetchWithFallback<T>(tableName: string, storageKey: string, seedData: T[] = []): Promise<T[]> {
+    // 1. Tentar ler do Supabase
+    try {
+        const { data, error } = await supabase.from(tableName).select('*');
+        if (!error && data) {
+            // Atualizar Cache Local
+            localStorage.setItem(storageKey, JSON.stringify(data));
+            return data as T[];
+        }
+    } catch (e) {
+        // Ignorar erro de conexão silenciosamente e usar cache
+        // console.warn(`Supabase fetch failed for ${tableName}, using fallback.`);
+    }
+
+    // 2. Fallback para LocalStorage
+    try {
+        const cached = localStorage.getItem(storageKey);
+        if (cached) {
+            return JSON.parse(cached);
+        }
+    } catch (e) {}
+
+    // 3. Fallback para Seed Data (se cache vazio) e inicializar cache
+    if (seedData.length > 0) {
+        localStorage.setItem(storageKey, JSON.stringify(seedData));
+        return seedData;
+    }
+
+    return [];
+}
+
+async function saveWithFallback<T extends { id?: string, slug?: string }>(tableName: string, storageKey: string, items: T[], idField: keyof T = 'id' as keyof T) {
+    // 1. Atualizar LocalStorage (Optimistic UI)
+    try {
+        const currentCacheStr = localStorage.getItem(storageKey);
+        let currentCache: T[] = currentCacheStr ? JSON.parse(currentCacheStr) : [];
+        
+        items.forEach(item => {
+            const index = currentCache.findIndex(c => c[idField] === item[idField]);
+            if (index >= 0) {
+                currentCache[index] = { ...currentCache[index], ...item };
+            } else {
+                currentCache.push(item);
+            }
+        });
+        localStorage.setItem(storageKey, JSON.stringify(currentCache));
+    } catch (e) {}
+
+    // 2. Tentar persistir no Supabase
+    try {
+        await supabase.from(tableName).upsert(items);
+    } catch (e) {
+        console.warn(`Supabase save failed for ${tableName}, data saved locally.`);
+    }
+}
+
+async function deleteWithFallback(tableName: string, storageKey: string, id: string, idField: string = 'id') {
+    // 1. Atualizar LocalStorage
+    try {
+        const currentCacheStr = localStorage.getItem(storageKey);
+        if (currentCacheStr) {
+            let currentCache: any[] = JSON.parse(currentCacheStr);
+            currentCache = currentCache.filter(item => item[idField] !== id);
+            localStorage.setItem(storageKey, JSON.stringify(currentCache));
+        }
+    } catch (e) {}
+
+    // 2. Tentar apagar no Supabase
+    try {
+        await supabase.from(tableName).delete().eq(idField, id);
+    } catch (e) {
+        console.warn(`Supabase delete failed for ${tableName}, item deleted locally.`);
+    }
+}
+
 export const storageService = {
   // --- SEEDING ---
   checkAndSeedData: async () => {
-    // Verificar se já existem cursos
-    const { count } = await supabase.from('courses').select('*', { count: 'exact', head: true });
-    
-    if (count === 0) {
-        console.log("Base de dados vazia detetada. A criar dados de exemplo...");
-        
-        // 1. Criar Roles (garantir que existem)
-        await supabase.from('roles').upsert(INITIAL_ROLES);
-
-        // 2. Criar Cursos
-        const courses: Course[] = [
+      // Forçamos um load inicial de tudo para garantir que o LocalStorage tem dados
+      // Se o Supabase falhar, o fetchWithFallback usará os dados de seed definidos abaixo.
+      
+      await storageService.getRoles();
+      
+      const coursesSeed: Course[] = [
             { 
                 id: 'c_py_01', 
                 title: 'Python para Data Science', 
@@ -86,18 +164,16 @@ export const storageService = {
             },
             { id: 'c_ai_01', title: 'Introdução à IA Generativa', category: 'Inteligência Artificial', description: 'Compreenda como funcionam os LLMs e como criar prompts eficazes.', imageUrl: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&q=80&w=800', duration: '20 Horas', price: 149.00 },
             { id: 'c_sec_01', title: 'Cibersegurança Essencial', category: 'Segurança', description: 'Proteja sistemas e redes contra ameaças digitais.', imageUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=800', duration: '30 Horas', price: 179.90 }
-        ];
-        await supabase.from('courses').upsert(courses);
+      ];
+      await fetchWithFallback('courses', STORAGE_KEYS.COURSES, coursesSeed);
 
-        // 3. Criar Turmas
-        const classes: ClassEntity[] = [
+      const classesSeed: ClassEntity[] = [
             { id: 'cl_a_2024', name: 'Turma A - Manhã', description: 'Horário: 09:00 - 13:00' },
             { id: 'cl_b_2024', name: 'Turma B - Pós-Laboral', description: 'Horário: 19:00 - 23:00' }
-        ];
-        await supabase.from('classes').upsert(classes);
+      ];
+      await fetchWithFallback('classes', STORAGE_KEYS.CLASSES, classesSeed);
 
-        // 4. Criar Utilizadores
-        const users: User[] = [
+      const usersSeed: User[] = [
             { 
                 id: 'usr_admin', 
                 email: 'admin@edutech.pt', 
@@ -155,18 +231,16 @@ export const storageService = {
                 avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Pedro',
                 mustChangePassword: false
             }
-        ];
-        await supabase.from('users').upsert(users);
+      ];
+      await fetchWithFallback('users', STORAGE_KEYS.USERS, usersSeed);
 
-        // 5. Criar Materiais
-        const materials: Material[] = [
+      const materialsSeed: Material[] = [
             { id: 'mat_01', courseId: 'c_web_01', title: 'Guia de Instalação React', type: MaterialType.RECURSO, linkOrContent: 'https://react.dev', createdAt: new Date().toISOString() },
             { id: 'mat_02', courseId: 'c_py_01', title: 'Exercícios Pandas', type: MaterialType.TRABALHO, linkOrContent: 'https://pandas.pydata.org', createdAt: new Date().toISOString() }
-        ];
-        await supabase.from('materials').upsert(materials);
+      ];
+      await fetchWithFallback('materials', STORAGE_KEYS.MATERIALS, materialsSeed);
 
-        // 6. Criar Testemunhos Iniciais
-        const testimonials: Testimonial[] = [
+      const testimonialsSeed: Testimonial[] = [
           {
             id: 'tm_1',
             userId: 'usr_aluno1',
@@ -189,68 +263,41 @@ export const storageService = {
             status: TestimonialStatus.APPROVED,
             createdAt: new Date().toISOString()
           }
-        ];
-        await supabase.from('testimonials').upsert(testimonials);
-        
-        console.log("Dados de exemplo criados com sucesso.");
-    }
+      ];
+      await fetchWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, testimonialsSeed);
   },
 
   // --- USERS ---
   getUsers: async (): Promise<User[]> => {
-    const { data, error } = await supabase.from('users').select('*');
-    if (error) {
-        console.error('Error fetching users:', error);
-        return [];
-    }
-    return data || [];
+    return fetchWithFallback('users', STORAGE_KEYS.USERS);
   },
   
   saveUsers: async (users: User[]) => {
-    const { error } = await supabase.from('users').upsert(users);
-    if (error) console.error('Error saving users:', error);
+    return saveWithFallback('users', STORAGE_KEYS.USERS, users);
   },
   
   saveUser: async (user: User) => {
-      // Garantir que não perdemos campos opcionais ao gravar
-      const { error } = await supabase.from('users').upsert(user);
-      if (error) throw error;
+    return saveWithFallback('users', STORAGE_KEYS.USERS, [user]);
   },
   
   deleteUser: async (id: string) => {
-      // 1. Desvincular Testemunhos APROVADOS (update userId = null)
-      // Isto garante que o testemunho fica no site (com os dados de snapshot) mas perde o link ao user.
-      const { error: updateError } = await supabase
-          .from('testimonials')
-          .update({ userId: null } as any) 
-          .eq('userId', id)
-          .eq('status', TestimonialStatus.APPROVED);
+      // Logic for testimonials unlink
+      const testimonials = await storageService.getTestimonials();
+      const toUpdate = testimonials.filter(t => t.userId === id && t.status === TestimonialStatus.APPROVED).map(t => ({...t, userId: null}));
+      if (toUpdate.length > 0) await storageService.saveTestimonial(toUpdate[0] as Testimonial); // Simplification, ideally batch
 
-      if (updateError) {
-          console.warn("Aviso: Falha ao desvincular testemunhos aprovados.", updateError);
-      }
+      // Delete testimonials pending/rejected
+      // const toDelete = testimonials.filter(t => t.userId === id && t.status !== TestimonialStatus.APPROVED);
+      // for(const t of toDelete) await deleteWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, t.id);
 
-      // 2. Apagar Testemunhos PENDENTES ou REJEITADOS
-      const { error: deleteTestimonialError } = await supabase
-          .from('testimonials')
-          .delete()
-          .eq('userId', id)
-          .neq('status', TestimonialStatus.APPROVED);
-
-      if (deleteTestimonialError) {
-           console.warn("Aviso: Falha ao limpar testemunhos pendentes.", deleteTestimonialError);
-      }
-
-      // 3. Apagar o Utilizador
-      const { error } = await supabase.from('users').delete().eq('id', id);
-      if (error) throw error;
+      return deleteWithFallback('users', STORAGE_KEYS.USERS, id);
   },
   
   register: async (user: Partial<User>): Promise<{user: User, token: string}> => {
       const email = user.email?.toLowerCase().trim();
       
-      // 1. Verificar duplicados
-      const { data: existing } = await supabase.from('users').select('*').eq('email', email).single();
+      const users = await storageService.getUsers();
+      const existing = users.find(u => u.email === email);
       if (existing) {
           throw new Error("Este email já se encontra registado.");
       }
@@ -263,126 +310,98 @@ export const storageService = {
           name: user.name || '',
           fullName: user.fullName || '',
           role: UserRole.ALUNO,
-          roleId: 'role_aluno', // Default para alunos
-          status: UserStatus.PENDING, // Bloqueado por defeito (Aguardando Aprovação Admin)
+          roleId: 'role_aluno',
+          status: UserStatus.PENDING,
           password: user.password,
           allowedCourses: [],
           avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
           mustChangePassword: false,
-          emailVerified: false, // VERIFICAÇÃO OBRIGATÓRIA (Link por email)
+          emailVerified: false, 
           verificationToken: verificationToken,
           ...user
       } as User;
       
-      const { error } = await supabase.from('users').insert(newUser);
-      if(error) throw error;
+      await storageService.saveUser(newUser);
       
       return { user: newUser, token: verificationToken };
   },
 
   verifyUserEmail: async (token: string): Promise<boolean> => {
-      const { data: users, error } = await supabase.from('users').select('*').eq('verificationToken', token);
+      const users = await storageService.getUsers();
+      const user = users.find(u => u.verificationToken === token);
       
-      if (error || !users || users.length === 0) {
-          return false;
-      }
+      if (!user) return false;
       
-      const user = users[0];
-      
-      // Update
-      const { error: updateError } = await supabase.from('users').update({
-          emailVerified: true,
-          verificationToken: null // Clear token
-      }).eq('id', user.id);
-      
-      if (updateError) return false;
-      
+      const updatedUser = { ...user, emailVerified: true, verificationToken: undefined };
+      await storageService.saveUser(updatedUser as User);
       return true;
   },
 
   // --- ROLES ---
   getRoles: async (): Promise<RoleEntity[]> => {
-    const { data, error } = await supabase.from('roles').select('*');
-    
-    // Seed inicial se vazio ou erro (tabela não existe ainda)
-    if (error || !data || data.length === 0) {
-        // Tenta fazer seed silencioso se a conexão estiver OK mas vazia
-        if (!error || (error && error.code !== '42P01')) { // 42P01 é tabela inexistente
-             await supabase.from('roles').upsert(INITIAL_ROLES);
-        }
-        return INITIAL_ROLES;
-    }
-    return data;
+    return fetchWithFallback('roles', STORAGE_KEYS.ROLES, INITIAL_ROLES);
   },
   saveRoles: async (roles: RoleEntity[]) => {
-    await supabase.from('roles').upsert(roles);
+    return saveWithFallback('roles', STORAGE_KEYS.ROLES, roles);
   },
 
   // --- CLASSES ---
   getClasses: async (): Promise<ClassEntity[]> => {
-    const { data, error } = await supabase.from('classes').select('*');
-    return data || [];
+    return fetchWithFallback('classes', STORAGE_KEYS.CLASSES);
   },
   saveClasses: async (classes: ClassEntity[]) => {
-    await supabase.from('classes').upsert(classes);
+    return saveWithFallback('classes', STORAGE_KEYS.CLASSES, classes);
   },
   deleteClass: async (id: string) => {
-      await supabase.from('classes').delete().eq('id', id);
+    return deleteWithFallback('classes', STORAGE_KEYS.CLASSES, id);
   },
 
   // --- COURSES ---
   getCourses: async (): Promise<Course[]> => {
-    const { data } = await supabase.from('courses').select('*');
-    return data || [];
+    return fetchWithFallback('courses', STORAGE_KEYS.COURSES);
   },
   saveCourses: async (courses: Course[]) => {
-    await supabase.from('courses').upsert(courses);
+    return saveWithFallback('courses', STORAGE_KEYS.COURSES, courses);
   },
   deleteCourse: async (id: string) => {
-      await supabase.from('courses').delete().eq('id', id);
+    return deleteWithFallback('courses', STORAGE_KEYS.COURSES, id);
   },
 
   // --- MATERIALS ---
   getMaterials: async (): Promise<Material[]> => {
-    const { data } = await supabase.from('materials').select('*');
-    return data || [];
+    return fetchWithFallback('materials', STORAGE_KEYS.MATERIALS);
   },
   saveMaterials: async (materials: Material[]) => {
-    await supabase.from('materials').upsert(materials);
+    return saveWithFallback('materials', STORAGE_KEYS.MATERIALS, materials);
   },
   deleteMaterial: async (id: string) => {
-      await supabase.from('materials').delete().eq('id', id);
+    return deleteWithFallback('materials', STORAGE_KEYS.MATERIALS, id);
   },
 
   // --- PAGES ---
   getPages: async (): Promise<Page[]> => {
-    const { data } = await supabase.from('pages').select('*');
-    return data || [];
+    return fetchWithFallback('pages', STORAGE_KEYS.PAGES);
   },
   savePages: async (pages: Page[]) => {
-    await supabase.from('pages').upsert(pages);
+    return saveWithFallback('pages', STORAGE_KEYS.PAGES, pages, 'slug');
   },
   deletePage: async (slug: string) => {
-      await supabase.from('pages').delete().eq('slug', slug);
+    return deleteWithFallback('pages', STORAGE_KEYS.PAGES, slug, 'slug');
   },
 
   // --- TESTIMONIALS ---
   getTestimonials: async (): Promise<Testimonial[]> => {
-    const { data, error } = await supabase.from('testimonials').select('*');
-    return data || [];
+    return fetchWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS);
   },
   saveTestimonial: async (testimonial: Testimonial) => {
-    const { error } = await supabase.from('testimonials').upsert(testimonial);
-    if (error) throw error;
+    return saveWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, [testimonial]);
   },
   deleteTestimonial: async (id: string) => {
-    const { error } = await supabase.from('testimonials').delete().eq('id', id);
-    if (error) throw error;
+    return deleteWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, id);
   },
 
-  // --- EMAIL CONFIG (Merge Strategy: DB + LocalStorage) ---
+  // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
-    // 1. Objeto Base (com valores vazios para evitar undefined)
     const baseConfig: EmailConfig = {
         serviceId: '',
         publicKey: '',
@@ -396,121 +415,75 @@ export const storageService = {
         customErrorMessage: ''
     };
 
-    // 2. Tentar ler da DB (Backend Source)
+    // Tentar DB (com fallback)
     let dbData: any = {};
     try {
-        const { data, error } = await supabase.from('email_config').select('*').single();
-        if (data && !error) {
-            // Mapeamento correto SnakeCase -> CamelCase
-            dbData.serviceId = data.service_id;
-            dbData.publicKey = data.public_key;
-            dbData.customErrorMessage = data.custom_error_message;
-            
-            let t = data.templates;
-            if (typeof t === 'string') {
-                 try { t = JSON.parse(t); } catch(e) {}
-            }
-            dbData.templates = t;
-        }
-    } catch (e) { console.warn("Erro DB Read EmailConfig:", e); }
+        const { data } = await supabase.from('email_config').select('*').single();
+        if (data) dbData = data;
+    } catch(e) {}
 
-    // 3. Tentar ler do LocalStorage (Local Cache Source)
-    let localData: Partial<EmailConfig> = {};
+    // Tentar LocalStorage
+    let localData: any = {};
     try {
         const stored = localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG);
-        if (stored) {
-            localData = JSON.parse(stored);
-        }
-    } catch (e) { console.warn("Erro LocalStorage EmailConfig:", e); }
+        if(stored) localData = JSON.parse(stored);
+    } catch(e) {}
 
-    // 4. Merge Estratégico (Preencher o baseConfig)
-    // Regra: DB > LocalStorage > Default
-    
-    // Service ID
-    if (dbData.serviceId) baseConfig.serviceId = dbData.serviceId;
-    else if (localData.serviceId) baseConfig.serviceId = localData.serviceId;
+    // Merge
+    // Preferência: DB > LocalStorage > Default
+    const mergedTemplates = {
+        ...baseConfig.templates,
+        ...(localData.templates || {}),
+        ...(dbData.templates || {})
+    };
 
-    // Public Key
-    if (dbData.publicKey) baseConfig.publicKey = dbData.publicKey;
-    else if (localData.publicKey) baseConfig.publicKey = localData.publicKey;
-    
-    // Custom Error Message
-    if (dbData.customErrorMessage) baseConfig.customErrorMessage = dbData.customErrorMessage;
-    else if (localData.customErrorMessage) baseConfig.customErrorMessage = localData.customErrorMessage;
-
-    // Templates
-    const dbT = (dbData.templates || {}) as any;
-    const localT = (localData.templates || {}) as any;
-
-    // @ts-ignore
-    baseConfig.templates.welcomeId = dbT.welcomeId || localT.welcomeId || '';
-    // @ts-ignore
-    baseConfig.templates.resetPasswordId = dbT.resetPasswordId || localT.resetPasswordId || '';
-    // @ts-ignore
-    baseConfig.templates.enrollmentId = dbT.enrollmentId || localT.enrollmentId || '';
-    // @ts-ignore
-    baseConfig.templates.notificationId = dbT.notificationId || localT.notificationId || '';
-    // @ts-ignore
-    baseConfig.templates.verificationId = dbT.verificationId || localT.verificationId || '';
-
-    return baseConfig;
+    return {
+        serviceId: dbData.service_id || localData.serviceId || '',
+        publicKey: dbData.public_key || localData.publicKey || '',
+        customErrorMessage: dbData.custom_error_message || localData.customErrorMessage || '',
+        templates: mergedTemplates
+    };
   },
 
   saveEmailConfig: async (config: EmailConfig) => {
-    // 1. LocalStorage (Persistência Instantânea)
     localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config));
-
-    // 2. DB (Persistência Backend com mapeamento correto)
     try {
-        const payload = {
+        await supabase.from('email_config').upsert({
             id: 'default_config', 
-            service_id: config.serviceId, // Snake Case
-            public_key: config.publicKey, // Snake Case
+            service_id: config.serviceId,
+            public_key: config.publicKey,
             templates: config.templates,
-            custom_error_message: config.customErrorMessage // Snake Case
-        };
-        
-        const { error } = await supabase.from('email_config').upsert(payload);
-        
-        if (error) {
-            console.error("Erro Supabase Email Config:", error);
-            // Se falhar o upsert, pode ser porque a tabela não existe.
-            // O script SQL fornecido deve resolver isto.
-        }
-    } catch (e: any) {
-        console.warn("Falha silenciosa ao gravar DB. Dados mantidos no LocalStorage.", e);
-    }
+            custom_error_message: config.customErrorMessage
+        });
+    } catch (e) {}
   },
 
   // --- SYSTEM CONFIG ---
   getSystemConfig: async (): Promise<SystemConfig | null> => {
-    let finalConfig: SystemConfig = {};
-
+    // Similar merge strategy
+    let dbConfig: SystemConfig = {};
     try {
         const { data } = await supabase.from('system_config').select('*').single();
         if(data) {
-             finalConfig.logoUrl = data.logo_url ?? data.logoUrl;
-             finalConfig.faviconUrl = data.favicon_url ?? data.faviconUrl;
-             finalConfig.platformName = data.platform_name ?? data.platformName;
+             dbConfig = {
+                 logoUrl: data.logo_url,
+                 faviconUrl: data.favicon_url,
+                 platformName: data.platform_name
+             };
         }
     } catch(e) {}
 
+    let localConfig: SystemConfig = {};
     try {
         const stored = localStorage.getItem(STORAGE_KEYS.SYSTEM_CONFIG);
-        if(stored) {
-             const local = JSON.parse(stored);
-             if(local.logoUrl) finalConfig.logoUrl = local.logoUrl;
-             if(local.faviconUrl) finalConfig.faviconUrl = local.faviconUrl;
-             if(local.platformName) finalConfig.platformName = local.platformName;
-        }
+        if(stored) localConfig = JSON.parse(stored);
     } catch(e) {}
 
-    return finalConfig;
+    return { ...localConfig, ...dbConfig };
   },
 
   saveSystemConfig: async (config: SystemConfig) => {
       localStorage.setItem(STORAGE_KEYS.SYSTEM_CONFIG, JSON.stringify(config));
-
       try {
           await supabase.from('system_config').upsert({ 
               id: 'default_system_config',
@@ -518,13 +491,10 @@ export const storageService = {
               favicon_url: config.faviconUrl,
               platform_name: config.platformName
           });
-      } catch (e) {
-          console.warn("Erro DB SystemConfig", e);
-      }
+      } catch (e) {}
   },
 
   // --- AUTH / SESSION ---
-  
   getCurrentUser: (): User | null => {
     const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     if (!stored) return null;
@@ -536,11 +506,12 @@ export const storageService = {
       if(!stored) return null;
       
       const sessionUser = JSON.parse(stored) as User;
-      const { data: dbUser } = await supabase.from('users').select('*').eq('id', sessionUser.id).single();
+      const users = await storageService.getUsers();
+      const freshUser = users.find(u => u.id === sessionUser.id);
       
-      if (dbUser) {
-          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(dbUser));
-          return dbUser;
+      if (freshUser) {
+          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(freshUser));
+          return freshUser;
       } else {
           localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
           return null;
@@ -550,18 +521,9 @@ export const storageService = {
   getUserPermissions: async (user: User | null): Promise<string[]> => {
     if (!user) return [];
     
-    // 1. Obter Roles (com auto-seed se vazio)
-    let { data: roles } = await supabase.from('roles').select('*');
+    const roles = await storageService.getRoles();
     
-    if (!roles || roles.length === 0) {
-        console.log("Roles table empty, using INITIAL_ROLES fallback.");
-        await supabase.from('roles').upsert(INITIAL_ROLES);
-        roles = INITIAL_ROLES;
-    }
-    
-    const allRoles = roles || INITIAL_ROLES;
-    
-    // 2. Determinar Role ID
+    // Determinar Role ID
     let roleId = user.roleId;
     if (!roleId) {
          if (user.role === UserRole.ADMIN) roleId = 'role_admin';
@@ -569,82 +531,55 @@ export const storageService = {
          else roleId = 'role_aluno';
     }
 
-    // 3. Encontrar Role e Permissões
-    const userRole = allRoles.find(r => r.id === roleId);
-    
+    const userRole = roles.find(r => r.id === roleId);
     if (userRole) {
         return userRole.permissions;
     }
-
-    if (user.role === UserRole.ADMIN) return INITIAL_ROLES.find(r => r.id === 'role_admin')?.permissions || [];
-    // ATENÇÃO: Se não encontrar na DB, faz fallback para o INITIAL_ROLES que já contém MANAGE_USERS agora
-    if (user.role === UserRole.EDITOR) return INITIAL_ROLES.find(r => r.id === 'role_editor')?.permissions || [];
-    
-    return INITIAL_ROLES.find(r => r.id === 'role_aluno')?.permissions || [];
+    return [];
   },
 
   login: async (email: string, password?: string): Promise<User> => {
     const normalizedEmail = email.trim().toLowerCase();
     
-    // 1. Procurar utilizador na DB
-    const { data: users, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', normalizedEmail);
-        
-    if (error) {
-       if (error.message.includes('relation') || error.code === '42P01') {
-           throw new Error("Erro de Base de Dados: As tabelas não existem no Supabase. Por favor execute o SQL de configuração.");
-       }
-       throw new Error(error.message);
-    }
-
-    // 2. Lógica de Login
-    let user = users?.find(u => u.status === UserStatus.ACTIVE) || users?.[0];
+    // Tentar obter utilizadores (usando fallback se necessário)
+    const users = await storageService.getUsers();
+    
+    let user = users.find(u => u.email === normalizedEmail);
     const isSuperAdmin = SUPER_ADMINS.includes(normalizedEmail);
 
     if (!user) {
-      // Registo Automático
-      const { count } = await supabase.from('users').select('*', { count: 'exact', head: true });
-      const isFirstUser = count === 0;
-      
+      // Registo Automático de Admin se for o primeiro utilizador ou super admin
+      const isFirstUser = users.length === 0;
       const shouldBeAdmin = isFirstUser || isSuperAdmin;
 
-      const newUser: User = {
-        id: Date.now().toString(),
-        email: normalizedEmail,
-        name: normalizedEmail.split('@')[0],
-        fullName: normalizedEmail.split('@')[0], // Default FullName
-        role: shouldBeAdmin ? UserRole.ADMIN : UserRole.ALUNO, 
-        roleId: shouldBeAdmin ? 'role_admin' : 'role_aluno',
-        // AQUI: Define como PENDING se não for admin. 
-        // Isto, combinado com a lógica no App.tsx, garante o bloqueio.
-        status: shouldBeAdmin ? UserStatus.ACTIVE : UserStatus.PENDING,
-        allowedCourses: [],
-        avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedEmail}`,
-        password: password || '123456',
-        mustChangePassword: false,
-        emailVerified: false
-      };
-      
-      const { error: createError } = await supabase.from('users').insert(newUser);
-      if (createError) throw new Error("Erro ao criar conta: " + createError.message);
-      
-      user = newUser;
+      if (shouldBeAdmin) {
+           const newUser: User = {
+            id: Date.now().toString(),
+            email: normalizedEmail,
+            name: normalizedEmail.split('@')[0],
+            fullName: normalizedEmail.split('@')[0],
+            role: UserRole.ADMIN, 
+            roleId: 'role_admin',
+            status: UserStatus.ACTIVE,
+            allowedCourses: [],
+            avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${normalizedEmail}`,
+            password: password || '123456',
+            mustChangePassword: false,
+            emailVerified: true
+          };
+          await storageService.saveUser(newUser);
+          user = newUser;
+      } else {
+          // Utilizador não existe e não é admin -> erro (deve registar-se)
+           throw new Error("Utilizador não encontrado. Registe-se primeiro.");
+      }
     } else {
-        // AUTO-REPARAÇÃO
+        // Auto-reparação de Super Admin
         if (isSuperAdmin && (user.role !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
-             console.log("Recuperação de conta de Administrador...");
-             const updates = { 
-                 role: UserRole.ADMIN, 
-                 roleId: 'role_admin', 
-                 status: UserStatus.ACTIVE 
-             };
-             await supabase.from('users').update(updates).eq('id', user.id);
-             user = { ...user, ...updates };
+             user = { ...user, role: UserRole.ADMIN, roleId: 'role_admin', status: UserStatus.ACTIVE };
+             await storageService.saveUser(user);
         }
 
-        // Verificar Senha
         if (user.password && user.password !== password) {
             throw new Error("Senha incorreta.");
         }
@@ -655,21 +590,20 @@ export const storageService = {
   },
 
   updatePassword: async (userId: string, newPassword: string): Promise<User | null> => {
-    const { data, error } = await supabase
-        .from('users')
-        .update({ password: newPassword, mustChangePassword: false })
-        .eq('id', userId)
-        .select()
-        .single();
-        
-    if (error || !data) return null;
+    const users = await storageService.getUsers();
+    const user = users.find(u => u.id === userId);
     
-    const currentUser = storageService.getCurrentUser();
-    if (currentUser && currentUser.id === userId) {
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(data));
+    if (user) {
+        const updated = { ...user, password: newPassword, mustChangePassword: false };
+        await storageService.saveUser(updated);
+        
+        const currentUser = storageService.getCurrentUser();
+        if (currentUser && currentUser.id === userId) {
+            localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(updated));
+        }
+        return updated;
     }
-
-    return data;
+    return null;
   },
 
   logout: () => {

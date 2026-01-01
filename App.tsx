@@ -18,7 +18,8 @@ import ProfilePage from './pages/Profile';
 import CommunityPage from './pages/Community';
 import CatalogPage from './pages/Catalog';
 import VerifyEmail from './pages/VerifyEmail';
-import SystemSettings from './pages/SystemSettings'; // Nova Página
+import SystemSettings from './pages/SystemSettings'; 
+import DatabaseTest from './pages/DatabaseTest'; // Nova Página
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -26,11 +27,11 @@ import { Input, Button } from './components/UI';
 interface AuthContextType {
   user: User | null;
   permissions: string[];
-  systemConfig: SystemConfig | null; // Adicionado
+  systemConfig: SystemConfig | null; 
   login: (email: string, password?: string) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
-  refreshSystemConfig: () => Promise<void>; // Adicionado
+  refreshSystemConfig: () => Promise<void>; 
   updatePassword: (password: string) => void;
   hasPermission: (permission: string) => boolean;
 }
@@ -361,6 +362,9 @@ export default function App() {
             } />
              <Route path="/system-settings" element={
               hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <SystemSettings /> : <Navigate to="/" />
+            } />
+             <Route path="/db-test" element={
+              hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <DatabaseTest /> : <Navigate to="/" />
             } />
           </Route>
 
