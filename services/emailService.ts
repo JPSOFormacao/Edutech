@@ -11,6 +11,17 @@ interface EmailResult {
 const SYSTEM_EMAIL = 'EduTechPT@hotmail.com';
 const SYSTEM_NAME = 'EduTech PT Formação';
 
+// Helper para substituir variáveis no template personalizado
+const processTemplate = (template: string, variables: Record<string, string>): string => {
+    let processed = template;
+    for (const [key, value] of Object.entries(variables)) {
+        // Substitui {variavel} ou {{variavel}}
+        const regex = new RegExp(`{{?${key}}}?`, 'g');
+        processed = processed.replace(regex, value);
+    }
+    return processed;
+};
+
 // Helper para gerar o texto de detalhes da formação
 const getTrainingDetailsString = async (classId?: string, courseIds?: string[]): Promise<string> => {
     try {
@@ -63,12 +74,12 @@ const getErrorMsg = async (originalError: any): Promise<string> => {
 };
 
 export const emailService = {
-  // Teste Genérico (Mantido para retrocompatibilidade)
+  // Teste Genérico
   sendTestEmail: async (): Promise<EmailResult> => {
     return emailService.sendSpecificTemplateTest('welcomeId');
   },
 
-  // NOVO: Teste Específico por Tipo de Template
+  // Teste Específico por Tipo de Template
   sendSpecificTemplateTest: async (templateKey: keyof EmailTemplates): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
     
@@ -79,10 +90,8 @@ export const emailService = {
 
     let templateId = config.templates?.[templateKey];
     
-    // Se o campo específico estiver vazio, alertamos o utilizador, mas tentamos o fallback para demonstração se for Welcome
     if (!templateId) {
         if (templateKey === 'welcomeId') {
-             // Tenta encontrar qualquer um para o teste genérico
              const any = Object.values(config.templates || {}).find(v => v);
              if (any) templateId = any;
              else return { success: false, message: "Nenhum template configurado." };
@@ -95,7 +104,7 @@ export const emailService = {
     const commonParams = {
         to_name: "Administrador (Teste)",
         name: "Administrador (Teste)",
-        to_email: SYSTEM_EMAIL, // EduTechPT@hotmail.com
+        to_email: SYSTEM_EMAIL, 
         user_email: SYSTEM_EMAIL,
         email: SYSTEM_EMAIL,
         from_name: SYSTEM_NAME,
@@ -103,42 +112,61 @@ export const emailService = {
     };
 
     let specificParams = {};
-    
-    // Obter o URL base atual (ex: http://localhost:5173 ou https://meu-site.com)
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+    const mockLink = `${baseUrl}/#/verify-email?token=TESTE-TOKEN-123`;
 
+    // Verificar se existe Custom Content para este teste
+    let messageBody = "";
+    
     switch (templateKey) {
         case 'verificationId':
+            if (config.customContent?.verificationText) {
+                messageBody = processTemplate(config.customContent.verificationText, {
+                    name: commonParams.to_name,
+                    link: mockLink,
+                    verification_link: mockLink
+                });
+            } else {
+                messageBody = "Email de teste para Validação de Conta.";
+            }
             specificParams = {
-                message: "Email de teste para Validação de Conta.",
-                // Correção: Usa o URL atual do browser
-                verification_link: `${baseUrl}/#/verify-email?token=TESTE-TOKEN-123`
+                message: messageBody,
+                verification_link: mockLink,
+                link: mockLink,
+                url: mockLink
             };
             break;
         case 'resetPasswordId':
+            if (config.customContent?.resetPasswordText) {
+                messageBody = processTemplate(config.customContent.resetPasswordText, {
+                    name: commonParams.to_name,
+                    email: commonParams.to_email,
+                    password: "nova-senha-teste-123",
+                    training_details: "Cursos: Exemplo de Curso Python"
+                });
+            } else {
+                messageBody = "Email de teste para Recuperação de Senha.";
+            }
             specificParams = {
-                message: "Email de teste para Recuperação de Senha.",
+                message: messageBody,
                 password: "nova-senha-teste-123",
                 training_details: "Cursos: Exemplo de Curso Python"
             };
             break;
-        case 'notificationId':
-            specificParams = {
-                message: "Notificação de teste do sistema.",
-                training_details: "N/A"
-            };
-            break;
-        case 'enrollmentId':
-            specificParams = {
-                message: "Inscrição no curso: Desenvolvimento Web (Teste).",
-                course_name: "Desenvolvimento Web Fullstack",
-                student_name: "Aluno Teste"
-            };
-            break;
         case 'welcomeId':
         default:
+             if (config.customContent?.welcomeText) {
+                messageBody = processTemplate(config.customContent.welcomeText, {
+                    name: commonParams.to_name,
+                    email: commonParams.to_email,
+                    password: "senha-inicial-teste",
+                    training_details: "Turma: Demo\nCursos: Introdução à IA"
+                });
+            } else {
+                messageBody = "Bem-vindo à EduTech PT! Conta criada com sucesso.";
+            }
             specificParams = {
-                message: "Bem-vindo à EduTech PT! Conta criada com sucesso.",
+                message: messageBody,
                 password: "senha-inicial-teste",
                 training_details: "Turma: Demo\nCursos: Introdução à IA"
             };
@@ -196,7 +224,6 @@ export const emailService = {
     if (!config.serviceId) return { success: false, message: "Erro Config: Service ID em falta." };
     if (!config.publicKey) return { success: false, message: "Erro Config: Public Key em falta." };
 
-    // Estratégia de Fallback
     let templateId = config.templates?.verificationId || 
                      config.templates?.notificationId || 
                      config.templates?.welcomeId || 
@@ -208,19 +235,29 @@ export const emailService = {
     }
 
     if (!templateId) {
-         return { success: false, message: "Erro de Configuração: Nenhum Template ID encontrado. Configure pelo menos UM template (ex: Boas-vindas)." };
+         return { success: false, message: "Erro de Configuração: Nenhum Template ID encontrado. Configure pelo menos UM template." };
     }
     
-    const messageBody = `
-      Olá ${toName},
-      
-      Obrigado pelo seu registo na EduTech PT.
-      Por favor confirme o seu endereço de email clicando no link abaixo:
-      
-      ${verificationLink}
-      
-      Após a verificação, a sua conta ficará pendente de aprovação.
-    `;
+    // Verificar se existe texto personalizado ou usar Default
+    let messageBody = "";
+    if (config.customContent?.verificationText) {
+        messageBody = processTemplate(config.customContent.verificationText, {
+            name: toName,
+            link: verificationLink,
+            verification_link: verificationLink
+        });
+    } else {
+        messageBody = `
+          Olá ${toName},
+          
+          Obrigado pelo seu registo na EduTech PT.
+          Por favor confirme o seu endereço de email clicando no link abaixo:
+          
+          ${verificationLink}
+          
+          Após a verificação, a sua conta ficará pendente de aprovação.
+        `;
+    }
 
     try {
         await emailjs.send(config.serviceId, templateId, {
@@ -231,7 +268,9 @@ export const emailService = {
             message: messageBody, 
             from_name: SYSTEM_NAME,
             reply_to: SYSTEM_EMAIL,
-            verification_link: verificationLink 
+            verification_link: verificationLink,
+            link: verificationLink,
+            url: verificationLink
         }, config.publicKey);
         return { success: true };
     } catch (e: any) {
@@ -255,19 +294,30 @@ export const emailService = {
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
 
-    const messageBody = `
-      Bem-vindo à EduTech PT!
-      
-      A sua conta foi criada com sucesso.
-      
-      ${trainingDetails}
-      
-      As suas credenciais de acesso são:
-      Email: ${cleanEmail}
-      Senha Temporária: ${tempPass}
-      
-      Por favor, aceda à plataforma e altere a sua senha no primeiro login.
-    `;
+    // Verificar se existe texto personalizado ou usar Default
+    let messageBody = "";
+    if (config.customContent?.welcomeText) {
+        messageBody = processTemplate(config.customContent.welcomeText, {
+            name: toName,
+            email: cleanEmail,
+            password: tempPass,
+            training_details: trainingDetails
+        });
+    } else {
+        messageBody = `
+          Bem-vindo à EduTech PT!
+          
+          A sua conta foi criada com sucesso.
+          
+          ${trainingDetails}
+          
+          As suas credenciais de acesso são:
+          Email: ${cleanEmail}
+          Senha Temporária: ${tempPass}
+          
+          Por favor, aceda à plataforma e altere a sua senha no primeiro login.
+        `;
+    }
 
     const templateParams = {
         to_name: toName,
@@ -307,14 +357,25 @@ export const emailService = {
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
     
-    const messageBody = `
-      Olá ${toName},
-      A sua senha foi redefinida.
-      ${trainingDetails}
-      Novas credenciais:
-      Email: ${cleanEmail}
-      Nova Senha: ${newPass}
-    `;
+    // Verificar se existe texto personalizado ou usar Default
+    let messageBody = "";
+    if (config.customContent?.resetPasswordText) {
+        messageBody = processTemplate(config.customContent.resetPasswordText, {
+            name: toName,
+            email: cleanEmail,
+            password: newPass,
+            training_details: trainingDetails
+        });
+    } else {
+        messageBody = `
+          Olá ${toName},
+          A sua senha foi redefinida.
+          ${trainingDetails}
+          Novas credenciais:
+          Email: ${cleanEmail}
+          Nova Senha: ${newPass}
+        `;
+    }
 
     const templateParams = {
         to_name: toName,

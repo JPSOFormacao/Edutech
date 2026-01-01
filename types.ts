@@ -155,11 +155,18 @@ export interface EmailTemplates {
     verificationId?: string; // Novo template para verificação
 }
 
+export interface EmailCustomContent {
+    welcomeText?: string;
+    verificationText?: string;
+    resetPasswordText?: string;
+}
+
 export interface EmailConfig {
   serviceId: string;
   publicKey: string;
   templates: EmailTemplates;
   customErrorMessage?: string; // Novo campo para mensagem de erro personalizada
+  customContent?: EmailCustomContent; // Novo campo para textos personalizados
 }
 
 export interface SystemConfig {

@@ -412,7 +412,12 @@ export const storageService = {
             notificationId: '',
             verificationId: ''
         },
-        customErrorMessage: ''
+        customErrorMessage: '',
+        customContent: {
+            welcomeText: '',
+            verificationText: '',
+            resetPasswordText: ''
+        }
     };
 
     // Tentar DB (com fallback)
@@ -430,18 +435,25 @@ export const storageService = {
     } catch(e) {}
 
     // Merge
-    // Preferência: DB > LocalStorage > Default
     const mergedTemplates = {
         ...baseConfig.templates,
         ...(localData.templates || {}),
         ...(dbData.templates || {})
+    };
+    
+    // Merge Custom Content
+    const mergedCustomContent = {
+        ...baseConfig.customContent,
+        ...(localData.customContent || {}),
+        ...(dbData.custom_content || {})
     };
 
     return {
         serviceId: dbData.service_id || localData.serviceId || '',
         publicKey: dbData.public_key || localData.publicKey || '',
         customErrorMessage: dbData.custom_error_message || localData.customErrorMessage || '',
-        templates: mergedTemplates
+        templates: mergedTemplates,
+        customContent: mergedCustomContent
     };
   },
 
@@ -453,7 +465,8 @@ export const storageService = {
             service_id: config.serviceId,
             public_key: config.publicKey,
             templates: config.templates,
-            custom_error_message: config.customErrorMessage
+            custom_error_message: config.customErrorMessage,
+            custom_content: config.customContent
         });
     } catch (e) {}
   },

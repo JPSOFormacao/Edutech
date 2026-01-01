@@ -1,7 +1,8 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { Icons } from './Icons';
-import { User, PERMISSIONS, SystemConfig } from '../types';
+import { User, PERMISSIONS, SystemConfig, UserStatus } from '../types';
+import { storageService } from '../services/storageService';
 
 interface SidebarProps {
   user: User;
@@ -11,20 +12,48 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission, systemConfig }) => {
-  
-  const NavItem = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => (
+  const location = useLocation();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Verificar utilizadores pendentes ou com pedidos
+  useEffect(() => {
+    const checkPendingUsers = async () => {
+        if (hasPermission(PERMISSIONS.MANAGE_USERS)) {
+            try {
+                const users = await storageService.getUsers();
+                const count = users.filter(u => 
+                    u.status === UserStatus.PENDING || 
+                    (u.enrollmentRequests && u.enrollmentRequests.some(r => r.status === 'PENDING'))
+                ).length;
+                setPendingCount(count);
+            } catch (e) {
+                console.error("Erro ao verificar notificações sidebar", e);
+            }
+        }
+    };
+    checkPendingUsers();
+  }, [user, location.pathname, hasPermission]); // Atualiza ao navegar
+
+  const NavItem = ({ to, icon: Icon, label, badgeCount }: { to: string; icon: any; label: string, badgeCount?: number }) => (
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors mb-1 ${
+        `flex items-center justify-between px-4 py-3 text-sm font-medium rounded-md transition-colors mb-1 ${
           isActive
             ? 'bg-slate-800 text-indigo-400 border-r-4 border-indigo-500'
             : 'text-slate-400 hover:bg-slate-800 hover:text-white'
         }`
       }
     >
-      <Icon className="mr-3 h-5 w-5" />
-      {label}
+      <div className="flex items-center">
+          <Icon className="mr-3 h-5 w-5" />
+          {label}
+      </div>
+      {badgeCount !== undefined && badgeCount > 0 && (
+          <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              {badgeCount}
+          </span>
+      )}
     </NavLink>
   );
 
@@ -82,7 +111,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
             </div>
             
             {hasPermission(PERMISSIONS.MANAGE_USERS) && (
-                <NavItem to="/users" icon={Icons.Users} label="Utilizadores" />
+                <NavItem to="/users" icon={Icons.Users} label="Utilizadores" badgeCount={pendingCount} />
             )}
             
             {hasPermission(PERMISSIONS.MANAGE_CLASSES) && (

@@ -21,6 +21,9 @@ export default function UsersPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [newPassword, setNewPassword] = useState('');
 
+  // Tabs: 'staff' (Admin/Editor) or 'students' (Aluno)
+  const [activeTab, setActiveTab] = useState<'staff' | 'students'>('staff');
+
   useEffect(() => {
     loadData();
   }, []);
@@ -63,6 +66,34 @@ export default function UsersPage() {
       return user.enrollmentRequests && user.enrollmentRequests.some(r => r.status === 'PENDING');
   };
 
+  // --- Filter Logic for Tabs ---
+  const filteredUsers = React.useMemo(() => {
+      if (activeTab === 'staff') {
+          // Filtra Admins e Editores, ordenados por: Admin primeiro
+          return users
+            .filter(u => u.role === UserRole.ADMIN || u.role === UserRole.EDITOR)
+            .sort((a, b) => {
+                if (a.role === UserRole.ADMIN && b.role !== UserRole.ADMIN) return -1;
+                if (a.role !== UserRole.ADMIN && b.role === UserRole.ADMIN) return 1;
+                return a.name.localeCompare(b.name);
+            });
+      } else {
+          // Filtra Alunos
+          // Ordenação: Pendentes de Atenção primeiro, depois alfabético
+          return users
+            .filter(u => u.role === UserRole.ALUNO)
+            .sort((a, b) => {
+                const aNeedsAttention = a.status === UserStatus.PENDING || hasPendingRequests(a);
+                const bNeedsAttention = b.status === UserStatus.PENDING || hasPendingRequests(b);
+                
+                if (aNeedsAttention && !bNeedsAttention) return -1;
+                if (!aNeedsAttention && bNeedsAttention) return 1;
+                
+                return a.name.localeCompare(b.name);
+            });
+      }
+  }, [users, activeTab]);
+
   // --- Actions ---
 
   const handleEdit = (user: User) => {
@@ -72,12 +103,17 @@ export default function UsersPage() {
   };
 
   const handleCreate = () => {
+      // Define default role based on current tab
+      const defaultRoleName = activeTab === 'staff' ? 'Formador' : 'Aluno';
+      const defaultRoleObj = roles.find(r => r.name === defaultRoleName) || roles.find(r => r.name === 'Aluno');
+      const defaultRoleEnum = activeTab === 'staff' ? UserRole.EDITOR : UserRole.ALUNO;
+
       setSelectedUser({
           id: Date.now().toString(),
           name: '',
           email: '',
-          role: UserRole.ALUNO, 
-          roleId: roles.find(r => r.name === 'Aluno')?.id || roles[0]?.id || '',
+          role: defaultRoleEnum, 
+          roleId: defaultRoleObj?.id || '',
           status: UserStatus.ACTIVE,
           allowedCourses: [],
           enrollmentRequests: [],
@@ -98,9 +134,7 @@ export default function UsersPage() {
       if (confirm("Tem a certeza que deseja eliminar este utilizador permanentemente?")) {
           try {
               await storageService.deleteUser(userId);
-              // Remover da lista local para feedback imediato
               setUsers(users.filter(u => u.id !== userId));
-              // Remover dos selecionados se estiver lá
               setSelectedIds(selectedIds.filter(id => id !== userId));
           } catch (e) {
               alert("Erro ao eliminar utilizador.");
@@ -114,7 +148,6 @@ export default function UsersPage() {
       if (confirm(`Tem a certeza que deseja eliminar ${selectedIds.length} utilizadores?`)) {
           setLoading(true);
           try {
-              // Evitar apagar o próprio utilizador
               const idsToDelete = selectedIds.filter(id => id !== currentUser?.id);
               
               if (idsToDelete.length !== selectedIds.length) {
@@ -136,7 +169,7 @@ export default function UsersPage() {
   // --- Selection Logic ---
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.checked) {
-          setSelectedIds(users.map(u => u.id));
+          setSelectedIds(filteredUsers.map(u => u.id));
       } else {
           setSelectedIds([]);
       }
@@ -210,7 +243,7 @@ export default function UsersPage() {
         isPasswordReset = true;
     }
     
-    // Sync Legacy Enum
+    // Sync Legacy Enum & Role ID
     const selectedRoleObj = roles.find(r => r.id === userToSave.roleId);
     if (selectedRoleObj) {
         if (selectedRoleObj.name.toLowerCase().includes('admin')) userToSave.role = UserRole.ADMIN;
@@ -345,6 +378,41 @@ export default function UsersPage() {
         </div>
       </div>
 
+      {/* TABS NAVIGATION */}
+      <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+              <button
+                  onClick={() => { setActiveTab('staff'); setSelectedIds([]); }}
+                  className={`${
+                      activeTab === 'staff'
+                          ? 'border-indigo-500 text-indigo-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+              >
+                  <Icons.Shield className="w-4 h-4" />
+                  Equipa & Gestão
+                  <span className="bg-gray-100 text-gray-600 py-0.5 px-2.5 rounded-full text-xs ml-2">
+                      {users.filter(u => u.role === UserRole.ADMIN || u.role === UserRole.EDITOR).length}
+                  </span>
+              </button>
+
+              <button
+                  onClick={() => { setActiveTab('students'); setSelectedIds([]); }}
+                  className={`${
+                      activeTab === 'students'
+                          ? 'border-indigo-500 text-indigo-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+              >
+                  <Icons.Student className="w-4 h-4" />
+                  Alunos
+                  <span className="bg-gray-100 text-gray-600 py-0.5 px-2.5 rounded-full text-xs ml-2">
+                      {users.filter(u => u.role === UserRole.ALUNO).length}
+                  </span>
+              </button>
+          </nav>
+      </div>
+
       {/* Bulk Actions Bar */}
       {selectedIds.length > 0 && (
           <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 flex justify-between items-center animate-pulse">
@@ -364,11 +432,11 @@ export default function UsersPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left">
+                <th scope="col" className="px-6 py-3 text-left w-10">
                     <input
                         type="checkbox"
                         className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
-                        checked={users.length > 0 && selectedIds.length === users.length}
+                        checked={filteredUsers.length > 0 && selectedIds.length === filteredUsers.length}
                         onChange={handleSelectAll}
                     />
                 </th>
@@ -380,12 +448,26 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.map((user, idx) => {
+              {filteredUsers.length === 0 ? (
+                  <tr>
+                      <td colSpan={6} className="px-6 py-10 text-center text-gray-500">
+                          Nenhum utilizador encontrado nesta categoria.
+                      </td>
+                  </tr>
+              ) : (
+                filteredUsers.map((user, idx) => {
                   const pending = hasPendingRequests(user);
+                  const isPendingAccount = user.status === UserStatus.PENDING;
+                  const needsAttention = pending || isPendingAccount;
                   const isSelected = selectedIds.includes(user.id);
                   
+                  // Lógica de Cor: Selecionado > Atenção > Zebra
+                  let rowClass = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                  if (needsAttention) rowClass = 'bg-amber-50';
+                  if (isSelected) rowClass = 'bg-indigo-50';
+                  
                   return (
-                    <tr key={user.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} ${isSelected ? 'bg-indigo-50' : ''}`}>
+                    <tr key={user.id} className={rowClass}>
                     <td className="px-6 py-4 whitespace-nowrap">
                         <input
                             type="checkbox"
@@ -421,7 +503,9 @@ export default function UsersPage() {
                         </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                            ${user.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-800' : 
+                              user.role === UserRole.EDITOR ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
                             {getRoleName(user.roleId)}
                         </span>
                     </td>
@@ -463,7 +547,7 @@ export default function UsersPage() {
                     </td>
                     </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>

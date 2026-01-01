@@ -3,7 +3,7 @@ import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
 import { Button, Input } from '../components/UI';
 import { Icons } from '../components/Icons';
-import { EmailTemplates } from '../types';
+import { EmailTemplates, EmailCustomContent } from '../types';
 
 // Valores padrão
 const DEFAULT_TEMPLATES: EmailTemplates = {
@@ -14,15 +14,23 @@ const DEFAULT_TEMPLATES: EmailTemplates = {
     verificationId: ''
 };
 
+const DEFAULT_CONTENT: EmailCustomContent = {
+    welcomeText: '',
+    verificationText: '',
+    resetPasswordText: ''
+};
+
 export default function EmailConfigPage() {
   const [serviceId, setServiceId] = useState('');
   const [publicKey, setPublicKey] = useState('');
   const [customErrorMessage, setCustomErrorMessage] = useState('');
   
   const [templates, setTemplates] = useState<EmailTemplates>(DEFAULT_TEMPLATES);
+  const [customContent, setCustomContent] = useState<EmailCustomContent>(DEFAULT_CONTENT);
 
   const [status, setStatus] = useState<{type: 'success' | 'error' | 'info' | 'warning', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'config' | 'content'>('config');
   
   // Estado para controlar qual botão de teste específico está a carregar
   const [testingTemplate, setTestingTemplate] = useState<Record<string, boolean>>({});
@@ -54,6 +62,10 @@ export default function EmailConfigPage() {
                   });
               }
           }
+
+          if (config.customContent) {
+              setCustomContent(prev => ({...DEFAULT_CONTENT, ...config.customContent}));
+          }
         }
     } catch (error) {
         console.error("Erro ao carregar configurações:", error);
@@ -76,7 +88,8 @@ export default function EmailConfigPage() {
         serviceId: serviceId.trim(), 
         publicKey: publicKey.trim(),
         templates: templates,
-        customErrorMessage: customErrorMessage.trim()
+        customErrorMessage: customErrorMessage.trim(),
+        customContent: customContent
     };
     
     try {
@@ -96,12 +109,13 @@ export default function EmailConfigPage() {
       setTestingTemplate(prev => ({ ...prev, [key]: true }));
       setStatus({ type: 'info', msg: `A testar template '${key}'...` });
       
-      // Auto-save antes de testar
+      // Auto-save antes de testar para garantir que o texto novo é usado
       await storageService.saveEmailConfig({ 
           serviceId: serviceId.trim(), 
           publicKey: publicKey.trim(), 
           templates,
-          customErrorMessage
+          customErrorMessage,
+          customContent
       });
 
       try {
@@ -162,83 +176,169 @@ export default function EmailConfigPage() {
         </div>
         <div>
             <h2 className="text-2xl font-bold text-gray-900">Configuração de Email</h2>
-            <p className="text-sm text-gray-500">Gestão de templates e credenciais EmailJS</p>
+            <p className="text-sm text-gray-500">Gestão de templates, textos e credenciais EmailJS</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Credenciais e Erros */}
-          <div className="space-y-6 h-fit">
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 mb-6 bg-white px-4 rounded-t-lg pt-4 shadow-sm">
+           <button 
+             onClick={() => setActiveTab('config')}
+             className={`px-6 py-3 border-b-2 font-medium text-sm transition-colors ${activeTab === 'config' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+           >
+              Credenciais & IDs
+           </button>
+           <button 
+             onClick={() => setActiveTab('content')}
+             className={`px-6 py-3 border-b-2 font-medium text-sm transition-colors ${activeTab === 'content' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+           >
+              Personalizar Textos
+           </button>
+      </div>
+
+      {activeTab === 'config' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Credenciais e Erros */}
+            <div className="space-y-6 h-fit">
+                <div className="bg-white shadow rounded-lg p-6 space-y-4">
+                    <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
+                        <Icons.Settings className="w-4 h-4" /> Credenciais API
+                    </h3>
+                    <Input 
+                        label="Service ID" 
+                        value={serviceId} 
+                        onChange={e => setServiceId(e.target.value)} 
+                        placeholder="ex: service_xxxxxx"
+                    />
+                    <Input 
+                        label="Public Key" 
+                        value={publicKey} 
+                        onChange={e => setPublicKey(e.target.value)} 
+                        placeholder="ex: user_xxxxxx"
+                        type="password"
+                    />
+                    
+                    <div className="bg-blue-50 p-4 rounded text-xs text-blue-800 border border-blue-100 mt-4">
+                        <p className="mb-2 font-bold">Variáveis disponíveis para os textos:</p>
+                        <ul className="list-disc ml-4 space-y-1">
+                            <li><code>{`{name}`}</code>: Nome do utilizador</li>
+                            <li><code>{`{link}`}</code>: Link de verificação</li>
+                            <li><code>{`{email}`}</code>: Email do utilizador</li>
+                            <li><code>{`{password}`}</code>: Senha temporária/nova</li>
+                            <li><code>{`{training_details}`}</code>: Informação de turmas/cursos</li>
+                        </ul>
+                    </div>
+                </div>
+
+                {/* Mensagem de Erro */}
+                <div className="bg-white shadow rounded-lg p-6 space-y-4">
+                    <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
+                        <Icons.Shield className="w-4 h-4" /> Mensagem de Erro Personalizada
+                    </h3>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Texto de Fallback (Erro)</label>
+                        <textarea 
+                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                            rows={3}
+                            placeholder="Ex: O serviço de email está temporariamente indisponível. Por favor contacte o administrador."
+                            value={customErrorMessage}
+                            onChange={e => setCustomErrorMessage(e.target.value)}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                            Este texto será exibido aos utilizadores se o envio de email falhar.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Templates */}
+            <div className="bg-white shadow rounded-lg p-6 space-y-1 h-fit">
+                <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
+                    <Icons.FileText className="w-4 h-4" /> Templates de Email (IDs)
+                </h3>
+                <p className="text-xs text-gray-500 mb-4">
+                    Insira o ID do template EmailJS. O conteúdo de texto pode ser editado na aba "Personalizar Textos".
+                </p>
+                
+                <div className="bg-yellow-50 p-2 rounded border border-yellow-200 mb-4">
+                    {renderTemplateField('welcomeId', 'Boas-vindas (Padrão)', 'ex: template_welcome')}
+                </div>
+                
+                {renderTemplateField('verificationId', 'Verificação de Email', 'ex: template_verify')}
+                {renderTemplateField('resetPasswordId', 'Recuperação de Senha', 'ex: template_reset')}
+                {renderTemplateField('notificationId', 'Notificação Genérica', 'ex: template_notify')}
+                {renderTemplateField('enrollmentId', 'Notificação de Inscrição', 'ex: template_enroll')}
+            </div>
+          </div>
+      )}
+
+      {activeTab === 'content' && (
+          <div className="space-y-6">
+              {/* Texto de Boas Vindas */}
               <div className="bg-white shadow rounded-lg p-6 space-y-4">
-                 <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
-                     <Icons.Settings className="w-4 h-4" /> Credenciais API
-                 </h3>
-                 <Input 
-                    label="Service ID" 
-                    value={serviceId} 
-                    onChange={e => setServiceId(e.target.value)} 
-                    placeholder="ex: service_xxxxxx"
-                 />
-                 <Input 
-                    label="Public Key" 
-                    value={publicKey} 
-                    onChange={e => setPublicKey(e.target.value)} 
-                    placeholder="ex: user_xxxxxx"
-                    type="password"
-                 />
-                 
-                 <div className="bg-blue-50 p-4 rounded text-xs text-blue-800 border border-blue-100 mt-4">
-                     <p className="mb-2 font-bold">Variáveis para o EmailJS:</p>
-                     <ul className="list-disc ml-4 space-y-1">
-                         <li><code>to_name</code>: Nome do destinatário</li>
-                         <li><code>to_email</code>: Email do destinatário</li>
-                         <li><code>message</code>: Corpo da mensagem</li>
-                         <li><code>verification_link</code>: Link de confirmação</li>
-                         <li><code>password</code>: Senha temporária</li>
-                     </ul>
-                 </div>
+                   <h3 className="font-bold text-gray-900 border-b pb-2 mb-2">Email de Boas-Vindas</h3>
+                   <p className="text-sm text-gray-500 mb-2">
+                       Enviado quando um administrador cria uma conta ou aprova um registo.
+                       <br/>Variáveis: <code>{`{name}`}</code>, <code>{`{email}`}</code>, <code>{`{password}`}</code>, <code>{`{training_details}`}</code>
+                   </p>
+                   <textarea 
+                       className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono"
+                       rows={6}
+                       value={customContent.welcomeText || ''}
+                       onChange={e => setCustomContent({...customContent, welcomeText: e.target.value})}
+                       placeholder={`Bem-vindo à EduTech PT!
+          
+A sua conta foi criada com sucesso.
+
+{training_details}
+
+As suas credenciais de acesso são:
+Email: {email}
+Senha Temporária: {password}`}
+                   />
               </div>
 
-              {/* Nova Secção de Mensagem de Erro */}
+              {/* Texto de Verificação */}
               <div className="bg-white shadow rounded-lg p-6 space-y-4">
-                   <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
-                     <Icons.Shield className="w-4 h-4" /> Mensagem de Erro Personalizada
-                   </h3>
-                   <div>
-                       <label className="block text-sm font-medium text-gray-700 mb-1">Texto de Fallback (Erro)</label>
-                       <textarea 
-                           className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                           rows={3}
-                           placeholder="Ex: O serviço de email está temporariamente indisponível. Por favor contacte o administrador."
-                           value={customErrorMessage}
-                           onChange={e => setCustomErrorMessage(e.target.value)}
-                       />
-                       <p className="text-xs text-gray-500 mt-1">
-                           Este texto será exibido aos utilizadores se o envio de email falhar.
-                       </p>
-                   </div>
+                   <h3 className="font-bold text-gray-900 border-b pb-2 mb-2">Email de Verificação</h3>
+                   <p className="text-sm text-gray-500 mb-2">
+                       Enviado manualmente ou no registo (se ativado).
+                       <br/>Variáveis: <code>{`{name}`}</code>, <code>{`{link}`}</code>
+                   </p>
+                   <textarea 
+                       className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono"
+                       rows={6}
+                       value={customContent.verificationText || ''}
+                       onChange={e => setCustomContent({...customContent, verificationText: e.target.value})}
+                       placeholder={`Olá {name},
+
+Obrigado pelo seu registo.
+Clique aqui para validar: {link}`}
+                   />
+              </div>
+
+               {/* Texto de Reset Password */}
+               <div className="bg-white shadow rounded-lg p-6 space-y-4">
+                   <h3 className="font-bold text-gray-900 border-b pb-2 mb-2">Email de Recuperação de Senha</h3>
+                   <p className="text-sm text-gray-500 mb-2">
+                       Enviado quando um administrador altera a senha de um utilizador.
+                       <br/>Variáveis: <code>{`{name}`}</code>, <code>{`{email}`}</code>, <code>{`{password}`}</code>
+                   </p>
+                   <textarea 
+                       className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono"
+                       rows={6}
+                       value={customContent.resetPasswordText || ''}
+                       onChange={e => setCustomContent({...customContent, resetPasswordText: e.target.value})}
+                       placeholder={`Olá {name},
+A sua senha foi redefinida.
+
+Novas credenciais:
+Email: {email}
+Nova Senha: {password}`}
+                   />
               </div>
           </div>
-          
-          {/* Templates */}
-          <div className="bg-white shadow rounded-lg p-6 space-y-1 h-fit">
-               <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
-                   <Icons.FileText className="w-4 h-4" /> Templates de Email (IDs)
-               </h3>
-               <p className="text-xs text-gray-500 mb-4">
-                   Insira o ID e clique no ícone de envelope para enviar um teste para <strong>EduTechPT@hotmail.com</strong>.
-               </p>
-               
-               <div className="bg-yellow-50 p-2 rounded border border-yellow-200 mb-4">
-                   {renderTemplateField('welcomeId', 'Boas-vindas (Padrão)', 'ex: template_welcome')}
-               </div>
-               
-               {renderTemplateField('verificationId', 'Verificação de Email', 'ex: template_verify')}
-               {renderTemplateField('resetPasswordId', 'Recuperação de Senha', 'ex: template_reset')}
-               {renderTemplateField('notificationId', 'Notificação Genérica', 'ex: template_notify')}
-               {renderTemplateField('enrollmentId', 'Notificação de Inscrição', 'ex: template_enroll')}
-          </div>
-      </div>
+      )}
 
       {status && (
             <div className={`p-4 rounded-md text-sm font-medium border ${
@@ -251,7 +351,7 @@ export default function EmailConfigPage() {
             </div>
       )}
 
-      <div className="flex justify-end pt-4 border-t">
+      <div className="flex justify-end pt-4 border-t pb-8">
             <Button onClick={handleSave} disabled={loading}>
                 {loading ? 'A Guardar...' : 'Guardar Tudo'}
             </Button>
