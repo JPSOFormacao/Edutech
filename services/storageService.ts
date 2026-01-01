@@ -397,13 +397,14 @@ export const storageService = {
     };
 
     // 2. Tentar ler da DB (Backend Source)
-    let dbData: Partial<EmailConfig & { custom_error_message?: string }> = {};
+    let dbData: any = {};
     try {
         const { data, error } = await supabase.from('email_config').select('*').single();
         if (data && !error) {
-            dbData.serviceId = data.service_id ?? data.serviceId;
-            dbData.publicKey = data.public_key ?? data.publicKey;
-            dbData.custom_error_message = data.custom_error_message;
+            // Mapeamento correto SnakeCase -> CamelCase
+            dbData.serviceId = data.service_id;
+            dbData.publicKey = data.public_key;
+            dbData.customErrorMessage = data.custom_error_message;
             
             let t = data.templates;
             if (typeof t === 'string') {
@@ -423,7 +424,7 @@ export const storageService = {
     } catch (e) { console.warn("Erro LocalStorage EmailConfig:", e); }
 
     // 4. Merge Estratégico (Preencher o baseConfig)
-    // Regra: Se a DB tem valor, usa DB. Se a DB não tem mas o LocalStorage tem, usa LS.
+    // Regra: DB > LocalStorage > Default
     
     // Service ID
     if (dbData.serviceId) baseConfig.serviceId = dbData.serviceId;
@@ -434,14 +435,13 @@ export const storageService = {
     else if (localData.publicKey) baseConfig.publicKey = localData.publicKey;
     
     // Custom Error Message
-    if (dbData.custom_error_message) baseConfig.customErrorMessage = dbData.custom_error_message;
+    if (dbData.customErrorMessage) baseConfig.customErrorMessage = dbData.customErrorMessage;
     else if (localData.customErrorMessage) baseConfig.customErrorMessage = localData.customErrorMessage;
 
-    // Templates (Seguro com Cast to Any para evitar erros de TS se objeto for vazio)
+    // Templates
     const dbT = (dbData.templates || {}) as any;
     const localT = (localData.templates || {}) as any;
 
-    // Merge templates keys one by one
     // @ts-ignore
     baseConfig.templates.welcomeId = dbT.welcomeId || localT.welcomeId || '';
     // @ts-ignore
@@ -460,28 +460,22 @@ export const storageService = {
     // 1. LocalStorage (Persistência Instantânea)
     localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config));
 
-    // 2. DB
+    // 2. DB (Persistência Backend com mapeamento correto)
     try {
         const payload = {
             id: 'default_config', 
-            service_id: config.serviceId,
-            public_key: config.publicKey,
+            service_id: config.serviceId, // Snake Case
+            public_key: config.publicKey, // Snake Case
             templates: config.templates,
-            custom_error_message: config.customErrorMessage
+            custom_error_message: config.customErrorMessage // Snake Case
         };
         
         const { error } = await supabase.from('email_config').upsert(payload);
         
         if (error) {
             console.error("Erro Supabase Email Config:", error);
-            // Fallback CamelCase
-            await supabase.from('email_config').upsert({
-                id: 'default_config',
-                serviceId: config.serviceId,
-                publicKey: config.publicKey,
-                templates: config.templates,
-                customErrorMessage: config.customErrorMessage
-            });
+            // Se falhar o upsert, pode ser porque a tabela não existe.
+            // O script SQL fornecido deve resolver isto.
         }
     } catch (e: any) {
         console.warn("Falha silenciosa ao gravar DB. Dados mantidos no LocalStorage.", e);
