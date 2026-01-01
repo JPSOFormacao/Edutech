@@ -144,6 +144,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
             {hasPermission(PERMISSIONS.USE_PIPEDREAM) && (
                  <NavItem to="/integrations" icon={Icons.Cloud} label="Integrações / Drive" />
             )}
+
+            {hasPermission(PERMISSIONS.VIEW_LOGS) && (
+                 <NavItem to="/audit-logs" icon={Icons.Audit} label="Registos / Auditoria" />
+            )}
              
             {hasPermission(PERMISSIONS.MANAGE_SETTINGS) && (
                <>

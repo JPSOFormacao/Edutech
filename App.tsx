@@ -22,7 +22,8 @@ import VerifyEmail from './pages/VerifyEmail';
 import SystemSettings from './pages/SystemSettings'; 
 import DatabaseTest from './pages/DatabaseTest'; 
 import IntegrationsPage from './pages/Integrations'; 
-import FileManager from './pages/FileManager'; // Nova Importação
+import FileManager from './pages/FileManager'; 
+import AuditLogs from './pages/AuditLogs'; // Nova Importação
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -376,6 +377,10 @@ export default function App() {
 
             <Route path="/integrations" element={
               hasPermission(PERMISSIONS.USE_PIPEDREAM) ? <IntegrationsPage /> : <Navigate to="/" />
+            } />
+
+            <Route path="/audit-logs" element={
+              hasPermission(PERMISSIONS.VIEW_LOGS) ? <AuditLogs /> : <Navigate to="/" />
             } />
 
             <Route path="/email-config" element={

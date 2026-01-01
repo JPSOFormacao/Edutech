@@ -1,6 +1,6 @@
 import emailjs from '@emailjs/browser';
 import { storageService } from './storageService';
-import { EmailTemplates } from '../types';
+import { EmailTemplates, FileDeletionLog } from '../types';
 
 interface EmailResult {
     success: boolean;
@@ -215,6 +215,25 @@ export const emailService = {
         console.error(e);
         return false;
     }
+  },
+
+  sendDeletionBatchEmail: async (logs: FileDeletionLog[]): Promise<boolean> => {
+      // Formatar lista
+      const list = logs.map((log, idx) => 
+          `${idx + 1}. ${log.fileName} (Apagado por: ${log.deletedByName} em ${new Date(log.deletedAt).toLocaleString()})`
+      ).join('\n');
+
+      const message = `
+Relatório de Auditoria - Eliminação de Ficheiros
+
+O sistema detetou a eliminação de 10 novos ficheiros. Segue a lista abaixo:
+
+${list}
+
+Total de registos neste lote: ${logs.length}
+      `;
+
+      return await emailService.sendNotification("Administrador", message, SYSTEM_EMAIL);
   },
 
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {

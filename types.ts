@@ -36,7 +36,8 @@ export const PERMISSIONS = {
   VIEW_COURSES: 'view_courses',
   USE_AI_STUDIO: 'use_ai_studio',
   MANAGE_SETTINGS: 'manage_settings',
-  USE_PIPEDREAM: 'use_pipedream'
+  USE_PIPEDREAM: 'use_pipedream',
+  VIEW_LOGS: 'view_logs' // Nova permissão para ver registos
 };
 
 export const PERMISSION_LABELS: Record<string, string> = {
@@ -50,7 +51,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   [PERMISSIONS.VIEW_COURSES]: 'Ver Cursos Disponíveis (Acesso Aluno)',
   [PERMISSIONS.USE_AI_STUDIO]: 'Utilizar Estúdio de Inteligência Artificial',
   [PERMISSIONS.MANAGE_SETTINGS]: 'Configurações de Sistema (Email, Branding)',
-  [PERMISSIONS.USE_PIPEDREAM]: 'Utilizar Integrações (Upload Google Drive/Pipedream)'
+  [PERMISSIONS.USE_PIPEDREAM]: 'Utilizar Integrações (Upload Google Drive/Pipedream)',
+  [PERMISSIONS.VIEW_LOGS]: 'Ver Registos de Auditoria (Ficheiros Apagados)'
 };
 
 export interface RoleEntity {
@@ -150,6 +152,15 @@ export interface UploadedFile {
   context: 'material' | 'integration'; // Onde foi feito o upload
   driveFileId?: string; // ID real do ficheiro no Google Drive
   webViewLink?: string; // Link real para visualização
+}
+
+export interface FileDeletionLog {
+  id: string;
+  fileName: string;
+  deletedBy: string; // User ID
+  deletedByName: string; // Nome snapshot
+  deletedAt: string;
+  emailSent: boolean; // Se já foi incluído num lote de email
 }
 
 export interface QuizQuestion {

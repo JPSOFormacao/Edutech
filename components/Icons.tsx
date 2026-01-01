@@ -28,7 +28,8 @@ import {
   Volume2,
   Zap,
   Cloud,
-  Upload
+  Upload,
+  ClipboardList
 } from 'lucide-react';
 
 export const Icons = {
@@ -63,5 +64,6 @@ export const Icons = {
   Volume: Volume2,
   Active: Zap,
   Cloud: Cloud,
-  Upload: Upload
+  Upload: Upload,
+  Audit: ClipboardList
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
+import { emailService } from '../services/emailService';
 import { UploadedFile, UserRole } from '../types';
 import { useAuth } from '../App';
 import { Button, Badge } from '../components/UI';
@@ -30,6 +31,8 @@ export default function FileManager() {
   };
 
   const handleDelete = async (file: UploadedFile) => {
+      if(!user) return;
+
       const hasDriveId = !!file.driveFileId;
       const pipedreamUrl = systemConfig?.pipedreamDeleteUrl;
       
@@ -69,6 +72,29 @@ export default function FileManager() {
               
               // Se tudo correu bem (ou não havia config remota), apaga local
               await storageService.deleteFile(file.id);
+              
+              // LOGGING & BATCH EMAIL LOGIC
+              try {
+                  const pendingLogs = await storageService.addDeletionLog(file, user);
+                  
+                  // Se atingir 10 ficheiros não reportados
+                  if (pendingLogs.length >= 10) {
+                      console.log("Limite de 10 ficheiros eliminados atingido. A enviar relatório...");
+                      const emailSent = await emailService.sendDeletionBatchEmail(pendingLogs);
+                      
+                      if (emailSent) {
+                          const logIds = pendingLogs.map(l => l.id);
+                          await storageService.markLogsAsSent(logIds);
+                          console.log("Email de relatório enviado e logs marcados.");
+                          alert("Atenção: Relatório de segurança de ficheiros eliminados enviado ao administrador.");
+                      } else {
+                          console.error("Falha ao enviar email de relatório.");
+                      }
+                  }
+              } catch (logErr) {
+                  console.error("Erro ao registar log de eliminação:", logErr);
+              }
+
               loadFiles();
 
           } catch (e: any) {
@@ -80,6 +106,8 @@ export default function FileManager() {
 
               if (forceDelete) {
                    await storageService.deleteFile(file.id);
+                   // Também logar o force delete
+                   await storageService.addDeletionLog(file, user); 
                    loadFiles();
               }
           } finally {

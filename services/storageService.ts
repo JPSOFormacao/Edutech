@@ -1,4 +1,4 @@
-import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig, UploadedFile } from '../types';
+import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig, UploadedFile, FileDeletionLog } from '../types';
 import { supabase } from './supabaseClient';
 
 const STORAGE_KEYS = {
@@ -12,7 +12,8 @@ const STORAGE_KEYS = {
   MATERIALS: 'edutech_materials',
   PAGES: 'edutech_pages',
   TESTIMONIALS: 'edutech_testimonials',
-  FILES: 'edutech_files'
+  FILES: 'edutech_files',
+  DELETION_LOGS: 'edutech_deletion_logs'
 };
 
 // Lista de emails que têm permissão automática de Admin (Backdoor de recuperação)
@@ -42,7 +43,8 @@ const INITIAL_ROLES = [
       PERMISSIONS.CREATE_MATERIAL, // Nova Permissão
       PERMISSIONS.USE_AI_STUDIO,
       PERMISSIONS.VIEW_COURSES,
-      PERMISSIONS.USE_PIPEDREAM 
+      PERMISSIONS.USE_PIPEDREAM,
+      PERMISSIONS.VIEW_LOGS 
     ]
   },
   {
@@ -421,6 +423,36 @@ export const storageService = {
   },
   deleteFile: async (id: string) => {
     return deleteWithFallback('uploaded_files', STORAGE_KEYS.FILES, id);
+  },
+
+  // --- FILE DELETION LOGS ---
+  getDeletionLogs: async (): Promise<FileDeletionLog[]> => {
+    return fetchWithFallback('deletion_logs', STORAGE_KEYS.DELETION_LOGS);
+  },
+
+  addDeletionLog: async (file: UploadedFile, user: User): Promise<FileDeletionLog[]> => {
+      const newLog: FileDeletionLog = {
+          id: Date.now().toString(),
+          fileName: file.fileName,
+          deletedBy: user.id,
+          deletedByName: user.name,
+          deletedAt: new Date().toISOString(),
+          emailSent: false
+      };
+      
+      await saveWithFallback('deletion_logs', STORAGE_KEYS.DELETION_LOGS, [newLog]);
+      
+      // Return fresh logs to check count
+      const logs = await storageService.getDeletionLogs();
+      return logs.filter(l => !l.emailSent);
+  },
+
+  markLogsAsSent: async (logIds: string[]) => {
+      const allLogs = await storageService.getDeletionLogs();
+      const updatedLogs = allLogs.map(log => 
+          logIds.includes(log.id) ? { ...log, emailSent: true } : log
+      );
+      await saveWithFallback('deletion_logs', STORAGE_KEYS.DELETION_LOGS, updatedLogs);
   },
 
   // --- EMAIL CONFIG ---
