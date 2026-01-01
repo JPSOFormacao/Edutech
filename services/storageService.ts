@@ -1,3 +1,4 @@
+
 import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -340,8 +341,18 @@ export const storageService = {
 
   // --- ROLES ---
   getRoles: async (): Promise<RoleEntity[]> => {
-    return fetchWithFallback('roles', STORAGE_KEYS.ROLES, INITIAL_ROLES);
+    const roles = await fetchWithFallback('roles', STORAGE_KEYS.ROLES, INITIAL_ROLES);
+    
+    // Atualizar dinamicamente o Admin para ter SEMPRE todas as permissões no array
+    // Isto resolve a questão visual nos "Cargos" onde apareciam desmarcadas se a BD estivesse desatualizada.
+    const adminRole = roles.find(r => r.id === 'role_admin');
+    if (adminRole) {
+        adminRole.permissions = Object.values(PERMISSIONS);
+    }
+    
+    return roles;
   },
+  
   saveRoles: async (roles: RoleEntity[]) => {
     return saveWithFallback('roles', STORAGE_KEYS.ROLES, roles);
   },
@@ -598,7 +609,8 @@ export const storageService = {
       }
     } else {
         // Auto-reparação de Super Admin
-        if (isSuperAdmin && ((user.role as UserRole) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
+        // Cast user.role to string to avoid overlap error if TS thinks user.role excludes ADMIN
+        if (isSuperAdmin && ((user.role as string) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
              user = { ...user, role: UserRole.ADMIN, roleId: 'role_admin', status: UserStatus.ACTIVE };
              await storageService.saveUser(user);
         }
