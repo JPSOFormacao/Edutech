@@ -150,6 +150,40 @@ export default function UsersPage() {
       }
   };
 
+  // --- Send Verification Email Manually ---
+  const handleSendVerification = async (u: User) => {
+      if (!u.email) return;
+      if (isSendingEmail) return;
+
+      if (!confirm(`Deseja enviar o email de verificação para ${u.email}?`)) return;
+
+      setIsSendingEmail(true);
+
+      try {
+          // Garantir que existe token
+          let token = u.verificationToken;
+          if (!token) {
+              token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+              const updated = { ...u, verificationToken: token };
+              // Salvar token na BD se não existir
+              await storageService.saveUser(updated);
+          }
+
+          const link = `${window.location.origin}/#/verify-email?token=${token}`;
+          const res = await emailService.sendVerificationEmail(u.name, u.email, link);
+
+          if (res.success) {
+              alert("Email de verificação enviado com sucesso!");
+          } else {
+              alert("Erro ao enviar email: " + res.message);
+          }
+      } catch (e: any) {
+          alert("Erro: " + e.message);
+      } finally {
+          setIsSendingEmail(false);
+      }
+  };
+
   // --- Save Logic ---
 
   const handleSave = async () => {
@@ -375,7 +409,13 @@ export default function UsersPage() {
                             <div className="text-sm font-medium text-gray-900">{user.name}</div>
                             <div className="flex items-center gap-1 text-sm text-gray-500">
                                 {user.email}
-                                {user.emailVerified && <span title="Email Verificado"><Icons.Check className="w-3 h-3 text-green-500" /></span>}
+                                {user.emailVerified ? (
+                                    <span title="Email Verificado"><Icons.Check className="w-3 h-3 text-green-500" /></span>
+                                ) : (
+                                    <span title="Email Não Verificado" className="text-xs text-orange-500 flex items-center bg-orange-50 px-1 rounded border border-orange-200">
+                                        Não verificado
+                                    </span>
+                                )}
                             </div>
                         </div>
                         </div>
@@ -395,6 +435,18 @@ export default function UsersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end gap-2">
+                            {/* Botão de Enviar Verificação Manual */}
+                            {!user.emailVerified && (
+                                <button 
+                                    onClick={() => handleSendVerification(user)} 
+                                    className="text-orange-600 hover:text-orange-900 flex items-center gap-1 p-2 hover:bg-orange-50 rounded-full" 
+                                    title="Enviar Email de Verificação"
+                                    disabled={isSendingEmail}
+                                >
+                                    <Icons.Mail className="w-5 h-5" />
+                                </button>
+                            )}
+
                             {user.status === UserStatus.PENDING && (
                                 <Button variant="primary" size="sm" onClick={() => approveUser(user)} disabled={isSendingEmail}>
                                     Aprovar

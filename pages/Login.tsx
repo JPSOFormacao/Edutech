@@ -163,7 +163,7 @@ export default function Login() {
 
       try {
           // 1. Criar utilizador
-          // Retorna o token necessário para o link
+          // Retorna o token necessário para o link, mas NÃO enviamos o email automaticamente.
           const { token } = await storageService.register({
               name: regName,
               fullName: regFullName,
@@ -171,18 +171,12 @@ export default function Login() {
               password: regPass
           });
 
-          // Guardar token caso o email falhe
+          // Guardar token caso seja necessário debug, mas o processo agora é manual pelo admin
           setGeneratedToken(token);
 
-          // 2. Enviar email de Verificação (Com Link)
-          const link = `${window.location.origin}/#/verify-email?token=${token}`;
-          const emailResult = await emailService.sendVerificationEmail(regName, regEmail, link);
+          // Alteração: NÃO enviar email automaticamente aqui.
+          // O Admin deverá fazer isso na página de gestão de utilizadores.
           
-          if (!emailResult.success) {
-              console.warn("FALHA ENVIO EMAIL DE REGISTO.");
-              setEmailError(emailResult.message || "Erro desconhecido ao enviar email.");
-          }
-
           setRegisterSuccess(true);
       } catch (e: any) {
           alert(e.message || "Erro ao criar conta.");
@@ -459,52 +453,19 @@ export default function Login() {
       >
           {registerSuccess ? (
               <div className="text-center py-6">
-                  {emailError ? (
-                       <div className="bg-red-50 p-4 rounded-lg border border-red-200 mb-6 text-left">
-                           <div className="flex items-center gap-2 mb-2">
-                               <Icons.Close className="w-5 h-5 text-red-600" />
-                               <h4 className="font-bold text-red-800">Atenção: Falha no Envio de Email</h4>
-                           </div>
-                           <p className="text-sm text-red-700 mb-2">
-                               A sua conta foi criada com sucesso, mas o sistema não conseguiu enviar o email de verificação.
-                           </p>
-                           <p className="text-sm text-red-700 font-mono bg-white p-2 border rounded">
-                               {emailError}
-                           </p>
-
-                           {/* Fallback para verificação manual em DEV */}
-                           {generatedToken && (
-                               <div className="mt-4 pt-4 border-t border-red-200">
-                                   <p className="text-xs font-bold text-gray-600 uppercase mb-2">Modo Manual (Debug):</p>
-                                   <p className="text-sm mb-1">Utilize este link para validar a conta:</p>
-                                   <a 
-                                        href={`${window.location.origin}/#/verify-email?token=${generatedToken}`}
-                                        className="text-indigo-600 underline text-sm break-all font-medium hover:text-indigo-800 block p-2 bg-indigo-50 rounded"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                   >
-                                       Validar Conta Agora
-                                   </a>
-                               </div>
-                           )}
-                       </div>
-                  ) : (
-                      <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
-                          <Icons.Mail className="h-6 w-6 text-indigo-600" />
-                      </div>
-                  )}
+                  {/* Ícone de sucesso simples */}
+                  <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
+                      <Icons.Check className="h-6 w-6 text-indigo-600" />
+                  </div>
                   
-                  {!emailError && (
-                    <>
-                        <h3 className="text-lg leading-6 font-medium text-gray-900">Verifique o seu Email</h3>
-                        <p className="mt-2 text-sm text-gray-500">
-                            A sua conta foi criada. Enviámos um link de verificação para <strong>{regEmail}</strong>.
-                        </p>
-                        <p className="mt-2 text-sm text-gray-500">
-                            Por favor clique no link para validar o seu email antes de continuar.
-                        </p>
-                    </>
-                  )}
+                  <h3 className="text-lg leading-6 font-medium text-gray-900">Conta Criada!</h3>
+                  <p className="mt-2 text-sm text-gray-500">
+                      O seu registo foi efetuado com sucesso.
+                  </p>
+                  <p className="mt-2 text-sm text-gray-500 bg-yellow-50 p-3 rounded border border-yellow-100">
+                      <strong>Atenção:</strong> A sua conta aguarda agora validação por parte de um Administrador.
+                      Irá receber um email de verificação assim que o seu registo for analisado.
+                  </p>
 
                   <div className="mt-6">
                       <Button onClick={() => setIsRegisterModalOpen(false)} className="w-full">Entendi</Button>
