@@ -10,6 +10,7 @@ export default function SystemSettings() {
   const [faviconUrl, setFaviconUrl] = useState('');
   const [platformName, setPlatformName] = useState('');
   const [pipedreamWebhook, setPipedreamWebhook] = useState('');
+  const [pipedreamDeleteUrl, setPipedreamDeleteUrl] = useState('');
   
   const [status, setStatus] = useState<{type: 'success' | 'error', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,7 @@ export default function SystemSettings() {
       setFaviconUrl(config.faviconUrl || '');
       setPlatformName(config.platformName || '');
       setPipedreamWebhook(config.pipedreamWebhookUrl || '');
+      setPipedreamDeleteUrl(config.pipedreamDeleteUrl || '');
     }
   };
 
@@ -36,7 +38,8 @@ export default function SystemSettings() {
             logoUrl: logoUrl.trim(),
             faviconUrl: faviconUrl.trim(),
             platformName: platformName.trim(),
-            pipedreamWebhookUrl: pipedreamWebhook.trim()
+            pipedreamWebhookUrl: pipedreamWebhook.trim(),
+            pipedreamDeleteUrl: pipedreamDeleteUrl.trim()
         });
         
         // Atualizar o contexto global para refletir as mudanças imediatamente (Favicon, Logo na Sidebar)
@@ -97,14 +100,24 @@ export default function SystemSettings() {
                   </h3>
                   <div>
                       <Input 
-                          label="Webhook URL do Pipedream" 
+                          label="Webhook Upload (Enviar Ficheiro)" 
                           value={pipedreamWebhook} 
                           onChange={e => setPipedreamWebhook(e.target.value)} 
                           placeholder="https://eo..."
                       />
-                      <p className="text-xs text-gray-500 mt-1">
-                          Este Webhook será usado na página "Integrações" para enviar ficheiros para o Google Drive.
-                      </p>
+                      
+                      <Input 
+                          label="Webhook Delete (Apagar Ficheiro)" 
+                          value={pipedreamDeleteUrl} 
+                          onChange={e => setPipedreamDeleteUrl(e.target.value)} 
+                          placeholder="https://eo..."
+                      />
+                      
+                      <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 border border-yellow-200 mt-2">
+                          <p>
+                              Configure ambos os Webhooks no Pipedream para permitir o envio e a eliminação bidirecional de ficheiros.
+                          </p>
+                      </div>
                   </div>
               </div>
 

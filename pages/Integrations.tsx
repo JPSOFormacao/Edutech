@@ -58,9 +58,7 @@ export default function IntegrationsPage() {
         try {
             // 1. Converter para Base64 para envio seguro via JSON
             const base64Data = await convertToBase64(file);
-            // Remover o prefixo data:mime/type;base64, para enviar apenas os bytes se necessário, 
-            // mas Pipedream lida bem com a string completa. Enviaremos completa.
-
+            
             setStatus({ type: 'info', msg: 'A enviar para o Pipedream...' });
 
             // 2. Enviar para Webhook
@@ -80,6 +78,18 @@ export default function IntegrationsPage() {
             });
 
             if (response.ok) {
+                // Tentar ler a resposta do Pipedream (se configurada corretamente)
+                let driveData = { fileId: '', webViewLink: '' };
+                try {
+                    const jsonRes = await response.json();
+                    if(jsonRes && jsonRes.fileId) {
+                        driveData.fileId = jsonRes.fileId;
+                        driveData.webViewLink = jsonRes.webViewLink;
+                    }
+                } catch(e) {
+                    console.warn("Pipedream não retornou JSON. O ficheiro foi enviado mas o link real pode não estar disponível.");
+                }
+
                 // 3. Registar o ficheiro na app
                 if (user) {
                     const newFile: UploadedFile = {
@@ -90,14 +100,15 @@ export default function IntegrationsPage() {
                         uploadedBy: user.id,
                         uploaderName: user.name,
                         uploadDate: new Date().toISOString(),
-                        context: 'integration'
+                        context: 'integration',
+                        driveFileId: driveData.fileId, // ID real do Drive
+                        webViewLink: driveData.webViewLink // Link real do Drive
                     };
                     await storageService.saveFile(newFile);
                 }
 
-                setStatus({ type: 'success', msg: 'Sucesso! Ficheiro enviado para o fluxo de integração e registado.' });
+                setStatus({ type: 'success', msg: 'Sucesso! Ficheiro enviado para o Drive e registado.' });
                 setFile(null); // Reset
-                // Reset input value
                 const input = document.getElementById('file-upload') as HTMLInputElement;
                 if(input) input.value = '';
             } else {
@@ -162,7 +173,7 @@ export default function IntegrationsPage() {
                         <p>1. Crie um Workflow no Pipedream.</p>
                         <p>2. Adicione um trigger "HTTP / Webhook".</p>
                         <p>3. Copie o URL gerado para o campo acima.</p>
-                        <p>4. No Pipedream, use o passo "Google Drive - Upload File" usando o conteúdo Base64 enviado.</p>
+                        <p>4. No Pipedream, adicione um passo "Return HTTP Response" com o JSON <code>{`{"fileId": "...", "webViewLink": "..."}`}</code> para obter o link real.</p>
                     </div>
                 </div>
 

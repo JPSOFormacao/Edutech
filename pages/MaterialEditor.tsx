@@ -148,6 +148,19 @@ export default function MaterialEditor() {
             });
 
             if (response.ok) {
+                let driveLinkText = `[Ficheiro Drive]: ${file.name}`;
+                let driveData = { fileId: '', webViewLink: '' };
+
+                // Tentar obter JSON com link real
+                try {
+                    const jsonRes = await response.json();
+                    if(jsonRes && jsonRes.webViewLink) {
+                        driveLinkText = jsonRes.webViewLink; // Usa o link real se disponivel
+                        driveData.fileId = jsonRes.fileId;
+                        driveData.webViewLink = jsonRes.webViewLink;
+                    }
+                } catch(e) {}
+
                 // Registar ficheiro
                 if (user) {
                     const newFile: UploadedFile = {
@@ -158,14 +171,16 @@ export default function MaterialEditor() {
                         uploadedBy: user.id,
                         uploaderName: user.name,
                         uploadDate: new Date().toISOString(),
-                        context: 'material'
+                        context: 'material',
+                        driveFileId: driveData.fileId,
+                        webViewLink: driveData.webViewLink
                     };
                     await storageService.saveFile(newFile);
                 }
 
                 setUploadStatus({ type: 'success', msg: 'Upload OK' });
+                
                 // Auto-fill the link field
-                const driveLinkText = `[Ficheiro Drive]: ${file.name}`;
                 setMaterial(prev => ({ ...prev, linkOrContent: driveLinkText }));
                 setFile(null);
             } else {

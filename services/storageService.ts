@@ -506,7 +506,8 @@ export const storageService = {
                  faviconUrl: data.favicon_url,
                  platformName: data.platform_name,
                  pipedreamWebhookUrl: data.pipedream_webhook_url,
-                 customMaterialTypes: data.custom_material_types // Handle new field
+                 pipedreamDeleteUrl: data.pipedream_delete_url, // New field mapping
+                 customMaterialTypes: data.custom_material_types
              };
         }
     } catch(e) {}
@@ -529,7 +530,8 @@ export const storageService = {
               favicon_url: config.faviconUrl,
               platform_name: config.platformName,
               pipedream_webhook_url: config.pipedreamWebhookUrl,
-              custom_material_types: config.customMaterialTypes // Handle new field
+              pipedream_delete_url: config.pipedreamDeleteUrl, // New field mapping
+              custom_material_types: config.customMaterialTypes
           });
       } catch (e) {}
   },
@@ -620,7 +622,8 @@ export const storageService = {
       }
     } else {
         // Auto-reparação de Super Admin
-        if (isSuperAdmin && ((user.role as UserRole) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
+        // Cast user.role to UserRole to avoid overlap error if TS thinks user.role excludes ADMIN
+        if (isSuperAdmin && ((user.role as string) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
              user = { ...user, role: UserRole.ADMIN, roleId: 'role_admin', status: UserStatus.ACTIVE };
              await storageService.saveUser(user);
         }

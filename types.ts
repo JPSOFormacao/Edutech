@@ -148,6 +148,8 @@ export interface UploadedFile {
   uploaderName: string; // User Name Snapshot
   uploadDate: string;
   context: 'material' | 'integration'; // Onde foi feito o upload
+  driveFileId?: string; // ID real do ficheiro no Google Drive
+  webViewLink?: string; // Link real para visualização
 }
 
 export interface QuizQuestion {
@@ -188,6 +190,7 @@ export interface SystemConfig {
   logoUrl?: string;
   faviconUrl?: string;
   platformName?: string;
-  pipedreamWebhookUrl?: string; // Novo campo para integração
+  pipedreamWebhookUrl?: string; // Upload URL
+  pipedreamDeleteUrl?: string; // Novo campo: Delete URL
   customMaterialTypes?: string[]; // Novos tipos de material criados pelo utilizador
 }

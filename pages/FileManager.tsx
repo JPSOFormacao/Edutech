@@ -6,9 +6,10 @@ import { Button, Badge } from '../components/UI';
 import { Icons } from '../components/Icons';
 
 export default function FileManager() {
-  const { user } = useAuth();
+  const { user, systemConfig } = useAuth();
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     loadFiles();
@@ -28,10 +29,31 @@ export default function FileManager() {
     setLoading(false);
   };
 
-  const handleDelete = async (id: string) => {
-      if (confirm('Tem a certeza que deseja remover o registo deste ficheiro? Nota: O ficheiro não será apagado do Google Drive, apenas da lista da aplicação.')) {
-          await storageService.deleteFile(id);
-          loadFiles();
+  const handleDelete = async (file: UploadedFile) => {
+      const confirmMsg = file.driveFileId && systemConfig?.pipedreamDeleteUrl
+        ? 'Tem a certeza? Isto irá apagar o ficheiro do Google Drive e da aplicação.'
+        : 'Tem a certeza que deseja remover o registo? (O ficheiro pode manter-se no Drive se não houver ID associado)';
+
+      if (confirm(confirmMsg)) {
+          setDeleting(file.id);
+          try {
+              // Tentar apagar no Drive via Pipedream se configurado
+              if (file.driveFileId && systemConfig?.pipedreamDeleteUrl) {
+                  await fetch(systemConfig.pipedreamDeleteUrl, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ fileId: file.driveFileId })
+                  });
+              }
+              
+              // Apagar Registo Local
+              await storageService.deleteFile(file.id);
+              loadFiles();
+          } catch (e) {
+              alert("Erro ao apagar ficheiro.");
+          } finally {
+              setDeleting(null);
+          }
       }
   };
 
@@ -59,6 +81,12 @@ export default function FileManager() {
         )}
       </div>
 
+      {!systemConfig?.pipedreamDeleteUrl && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded text-sm mb-4">
+              <strong>Atenção:</strong> O URL de Delete não está configurado. Apagar ficheiros aqui removerá apenas o registo na aplicação, mantendo o ficheiro no Google Drive.
+          </div>
+      )}
+
       <div className="bg-white shadow overflow-hidden sm:rounded-lg">
           {files.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
@@ -83,7 +111,13 @@ export default function FileManager() {
                               <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex items-center">
                                       <Icons.FileText className="w-5 h-5 text-gray-400 mr-2" />
-                                      <span className="text-sm font-medium text-gray-900 truncate max-w-xs" title={file.fileName}>{file.fileName}</span>
+                                      {file.webViewLink ? (
+                                          <a href={file.webViewLink} target="_blank" rel="noreferrer" className="text-sm font-medium text-indigo-600 hover:text-indigo-900 truncate max-w-xs block" title={file.fileName}>
+                                              {file.fileName}
+                                          </a>
+                                      ) : (
+                                          <span className="text-sm font-medium text-gray-900 truncate max-w-xs" title={file.fileName}>{file.fileName}</span>
+                                      )}
                                   </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
@@ -102,11 +136,19 @@ export default function FileManager() {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                   <button 
-                                    onClick={() => handleDelete(file.id)} 
-                                    className="text-red-600 hover:text-red-900 flex items-center gap-1 ml-auto"
-                                    title="Remover Registo"
+                                    onClick={() => handleDelete(file)} 
+                                    className="text-red-600 hover:text-red-900 flex items-center gap-1 ml-auto disabled:opacity-50"
+                                    disabled={deleting === file.id}
+                                    title={file.driveFileId ? "Remover do Drive e da App" : "Remover registo da App"}
                                   >
-                                      <Icons.Delete className="w-4 h-4" /> Remover
+                                      {deleting === file.id ? (
+                                          "A remover..."
+                                      ) : (
+                                          <>
+                                            <Icons.Delete className="w-4 h-4" /> 
+                                            {file.driveFileId && systemConfig?.pipedreamDeleteUrl ? 'Apagar (Drive)' : 'Remover'}
+                                          </>
+                                      )}
                                   </button>
                               </td>
                           </tr>
@@ -114,9 +156,6 @@ export default function FileManager() {
                   </tbody>
               </table>
           )}
-      </div>
-      <div className="bg-blue-50 border border-blue-200 rounded p-4 text-sm text-blue-800">
-          <strong>Nota Importante:</strong> Ao remover um ficheiro nesta lista, apenas o registo na aplicação é apagado. O ficheiro continuará a existir no Google Drive até ser apagado manualmente na nuvem.
       </div>
     </div>
   );
