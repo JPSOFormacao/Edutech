@@ -431,21 +431,21 @@ export const storageService = {
     if (dbData.publicKey) baseConfig.publicKey = dbData.publicKey;
     else if (localData.publicKey) baseConfig.publicKey = localData.publicKey;
 
-    // Templates
-    const dbTemplates = dbData.templates || {};
-    const localTemplates = localData.templates || {};
+    // Templates (Seguro com Cast to Any para evitar erros de TS se objeto for vazio)
+    const dbT = (dbData.templates || {}) as any;
+    const localT = (localData.templates || {}) as any;
 
     // Merge templates keys one by one
     // @ts-ignore
-    baseConfig.templates.welcomeId = dbTemplates.welcomeId || localTemplates.welcomeId || '';
+    baseConfig.templates.welcomeId = dbT.welcomeId || localT.welcomeId || '';
     // @ts-ignore
-    baseConfig.templates.resetPasswordId = dbTemplates.resetPasswordId || localTemplates.resetPasswordId || '';
+    baseConfig.templates.resetPasswordId = dbT.resetPasswordId || localT.resetPasswordId || '';
     // @ts-ignore
-    baseConfig.templates.enrollmentId = dbTemplates.enrollmentId || localTemplates.enrollmentId || '';
+    baseConfig.templates.enrollmentId = dbT.enrollmentId || localT.enrollmentId || '';
     // @ts-ignore
-    baseConfig.templates.notificationId = dbTemplates.notificationId || localTemplates.notificationId || '';
+    baseConfig.templates.notificationId = dbT.notificationId || localT.notificationId || '';
     // @ts-ignore
-    baseConfig.templates.verificationId = dbTemplates.verificationId || localTemplates.verificationId || '';
+    baseConfig.templates.verificationId = dbT.verificationId || localT.verificationId || '';
 
     return baseConfig;
   },

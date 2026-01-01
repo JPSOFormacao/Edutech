@@ -1,5 +1,6 @@
 import emailjs from '@emailjs/browser';
 import { storageService } from './storageService';
+import { EmailTemplates } from '../types';
 
 interface EmailResult {
     success: boolean;
@@ -39,7 +40,6 @@ const getTrainingDetailsString = async (classId?: string, courseIds?: string[]):
         }
     }
 
-    // Lógica solicitada: Se não houver atribuição, mostrar texto específico
     if (!hasInfo) {
         return "A turma e/ou o curso será atribuída posteriormente pelo Formador";
     }
@@ -48,51 +48,85 @@ const getTrainingDetailsString = async (classId?: string, courseIds?: string[]):
 };
 
 export const emailService = {
+  // Teste Genérico (Mantido para retrocompatibilidade)
   sendTestEmail: async (): Promise<EmailResult> => {
+    return emailService.sendSpecificTemplateTest('welcomeId');
+  },
+
+  // NOVO: Teste Específico por Tipo de Template
+  sendSpecificTemplateTest: async (templateKey: keyof EmailTemplates): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
     
-    // Tenta usar o template de welcome como default para teste, ou o genérico antigo
-    const templateId = config?.templates?.welcomeId || (config as any)?.templateId;
+    // Validações Básicas
+    if (!config) return { success: false, message: "Configuração não encontrada." };
+    if (!config.serviceId) return { success: false, message: "Service ID em falta." };
+    if (!config.publicKey) return { success: false, message: "Public Key em falta." };
+
+    // Tenta obter o ID específico. Se não existir, tenta o fallback geral 'welcomeId' ou o primeiro disponível
+    let templateId = config.templates?.[templateKey];
     
-    console.log("Teste de Email - Config Carregada:", config);
-
-    if (!config) {
-        return { success: false, message: "Objeto de configuração é nulo." };
-    }
-    if (!config.serviceId) {
-         return { success: false, message: "Service ID em falta nas configurações." };
-    }
-    if (!config.publicKey) {
-         return { success: false, message: "Public Key em falta nas configurações." };
-    }
+    // Lógica de Fallback visual para o teste:
+    // Se o utilizador está a testar o botão "Verificação" mas não tem ID lá,
+    // avisamos que vai falhar ou tentamos usar o fallback se a lógica do sistema assim o permitir.
+    // Neste caso, para ser fiel ao teste, se o campo está vazio, deve dar erro ou avisar.
     if (!templateId) {
-         return { success: false, message: "Template ID (Boas-vindas) em falta. Configure pelo menos o template de Boas-vindas." };
+        return { success: false, message: `O campo para este template está vazio. Guarde um ID antes de testar.` };
     }
 
-    const currentUser = storageService.getCurrentUser();
-    const userEmail = currentUser?.email || SYSTEM_EMAIL;
-
-    try {
-      const templateParams = {
+    // Dados Fictícios para o Teste
+    const commonParams = {
         to_name: "Administrador (Teste)",
         name: "Administrador (Teste)",
-        
-        // Variaveis de Destinatário
-        to_email: userEmail,
-        user_email: userEmail,
-        email: userEmail,
-        recipient: userEmail,
-        to: userEmail,
-
-        // Conteúdo
-        message: "O sistema de email está configurado e operacional.",
-        training_details: "Turma: Teste A\nCursos: Curso de Teste", 
-        password: "senha-de-teste", 
-        
+        to_email: SYSTEM_EMAIL, // EduTechPT@hotmail.com
+        user_email: SYSTEM_EMAIL,
+        email: SYSTEM_EMAIL,
         from_name: SYSTEM_NAME,
-        reply_to: SYSTEM_EMAIL,
-      };
+        reply_to: SYSTEM_EMAIL
+    };
 
+    let specificParams = {};
+
+    switch (templateKey) {
+        case 'verificationId':
+            specificParams = {
+                message: "Este é um email de teste para validar o template de Verificação de Conta.",
+                verification_link: "https://edutech.pt/#/verify-email?token=TESTE-TOKEN-123"
+            };
+            break;
+        case 'resetPasswordId':
+            specificParams = {
+                message: "Este é um email de teste para validar o template de Recuperação de Senha.",
+                password: "nova-senha-teste-123",
+                training_details: "Cursos: Exemplo de Curso Python"
+            };
+            break;
+        case 'notificationId':
+            specificParams = {
+                message: "Esta é uma notificação de teste do sistema EduTech PT.",
+                training_details: "N/A"
+            };
+            break;
+        case 'enrollmentId':
+            specificParams = {
+                message: "O utilizador inscreveu-se no curso: Desenvolvimento Web (Teste).",
+                course_name: "Desenvolvimento Web Fullstack",
+                student_name: "Aluno Teste"
+            };
+            break;
+        case 'welcomeId':
+        default:
+            specificParams = {
+                message: "Bem-vindo à EduTech PT! A sua conta foi criada com sucesso.",
+                password: "senha-inicial-teste",
+                training_details: "Turma: Demo\nCursos: Introdução à IA"
+            };
+            break;
+    }
+
+    const templateParams = { ...commonParams, ...specificParams };
+
+    try {
+      console.log(`A enviar teste (${templateKey}) para ${SYSTEM_EMAIL} usando ID: ${templateId}`);
       await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
       return { success: true };
     } catch (error: any) {
@@ -103,8 +137,14 @@ export const emailService = {
 
   sendNotification: async (toName: string, message: string, toEmail: string = SYSTEM_EMAIL): Promise<boolean> => {
     const config = await storageService.getEmailConfig();
-    const templateId = config?.templates?.notificationId || (config as any)?.templateId;
+    // Tenta ID específico, depois fallback genérico
+    let templateId = config?.templates?.notificationId || (config as any)?.templateId;
     
+    if (!templateId && config?.templates) {
+        const anyTemplate = Object.values(config.templates).find(v => v && typeof v === 'string' && v.length > 0);
+        if (anyTemplate) templateId = anyTemplate;
+    }
+
     if (!config || !templateId || !config.serviceId || !config.publicKey) return false;
     
     try {
@@ -140,14 +180,25 @@ export const emailService = {
         return { success: false, message: "Erro de Configuração: Falta configurar a Public Key." };
     }
 
-    // Tenta encontrar ID de verificação, senão usa notificação ou welcome como fallback
-    const templateId = config.templates?.verificationId || 
-                       config.templates?.notificationId || 
-                       config.templates?.welcomeId || 
-                       (config as any)?.templateId;
+    // Estratégia de Fallback em Cascata
+    // 1. Tenta o ID específico de verificação
+    // 2. Tenta o ID de notificação
+    // 3. Tenta o ID de boas-vindas
+    // 4. Tenta o ID legado na raiz
+    // 5. Tenta QUALQUER string que esteja no objeto templates (Fallback Supremo)
+    let templateId = config.templates?.verificationId || 
+                     config.templates?.notificationId || 
+                     config.templates?.welcomeId || 
+                     (config as any)?.templateId;
+
+    if (!templateId && config.templates) {
+         // Procura qualquer valor preenchido
+         const fallback = Object.values(config.templates).find(v => v && typeof v === 'string' && v.trim().length > 0);
+         if (fallback) templateId = fallback;
+    }
 
     if (!templateId) {
-         return { success: false, message: "Erro de Configuração: Nenhum Template ID encontrado. Configure o template de 'Verificação' ou 'Boas-vindas'." };
+         return { success: false, message: "Erro de Configuração: Nenhum Template ID encontrado. Por favor configure pelo menos UM template (ex: Boas-vindas) nas definições." };
     }
     
     // Constrói uma mensagem HTML com botão
@@ -182,10 +233,16 @@ export const emailService = {
 
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
-    const templateId = config?.templates?.welcomeId || (config as any)?.templateId;
+    let templateId = config?.templates?.welcomeId || (config as any)?.templateId;
+    
+    // Fallback Supremo
+    if (!templateId && config?.templates) {
+         const fallback = Object.values(config.templates).find(v => v && typeof v === 'string' && v.trim().length > 0);
+         if (fallback) templateId = fallback;
+    }
     
     if (!config) return { success: false, message: "Configuração de email vazia." };
-    if (!templateId) return { success: false, message: "Template de Boas-vindas não configurado." };
+    if (!templateId) return { success: false, message: "Nenhum Template ID configurado." };
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
 
     const cleanEmail = toEmail.trim();
@@ -231,9 +288,15 @@ export const emailService = {
 
   sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
-    const templateId = config?.templates?.resetPasswordId || (config as any)?.templateId;
+    let templateId = config?.templates?.resetPasswordId || (config as any)?.templateId;
     
-    if (!config || !templateId) return { success: false, message: "Template de Reset de Senha não configurado." };
+    // Fallback Supremo
+    if (!templateId && config?.templates) {
+         const fallback = Object.values(config.templates).find(v => v && typeof v === 'string' && v.trim().length > 0);
+         if (fallback) templateId = fallback;
+    }
+
+    if (!config || !templateId) return { success: false, message: "Nenhum Template ID configurado." };
 
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
     const cleanEmail = toEmail.trim();
