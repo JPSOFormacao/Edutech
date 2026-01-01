@@ -177,7 +177,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
              
             {hasPermission(PERMISSIONS.MANAGE_SETTINGS) && (
                <>
-                   <NavItem to="/email-config" icon={Icons.Mail} label="Configuração Email" />
+                   <NavItem to="/email-config" icon={Icons.Settings} label="Credenciais Email" />
+                   <NavItem to="/email-templates" icon={Icons.MessageSquare} label="Personalizar Emails" />
                    <NavItem to="/system-settings" icon={Icons.Settings} label="Branding & Sistema" />
                    <NavItem to="/db-test" icon={Icons.Active} label="Diagnóstico DB" />
                </>

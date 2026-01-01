@@ -13,6 +13,7 @@ import CMS from './pages/CMS';
 import AIStudio from './pages/AIStudio';
 import PageViewer from './pages/PageViewer';
 import EmailConfigPage from './pages/EmailConfig';
+import EmailTemplatesPage from './pages/EmailTemplates'; // Nova página
 import ClassesPage from './pages/Classes'; 
 import RolesPage from './pages/Roles';
 import ProfilePage from './pages/Profile';
@@ -23,7 +24,7 @@ import SystemSettings from './pages/SystemSettings';
 import DatabaseTest from './pages/DatabaseTest'; 
 import IntegrationsPage from './pages/Integrations'; 
 import FileManager from './pages/FileManager'; 
-import AuditLogs from './pages/AuditLogs'; // Nova Importação
+import AuditLogs from './pages/AuditLogs'; 
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -385,6 +386,9 @@ export default function App() {
 
             <Route path="/email-config" element={
               hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <EmailConfigPage /> : <Navigate to="/" />
+            } />
+            <Route path="/email-templates" element={
+              hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <EmailTemplatesPage /> : <Navigate to="/" />
             } />
              <Route path="/system-settings" element={
               hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <SystemSettings /> : <Navigate to="/" />

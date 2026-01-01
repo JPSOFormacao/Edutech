@@ -29,7 +29,8 @@ import {
   Zap,
   Cloud,
   Upload,
-  ClipboardList
+  ClipboardList,
+  MessageSquare
 } from 'lucide-react';
 
 export const Icons = {
@@ -65,5 +66,6 @@ export const Icons = {
   Active: Zap,
   Cloud: Cloud,
   Upload: Upload,
-  Audit: ClipboardList
+  Audit: ClipboardList,
+  MessageSquare: MessageSquare
 };
