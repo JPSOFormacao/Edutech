@@ -465,13 +465,15 @@ export const storageService = {
             resetPasswordId: '',
             enrollmentId: '',
             notificationId: '',
-            verificationId: ''
+            verificationId: '',
+            auditLogId: ''
         },
         customErrorMessage: '',
         customContent: {
             welcomeText: '',
             verificationText: '',
-            resetPasswordText: ''
+            resetPasswordText: '',
+            auditLogText: ''
         }
     };
 

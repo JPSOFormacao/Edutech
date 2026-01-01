@@ -8,7 +8,8 @@ import { EmailCustomContent, EmailTemplates } from '../types';
 const DEFAULT_CONTENT: EmailCustomContent = {
     welcomeText: '',
     verificationText: '',
-    resetPasswordText: ''
+    resetPasswordText: '',
+    auditLogText: ''
 };
 
 export default function EmailTemplatesPage() {
@@ -131,6 +132,40 @@ Senha Temporária: {password}`}
                    />
               </div>
 
+              {/* Texto de Auditoria */}
+              <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-red-200">
+                   <div className="flex justify-between items-start border-b pb-2 mb-2">
+                       <div>
+                           <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                               <Icons.Shield className="w-4 h-4 text-red-500" /> Relatório de Ficheiros Eliminados
+                           </h3>
+                           <p className="text-xs text-gray-500 mt-1">Enviado ao admin quando 10 ficheiros são apagados.</p>
+                       </div>
+                       <Button 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={() => handleTestSpecific('auditLogId')}
+                            disabled={testingTemplate['auditLogId']}
+                       >
+                           {testingTemplate['auditLogId'] ? '...' : 'Testar Envio'}
+                       </Button>
+                   </div>
+                   <textarea 
+                       className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono bg-red-50"
+                       rows={8}
+                       value={customContent.auditLogText || ''}
+                       onChange={e => setCustomContent({...customContent, auditLogText: e.target.value})}
+                       placeholder={`Relatório de Auditoria - Eliminação de Ficheiros
+
+O sistema detetou a eliminação de {total_files} ficheiros.
+
+Lista de ficheiros afetados:
+{file_list}
+
+Por favor verifique se estas ações foram autorizadas.`}
+                   />
+              </div>
+
               {/* Texto de Verificação */}
               <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200">
                    <div className="flex justify-between items-start border-b pb-2 mb-2">
@@ -197,7 +232,7 @@ Nova Senha: {password}`}
                       <Icons.FileText className="w-5 h-5" /> Variáveis Disponíveis
                   </h3>
                   <p className="text-xs text-blue-700 mb-4">
-                      Copie e cole estas variáveis no texto. Elas serão substituídas automaticamente pelos dados reais do utilizador.
+                      Copie e cole estas variáveis no texto. Elas serão substituídas automaticamente pelos dados reais.
                   </p>
                   
                   <ul className="space-y-3">
@@ -220,6 +255,14 @@ Nova Senha: {password}`}
                       <li className="bg-white p-2 rounded border border-blue-100 shadow-sm">
                           <code className="text-pink-600 font-bold block mb-1">{`{training_details}`}</code>
                           <span className="text-xs text-gray-600">Lista formatada com Turma e Cursos inscritos.</span>
+                      </li>
+                      <li className="bg-red-50 p-2 rounded border border-red-200 shadow-sm">
+                          <code className="text-red-600 font-bold block mb-1">{`{file_list}`}</code>
+                          <span className="text-xs text-gray-600">Lista de ficheiros apagados (apenas Auditoria).</span>
+                      </li>
+                      <li className="bg-red-50 p-2 rounded border border-red-200 shadow-sm">
+                          <code className="text-red-600 font-bold block mb-1">{`{total_files}`}</code>
+                          <span className="text-xs text-gray-600">Número total de ficheiros no lote (apenas Auditoria).</span>
                       </li>
                   </ul>
               </div>

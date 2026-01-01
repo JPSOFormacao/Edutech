@@ -10,7 +10,8 @@ const DEFAULT_TEMPLATES: EmailTemplates = {
     resetPasswordId: '',
     enrollmentId: '',
     notificationId: '',
-    verificationId: ''
+    verificationId: '',
+    auditLogId: ''
 };
 
 export default function EmailConfigPage() {
@@ -33,7 +34,7 @@ export default function EmailConfigPage() {
           setPublicKey(config.publicKey || '');
           setCustomErrorMessage(config.customErrorMessage || '');
           
-          if (config.templates && Object.keys(config.templates).length > 0) {
+          if (config.templates) {
               setTemplates((prev) => ({
                   ...DEFAULT_TEMPLATES,
                   ...config.templates
@@ -158,6 +159,14 @@ export default function EmailConfigPage() {
                 />
             </div>
             
+            <Input 
+                label="Relatório de Auditoria (Ficheiros)" 
+                value={templates.auditLogId || ''} 
+                onChange={e => setTemplates({...templates, auditLogId: e.target.value})} 
+                placeholder="ex: template_audit"
+                className="border-red-200"
+            />
+
             <Input 
                 label="Verificação de Email" 
                 value={templates.verificationId} 

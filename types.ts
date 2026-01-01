@@ -180,21 +180,23 @@ export interface EmailTemplates {
     resetPasswordId: string;
     enrollmentId: string;
     notificationId: string;
-    verificationId?: string; // Novo template para verificação
+    verificationId?: string; 
+    auditLogId?: string; // Novo template para Logs de Auditoria
 }
 
 export interface EmailCustomContent {
     welcomeText?: string;
     verificationText?: string;
     resetPasswordText?: string;
+    auditLogText?: string; // Novo texto para Logs de Auditoria
 }
 
 export interface EmailConfig {
   serviceId: string;
   publicKey: string;
   templates: EmailTemplates;
-  customErrorMessage?: string; // Novo campo para mensagem de erro personalizada
-  customContent?: EmailCustomContent; // Novo campo para textos personalizados
+  customErrorMessage?: string; 
+  customContent?: EmailCustomContent; 
 }
 
 export interface SystemConfig {

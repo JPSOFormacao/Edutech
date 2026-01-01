@@ -119,6 +119,23 @@ export const emailService = {
     let messageBody = "";
     
     switch (templateKey) {
+        case 'auditLogId':
+            const mockFileList = "1. Ficheiro A.pdf (Apagado por João)\n2. Ficheiro B.jpg (Apagado por Maria)";
+            if (config.customContent?.auditLogText) {
+                messageBody = processTemplate(config.customContent.auditLogText, {
+                    name: commonParams.to_name,
+                    file_list: mockFileList,
+                    total_files: "2"
+                });
+            } else {
+                messageBody = `Relatório de Teste:\n\n${mockFileList}`;
+            }
+            specificParams = {
+                message: messageBody,
+                file_list: mockFileList,
+                total_files: "2"
+            };
+            break;
         case 'verificationId':
             if (config.customContent?.verificationText) {
                 messageBody = processTemplate(config.customContent.verificationText, {
@@ -218,22 +235,64 @@ export const emailService = {
   },
 
   sendDeletionBatchEmail: async (logs: FileDeletionLog[]): Promise<boolean> => {
-      // Formatar lista
+      const config = await storageService.getEmailConfig();
+      if (!config || !config.serviceId || !config.publicKey) return false;
+
+      // 1. Determinar o Template ID (Prioridade ao novo auditLogId)
+      // Se auditLogId não existir, tenta notificationId
+      const templateId = config.templates?.auditLogId || config.templates?.notificationId;
+
+      if (!templateId) {
+          console.error("Erro: Nenhum Template ID configurado para Auditoria ou Notificações.");
+          return false;
+      }
+
+      // 2. Formatar lista
       const list = logs.map((log, idx) => 
           `${idx + 1}. ${log.fileName} (Apagado por: ${log.deletedByName} em ${new Date(log.deletedAt).toLocaleString()})`
       ).join('\n');
 
-      const message = `
+      const totalFiles = logs.length.toString();
+
+      // 3. Preparar Mensagem (Se houver texto customizado)
+      let messageBody = "";
+      if (config.customContent?.auditLogText) {
+          messageBody = processTemplate(config.customContent.auditLogText, {
+              name: "Administrador",
+              file_list: list,
+              total_files: totalFiles
+          });
+      } else {
+          // Fallback message se não houver texto configurado
+          messageBody = `
 Relatório de Auditoria - Eliminação de Ficheiros
 
-O sistema detetou a eliminação de 10 novos ficheiros. Segue a lista abaixo:
+O sistema detetou a eliminação de ${totalFiles} novos ficheiros. Segue a lista abaixo:
 
 ${list}
+          `;
+      }
 
-Total de registos neste lote: ${logs.length}
-      `;
+      // 4. Parâmetros EmailJS
+      const templateParams = {
+          to_name: "Administrador",
+          name: "Administrador",
+          to_email: SYSTEM_EMAIL, 
+          email: SYSTEM_EMAIL,
+          from_name: SYSTEM_NAME,
+          message: messageBody,
+          file_list: list, // Variável direta se o template usar {{file_list}}
+          total_files: totalFiles,
+          reply_to: SYSTEM_EMAIL
+      };
 
-      return await emailService.sendNotification("Administrador", message, SYSTEM_EMAIL);
+      try {
+          await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
+          return true;
+      } catch (e) {
+          console.error("Falha ao enviar email de auditoria:", e);
+          return false;
+      }
   },
 
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
