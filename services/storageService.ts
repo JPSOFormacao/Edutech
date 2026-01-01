@@ -380,145 +380,133 @@ export const storageService = {
     if (error) throw error;
   },
 
-  // --- EMAIL CONFIG (Prioridade: LS > DB se DB vazia) ---
+  // --- EMAIL CONFIG (Prioridade Absoluta ao LocalStorage se existir e não for vazio) ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
-    let dbConfig: EmailConfig | null = null;
-    let localConfig: EmailConfig | null = null;
-
-    // 1. Tentar ler do LocalStorage
-    try {
-        const stored = localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG);
-        if (stored) {
-            localConfig = JSON.parse(stored) as EmailConfig;
+    // Inicializar Configuração Vazia Base
+    const finalConfig: EmailConfig = {
+        serviceId: '',
+        publicKey: '',
+        templates: {
+            welcomeId: '',
+            resetPasswordId: '',
+            enrollmentId: '',
+            notificationId: '',
+            verificationId: ''
         }
-    } catch (e) { console.warn("Erro LocalStorage Email", e); }
+    };
 
-    // 2. Tentar ler da DB
+    // 1. Tentar ler DB (Backend)
     try {
         const { data, error } = await supabase.from('email_config').select('*').single();
         if (data && !error) {
-            let templates = data.templates;
-            // Parse robusto
-            if (typeof templates === 'string') {
-                try { templates = JSON.parse(templates); } catch (e) { templates = {}; }
+            if (data.service_id || data.serviceId) finalConfig.serviceId = data.service_id ?? data.serviceId;
+            if (data.public_key || data.publicKey) finalConfig.publicKey = data.public_key ?? data.publicKey;
+            
+            let dbTemplates = data.templates;
+            if (typeof dbTemplates === 'string') {
+                try { dbTemplates = JSON.parse(dbTemplates); } catch(e) {}
             }
-            dbConfig = {
-                serviceId: data.service_id ?? data.serviceId ?? '',
-                publicKey: data.public_key ?? data.publicKey ?? '',
-                templates: templates || {}
-            } as EmailConfig;
+            if (dbTemplates) {
+                // Merge templates
+                for(const key in dbTemplates) {
+                    // @ts-ignore
+                    if(dbTemplates[key]) finalConfig.templates[key] = dbTemplates[key];
+                }
+            }
         }
-    } catch (e) { console.warn("Erro DB EmailConfig", e); }
+    } catch (e) { console.warn("Erro DB Read EmailConfig:", e); }
 
-    // 3. Lógica de "Smart Merge"
-    // Se a DB não tem dados (ou templates vazios) mas o LocalStorage tem, usa o LocalStorage.
-    // Isto resolve o caso onde o save falha na DB mas funciona localmente.
-    if (localConfig) {
-        const localHasData = localConfig.serviceId || (localConfig.templates && Object.values(localConfig.templates).some(v => !!v));
-        
-        if (!dbConfig) {
-            console.log("Usando Configuração de Email Local (DB vazia)");
-            return localConfig;
+    // 2. Ler LocalStorage (Frontend Cache/Override)
+    // A lógica aqui é: O LocalStorage sobrepõe SEMPRE se tiver valores, pois assume-se que é a edição mais recente feita pelo admin nesta máquina.
+    try {
+        const stored = localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG);
+        if (stored) {
+            const localConfig = JSON.parse(stored) as EmailConfig;
+            
+            if (localConfig.serviceId) finalConfig.serviceId = localConfig.serviceId;
+            if (localConfig.publicKey) finalConfig.publicKey = localConfig.publicKey;
+            
+            if (localConfig.templates) {
+                 for(const key in localConfig.templates) {
+                     // @ts-ignore
+                     if(localConfig.templates[key]) finalConfig.templates[key] = localConfig.templates[key];
+                 }
+            }
         }
+    } catch (e) { console.warn("Erro LocalStorage EmailConfig:", e); }
 
-        const dbHasData = dbConfig.serviceId || (dbConfig.templates && Object.values(dbConfig.templates).some(v => !!v));
-        
-        if (!dbHasData && localHasData) {
-             console.log("Usando Configuração de Email Local (DB incompleta)");
-             // Opcional: Tentar ressincronizar DB em background silenciosamente
-             storageService.saveEmailConfig(localConfig).catch(console.error);
-             return localConfig;
-        }
-    }
-
-    return dbConfig || localConfig;
+    // Retornamos sempre um objeto válido, mesmo que vazio
+    return finalConfig;
   },
 
   saveEmailConfig: async (config: EmailConfig) => {
-    // 1. Gravar SEMPRE no LocalStorage (Redundância Imediata)
+    // 1. LocalStorage (Garantia de persistência local)
     localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config));
 
-    // 2. Gravar na DB com snake_case explícito
+    // 2. DB (Tentativa de Sincronização)
     try {
         const payload = {
-            id: 'default_config', // Forçar ID fixo para garantir update
+            id: 'default_config', 
             service_id: config.serviceId,
             public_key: config.publicKey,
-            templates: config.templates // Supabase deve aceitar JSON/JSONB
+            templates: config.templates 
         };
         
         const { error } = await supabase.from('email_config').upsert(payload);
         
         if (error) {
-            console.error("Erro Supabase EmailConfig:", error);
-            // Se falhar o snake_case, tentamos o camelCase como fallback desesperado
-            // (caso a tabela tenha sido criada manualmente com nomes diferentes)
-            const { error: retryError } = await supabase.from('email_config').upsert({
+            console.error("Erro Supabase SnakeCase:", error);
+            // Fallback CamelCase
+            await supabase.from('email_config').upsert({
                 id: 'default_config',
                 serviceId: config.serviceId,
                 publicKey: config.publicKey,
                 templates: config.templates
             });
-            if (retryError) throw retryError;
         }
     } catch (e: any) {
-        console.warn("Falha crítica ao gravar na DB. Dados preservados no LocalStorage.", e);
-        // Não lançamos o erro para a UI para não assustar o utilizador, 
-        // já que o LocalStorage salvou o dia.
+        console.warn("Falha silenciosa ao gravar DB. Dados mantidos no LocalStorage.", e);
+        // Não lançar erro para não bloquear a UI, visto que o LS funcionou
     }
   },
 
-  // --- SYSTEM CONFIG (Mesma lógica de prioridade) ---
+  // --- SYSTEM CONFIG ---
   getSystemConfig: async (): Promise<SystemConfig | null> => {
-    let dbConfig: SystemConfig | null = null;
-    let localConfig: SystemConfig | null = null;
+    let finalConfig: SystemConfig = {};
 
     try {
-        const stored = localStorage.getItem(STORAGE_KEYS.SYSTEM_CONFIG);
-        if (stored) localConfig = JSON.parse(stored);
+        const { data } = await supabase.from('system_config').select('*').single();
+        if(data) {
+             finalConfig.logoUrl = data.logo_url ?? data.logoUrl;
+             finalConfig.faviconUrl = data.favicon_url ?? data.faviconUrl;
+             finalConfig.platformName = data.platform_name ?? data.platformName;
+        }
     } catch(e) {}
 
     try {
-        const { data, error } = await supabase.from('system_config').select('*').single();
-        if (data && !error) {
-            dbConfig = {
-                logoUrl: data.logo_url ?? data.logoUrl ?? '',
-                faviconUrl: data.favicon_url ?? data.faviconUrl ?? '',
-                platformName: data.platform_name ?? data.platformName ?? ''
-            };
+        const stored = localStorage.getItem(STORAGE_KEYS.SYSTEM_CONFIG);
+        if(stored) {
+             const local = JSON.parse(stored);
+             if(local.logoUrl) finalConfig.logoUrl = local.logoUrl;
+             if(local.faviconUrl) finalConfig.faviconUrl = local.faviconUrl;
+             if(local.platformName) finalConfig.platformName = local.platformName;
         }
-    } catch (e) {}
+    } catch(e) {}
 
-    if (localConfig && (!dbConfig || (!dbConfig.platformName && localConfig.platformName))) {
-        return localConfig;
-    }
-
-    return dbConfig || localConfig;
+    return finalConfig;
   },
 
   saveSystemConfig: async (config: SystemConfig) => {
       localStorage.setItem(STORAGE_KEYS.SYSTEM_CONFIG, JSON.stringify(config));
 
       try {
-          const payload = { 
+          await supabase.from('system_config').upsert({ 
               id: 'default_system_config',
               logo_url: config.logoUrl,
               favicon_url: config.faviconUrl,
               platform_name: config.platformName
-          };
-
-          const { error } = await supabase.from('system_config').upsert(payload);
-
-          if (error) {
-              const { error: retryError } = await supabase.from('system_config').upsert({ 
-                  id: 'default_system_config',
-                  logoUrl: config.logoUrl,
-                  faviconUrl: config.faviconUrl,
-                  platformName: config.platformName
-              });
-              if (retryError) throw retryError;
-          }
-      } catch (e: any) {
+          });
+      } catch (e) {
           console.warn("Erro DB SystemConfig", e);
       }
   },

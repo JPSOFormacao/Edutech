@@ -50,11 +50,24 @@ const getTrainingDetailsString = async (classId?: string, courseIds?: string[]):
 export const emailService = {
   sendTestEmail: async (): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
+    
     // Tenta usar o template de welcome como default para teste, ou o genérico antigo
     const templateId = config?.templates?.welcomeId || (config as any)?.templateId;
+    
+    // Debug info para a consola
+    console.log("Teste de Email - Config Carregada:", config);
 
-    if (!config || !config.serviceId || !templateId || !config.publicKey) {
-      throw new Error("Configuração incompleta. Verifique Service ID, Template ID e Public Key.");
+    if (!config) {
+        return { success: false, message: "Objeto de configuração é nulo." };
+    }
+    if (!config.serviceId) {
+         return { success: false, message: "Service ID em falta." };
+    }
+    if (!config.publicKey) {
+         return { success: false, message: "Public Key em falta." };
+    }
+    if (!templateId) {
+         return { success: false, message: "Template ID (Boas-vindas) em falta." };
     }
 
     const currentUser = storageService.getCurrentUser();
