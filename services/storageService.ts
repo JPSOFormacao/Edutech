@@ -378,22 +378,76 @@ export const storageService = {
     if (error) throw error;
   },
 
-  // --- EMAIL CONFIG ---
+  // --- EMAIL CONFIG (Correção de Persistência) ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
-    const { data } = await supabase.from('email_config').select('*').single();
-    return data || null;
-  },
-  saveEmailConfig: async (config: EmailConfig) => {
-    await supabase.from('email_config').upsert({ ...config, id: 'default_config' });
+    const { data, error } = await supabase.from('email_config').select('*').single();
+    if (error || !data) return null;
+
+    // Mapeamento Robusto: Tenta ler colunas snake_case (Padrão DB) ou camelCase (Padrão JS)
+    return {
+        serviceId: data.service_id ?? data.serviceId ?? '',
+        publicKey: data.public_key ?? data.publicKey ?? '',
+        templates: data.templates || {}
+    } as EmailConfig;
   },
 
-  // --- SYSTEM CONFIG (Branding) ---
-  getSystemConfig: async (): Promise<SystemConfig | null> => {
-    const { data } = await supabase.from('system_config').select('*').single();
-    return data || null;
+  saveEmailConfig: async (config: EmailConfig) => {
+    // 1. Tentar gravar em snake_case (Padrão SQL/Supabase)
+    const { error } = await supabase.from('email_config').upsert({ 
+        id: 'default_config',
+        service_id: config.serviceId,
+        public_key: config.publicKey,
+        templates: config.templates
+    });
+
+    if (error) {
+         // 2. Fallback: Se falhar (ex: colunas não existem), tentar gravar em camelCase
+         console.warn("Falha ao gravar email_config em snake_case. A tentar camelCase...", error);
+         const { error: retryError } = await supabase.from('email_config').upsert({ 
+            id: 'default_config',
+            serviceId: config.serviceId,
+            publicKey: config.publicKey,
+            templates: config.templates
+        });
+        
+        if (retryError) throw retryError;
+    }
   },
+
+  // --- SYSTEM CONFIG (Branding - Correção de Persistência) ---
+  getSystemConfig: async (): Promise<SystemConfig | null> => {
+    const { data, error } = await supabase.from('system_config').select('*').single();
+    if (error || !data) return null;
+
+    // Mapeamento Robusto
+    return {
+        logoUrl: data.logo_url ?? data.logoUrl ?? '',
+        faviconUrl: data.favicon_url ?? data.faviconUrl ?? '',
+        platformName: data.platform_name ?? data.platformName ?? ''
+    } as SystemConfig;
+  },
+
   saveSystemConfig: async (config: SystemConfig) => {
-      await supabase.from('system_config').upsert({ ...config, id: 'default_system_config' });
+      // 1. Tentar gravar em snake_case
+      const { error } = await supabase.from('system_config').upsert({ 
+          id: 'default_system_config',
+          logo_url: config.logoUrl,
+          favicon_url: config.faviconUrl,
+          platform_name: config.platformName
+      });
+
+      if (error) {
+          // 2. Fallback camelCase
+          console.warn("Falha ao gravar system_config em snake_case. A tentar camelCase...", error);
+          const { error: retryError } = await supabase.from('system_config').upsert({ 
+              id: 'default_system_config',
+              logoUrl: config.logoUrl,
+              faviconUrl: config.faviconUrl,
+              platformName: config.platformName
+          });
+          
+          if (retryError) throw retryError;
+      }
   },
 
   // --- AUTH / SESSION ---
