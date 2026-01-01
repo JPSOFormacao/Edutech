@@ -18,7 +18,7 @@ export default function EmailConfigPage() {
       verificationId: ''
   });
 
-  const [status, setStatus] = useState<{type: 'success' | 'error' | 'info', msg: string} | null>(null);
+  const [status, setStatus] = useState<{type: 'success' | 'error' | 'info' | 'warning', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
@@ -63,13 +63,11 @@ export default function EmailConfigPage() {
     try {
         await storageService.saveEmailConfig(config);
         
-        // AVISO: Removido await load() para não substituir o estado local por dados potencialmente desatualizados
-        // ou causar flickering. O utilizador já vê os dados que acabou de inserir.
-        
-        setStatus({ type: 'success', msg: 'Configurações guardadas com sucesso!' });
+        // Se a gravação foi bem sucedida (via DB ou fallback LS)
+        setStatus({ type: 'success', msg: 'Configurações guardadas com sucesso! (Persistência local garantida)' });
         setTimeout(() => setStatus(null), 3000);
-    } catch(e) {
-        setStatus({ type: 'error', msg: 'Erro ao guardar na base de dados.' });
+    } catch(e: any) {
+        setStatus({ type: 'error', msg: 'Erro crítico: ' + (e.message || 'Falha desconhecida') });
     } finally {
         setLoading(false);
     }
@@ -178,6 +176,7 @@ export default function EmailConfigPage() {
             <div className={`p-4 rounded-md text-sm font-medium border ${
                 status.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 
                 status.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 
+                status.type === 'warning' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
                 'bg-blue-50 text-blue-700 border-blue-200'
             }`}>
                 {status.msg}

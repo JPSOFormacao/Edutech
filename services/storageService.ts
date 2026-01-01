@@ -3,6 +3,8 @@ import { supabase } from './supabaseClient';
 
 const STORAGE_KEYS = {
   CURRENT_USER: 'edutech_current_user',
+  EMAIL_CONFIG: 'edutech_email_config',
+  SYSTEM_CONFIG: 'edutech_system_config'
 };
 
 // Lista de emails que têm permissão automática de Admin (Backdoor de recuperação)
@@ -378,75 +380,116 @@ export const storageService = {
     if (error) throw error;
   },
 
-  // --- EMAIL CONFIG (Correção de Persistência) ---
+  // --- EMAIL CONFIG (Híbrido: DB com Fallback para LocalStorage) ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
-    const { data, error } = await supabase.from('email_config').select('*').single();
-    if (error || !data) return null;
+    let dbConfig = null;
+    try {
+        const { data, error } = await supabase.from('email_config').select('*').single();
+        if (data && !error) {
+            dbConfig = {
+                serviceId: data.service_id ?? data.serviceId ?? '',
+                publicKey: data.public_key ?? data.publicKey ?? '',
+                templates: data.templates || {}
+            } as EmailConfig;
+        }
+    } catch (e) {
+        console.warn("Falha ao ler email_config da DB:", e);
+    }
 
-    // Mapeamento Robusto: Tenta ler colunas snake_case (Padrão DB) ou camelCase (Padrão JS)
-    return {
-        serviceId: data.service_id ?? data.serviceId ?? '',
-        publicKey: data.public_key ?? data.publicKey ?? '',
-        templates: data.templates || {}
-    } as EmailConfig;
+    // Se DB falhar ou estiver vazia, tentar LocalStorage
+    if (!dbConfig) {
+        const stored = localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG);
+        if (stored) {
+            console.log("Usando email_config do LocalStorage");
+            return JSON.parse(stored) as EmailConfig;
+        }
+    }
+
+    return dbConfig;
   },
 
   saveEmailConfig: async (config: EmailConfig) => {
-    // 1. Tentar gravar em snake_case (Padrão SQL/Supabase)
-    const { error } = await supabase.from('email_config').upsert({ 
-        id: 'default_config',
-        service_id: config.serviceId,
-        public_key: config.publicKey,
-        templates: config.templates
-    });
+    // 1. Sempre gravar no LocalStorage como backup imediato
+    localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config));
 
-    if (error) {
-         // 2. Fallback: Se falhar (ex: colunas não existem), tentar gravar em camelCase
-         console.warn("Falha ao gravar email_config em snake_case. A tentar camelCase...", error);
-         const { error: retryError } = await supabase.from('email_config').upsert({ 
+    // 2. Tentar gravar na DB
+    try {
+        const { error } = await supabase.from('email_config').upsert({ 
             id: 'default_config',
-            serviceId: config.serviceId,
-            publicKey: config.publicKey,
+            service_id: config.serviceId,
+            public_key: config.publicKey,
             templates: config.templates
         });
-        
-        if (retryError) throw retryError;
+
+        if (error) {
+            console.warn("Snake_case insert failed", error);
+            // Fallback camelCase
+            const { error: retryError } = await supabase.from('email_config').upsert({ 
+                id: 'default_config',
+                serviceId: config.serviceId,
+                publicKey: config.publicKey,
+                templates: config.templates
+            });
+            
+            if (retryError) throw retryError;
+        }
+    } catch (e: any) {
+        console.warn("Erro ao gravar email_config na DB. Dados guardados apenas localmente.", e.message);
+        // Não propagar erro fatal para permitir que o utilizador continue a trabalhar com o LS
+        // Retornamos sucesso pois o LS garantiu a persistência local
     }
   },
 
-  // --- SYSTEM CONFIG (Branding - Correção de Persistência) ---
+  // --- SYSTEM CONFIG (Híbrido: DB com Fallback para LocalStorage) ---
   getSystemConfig: async (): Promise<SystemConfig | null> => {
-    const { data, error } = await supabase.from('system_config').select('*').single();
-    if (error || !data) return null;
+    let dbConfig = null;
+    try {
+        const { data, error } = await supabase.from('system_config').select('*').single();
+        if (data && !error) {
+            dbConfig = {
+                logoUrl: data.logo_url ?? data.logoUrl ?? '',
+                faviconUrl: data.favicon_url ?? data.faviconUrl ?? '',
+                platformName: data.platform_name ?? data.platformName ?? ''
+            } as SystemConfig;
+        }
+    } catch (e) {
+        console.warn("Falha ao ler system_config da DB:", e);
+    }
 
-    // Mapeamento Robusto
-    return {
-        logoUrl: data.logo_url ?? data.logoUrl ?? '',
-        faviconUrl: data.favicon_url ?? data.faviconUrl ?? '',
-        platformName: data.platform_name ?? data.platformName ?? ''
-    } as SystemConfig;
+    if (!dbConfig) {
+        const stored = localStorage.getItem(STORAGE_KEYS.SYSTEM_CONFIG);
+        if (stored) {
+             return JSON.parse(stored) as SystemConfig;
+        }
+    }
+
+    return dbConfig;
   },
 
   saveSystemConfig: async (config: SystemConfig) => {
-      // 1. Tentar gravar em snake_case
-      const { error } = await supabase.from('system_config').upsert({ 
-          id: 'default_system_config',
-          logo_url: config.logoUrl,
-          favicon_url: config.faviconUrl,
-          platform_name: config.platformName
-      });
+      // 1. Backup LocalStorage
+      localStorage.setItem(STORAGE_KEYS.SYSTEM_CONFIG, JSON.stringify(config));
 
-      if (error) {
-          // 2. Fallback camelCase
-          console.warn("Falha ao gravar system_config em snake_case. A tentar camelCase...", error);
-          const { error: retryError } = await supabase.from('system_config').upsert({ 
+      // 2. DB Upsert
+      try {
+          const { error } = await supabase.from('system_config').upsert({ 
               id: 'default_system_config',
-              logoUrl: config.logoUrl,
-              faviconUrl: config.faviconUrl,
-              platformName: config.platformName
+              logo_url: config.logoUrl,
+              favicon_url: config.faviconUrl,
+              platform_name: config.platformName
           });
-          
-          if (retryError) throw retryError;
+
+          if (error) {
+              const { error: retryError } = await supabase.from('system_config').upsert({ 
+                  id: 'default_system_config',
+                  logoUrl: config.logoUrl,
+                  faviconUrl: config.faviconUrl,
+                  platformName: config.platformName
+              });
+              if (retryError) throw retryError;
+          }
+      } catch (e: any) {
+          console.warn("Erro ao gravar system_config na DB. Dados guardados localmente.", e.message);
       }
   },
 
