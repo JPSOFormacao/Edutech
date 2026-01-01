@@ -31,7 +31,9 @@ export default function FileManager() {
 
   const handleDelete = async (file: UploadedFile) => {
       const hasDriveId = !!file.driveFileId;
-      const confirmMsg = hasDriveId && systemConfig?.pipedreamDeleteUrl
+      const pipedreamUrl = systemConfig?.pipedreamDeleteUrl;
+      
+      const confirmMsg = hasDriveId && pipedreamUrl
         ? 'Tem a certeza? Isto irá apagar o ficheiro do Google Drive e da aplicação.'
         : 'Tem a certeza que deseja remover o registo? (O ficheiro pode manter-se no Drive se não houver ID associado)';
 
@@ -39,15 +41,15 @@ export default function FileManager() {
           setDeleting(file.id);
           try {
               // Tentar apagar no Drive via Pipedream se configurado e se tivermos ID
-              if (hasDriveId && systemConfig?.pipedreamDeleteUrl) {
-                  // FIX: Enviar fileId na Query String E no Body para garantir que o Pipedream o encontra
-                  // independentemente da configuração do Trigger (GET vs POST parsing)
-                  const deleteUrl = new URL(systemConfig.pipedreamDeleteUrl);
+              if (hasDriveId && pipedreamUrl) {
+                  const deleteUrl = new URL(pipedreamUrl);
+                  // Query String
                   deleteUrl.searchParams.append('fileId', file.driveFileId!);
 
                   console.log(`[FileManager] A solicitar delete do ficheiro Drive: ${file.driveFileId}`);
 
-                  await fetch(deleteUrl.toString(), {
+                  // Body
+                  const response = await fetch(deleteUrl.toString(), {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ 
@@ -55,16 +57,22 @@ export default function FileManager() {
                           action: 'delete'
                       })
                   });
-              } else if (hasDriveId && !systemConfig?.pipedreamDeleteUrl) {
+
+                  // VERIFICAÇÃO CRÍTICA: Se não for 200 OK, lançar erro para impedir delete local
+                  if (!response.ok) {
+                      throw new Error(`Falha no Pipedream (${response.status}). O ficheiro NÃO foi apagado do Drive.`);
+                  }
+              } else if (hasDriveId && !pipedreamUrl) {
                   console.warn("URL de Delete do Pipedream não configurado nas Definições de Sistema.");
               }
               
+              // Se chegámos aqui, o delete remoto foi sucesso (ou ignorado por falta de config)
               // Apagar Registo Local
               await storageService.deleteFile(file.id);
               loadFiles();
-          } catch (e) {
+          } catch (e: any) {
               console.error(e);
-              alert("Erro ao apagar ficheiro.");
+              alert("Erro ao apagar ficheiro: " + e.message);
           } finally {
               setDeleting(null);
           }
