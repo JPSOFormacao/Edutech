@@ -139,6 +139,17 @@ export interface Testimonial {
   createdAt: string;
 }
 
+export interface UploadedFile {
+  id: string;
+  fileName: string;
+  fileType: string;
+  size: number;
+  uploadedBy: string; // User ID
+  uploaderName: string; // User Name Snapshot
+  uploadDate: string;
+  context: 'material' | 'integration'; // Onde foi feito o upload
+}
+
 export interface QuizQuestion {
   id: number;
   question: string;

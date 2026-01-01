@@ -8,7 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Courses from './pages/Courses';
 import UsersPage from './pages/AdminUsers';
 import Materials from './pages/Materials';
-import MaterialEditor from './pages/MaterialEditor'; // Nova Importação
+import MaterialEditor from './pages/MaterialEditor'; 
 import CMS from './pages/CMS';
 import AIStudio from './pages/AIStudio';
 import PageViewer from './pages/PageViewer';
@@ -22,6 +22,7 @@ import VerifyEmail from './pages/VerifyEmail';
 import SystemSettings from './pages/SystemSettings'; 
 import DatabaseTest from './pages/DatabaseTest'; 
 import IntegrationsPage from './pages/Integrations'; 
+import FileManager from './pages/FileManager'; // Nova Importação
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -349,6 +350,11 @@ export default function App() {
             
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/community" element={<CommunityPage />} />
+
+            {/* Rota de Ficheiros (Acessível a não alunos) */}
+            <Route path="/files" element={
+                user?.role !== UserRole.ALUNO ? <FileManager /> : <Navigate to="/" />
+            } />
 
             {/* Protected Routes based on Permissions */}
             <Route path="/users" element={

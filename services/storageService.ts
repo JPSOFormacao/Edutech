@@ -1,4 +1,4 @@
-import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig } from '../types';
+import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig, UploadedFile } from '../types';
 import { supabase } from './supabaseClient';
 
 const STORAGE_KEYS = {
@@ -11,7 +11,8 @@ const STORAGE_KEYS = {
   COURSES: 'edutech_courses',
   MATERIALS: 'edutech_materials',
   PAGES: 'edutech_pages',
-  TESTIMONIALS: 'edutech_testimonials'
+  TESTIMONIALS: 'edutech_testimonials',
+  FILES: 'edutech_files'
 };
 
 // Lista de emails que têm permissão automática de Admin (Backdoor de recuperação)
@@ -411,6 +412,17 @@ export const storageService = {
     return deleteWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, id);
   },
 
+  // --- UPLOADED FILES ---
+  getFiles: async (): Promise<UploadedFile[]> => {
+    return fetchWithFallback('uploaded_files', STORAGE_KEYS.FILES);
+  },
+  saveFile: async (file: UploadedFile) => {
+    return saveWithFallback('uploaded_files', STORAGE_KEYS.FILES, [file]);
+  },
+  deleteFile: async (id: string) => {
+    return deleteWithFallback('uploaded_files', STORAGE_KEYS.FILES, id);
+  },
+
   // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
     const baseConfig: EmailConfig = {
@@ -608,8 +620,7 @@ export const storageService = {
       }
     } else {
         // Auto-reparação de Super Admin
-        // Cast user.role to any to avoid overlap error if TS thinks user.role excludes ADMIN
-        if (isSuperAdmin && ((user.role as any) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
+        if (isSuperAdmin && ((user.role as UserRole) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
              user = { ...user, role: UserRole.ADMIN, roleId: 'role_admin', status: UserStatus.ACTIVE };
              await storageService.saveUser(user);
         }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Icons } from './Icons';
-import { User, PERMISSIONS, SystemConfig, UserStatus } from '../types';
+import { User, PERMISSIONS, SystemConfig, UserStatus, UserRole } from '../types';
 import { storageService } from '../services/storageService';
 
 interface SidebarProps {
@@ -103,6 +103,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
                 <NavItem to="/courses" icon={Icons.Courses} label="Meus Cursos" />
                 <NavItem to="/materials" icon={Icons.Materials} label="Materiais Didáticos" />
             </>
+        )}
+        
+        {/* Apenas para Staff (Não Alunos) */}
+        {user.role !== UserRole.ALUNO && (
+             <>
+                <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Ferramentas
+                </div>
+                <NavItem to="/files" icon={Icons.FileText} label="Gestão de Ficheiros" />
+             </>
         )}
         
         {(hasPermission(PERMISSIONS.MANAGE_USERS) || hasPermission(PERMISSIONS.MANAGE_CONTENT)) && (

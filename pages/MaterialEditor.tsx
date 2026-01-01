@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { storageService } from '../services/storageService';
-import { Material, MaterialType, Course, SystemConfig } from '../types';
+import { Material, MaterialType, Course, SystemConfig, UploadedFile } from '../types';
 import { useAuth } from '../App';
 import { Button, Input } from '../components/UI';
 import { Icons } from '../components/Icons';
@@ -9,7 +9,7 @@ import { Icons } from '../components/Icons';
 export default function MaterialEditor() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { systemConfig, refreshSystemConfig } = useAuth();
+    const { systemConfig, refreshSystemConfig, user } = useAuth();
     
     const [material, setMaterial] = useState<Partial<Material>>({
         title: '',
@@ -142,12 +142,27 @@ export default function MaterialEditor() {
                     mimetype: file.type,
                     size: file.size,
                     fileData: base64Data,
-                    uploadedBy: 'Material Editor',
+                    uploadedBy: user?.name || 'Material Editor',
                     timestamp: new Date().toISOString()
                 })
             });
 
             if (response.ok) {
+                // Registar ficheiro
+                if (user) {
+                    const newFile: UploadedFile = {
+                        id: 'file_' + Date.now(),
+                        fileName: file.name,
+                        fileType: file.type,
+                        size: file.size,
+                        uploadedBy: user.id,
+                        uploaderName: user.name,
+                        uploadDate: new Date().toISOString(),
+                        context: 'material'
+                    };
+                    await storageService.saveFile(newFile);
+                }
+
                 setUploadStatus({ type: 'success', msg: 'Upload OK' });
                 // Auto-fill the link field
                 const driveLinkText = `[Ficheiro Drive]: ${file.name}`;

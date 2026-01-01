@@ -76,16 +76,16 @@ export default function UsersPage() {
   // --- Filter Logic for Tabs ---
   const filteredUsers = React.useMemo(() => {
       if (activeTab === 'staff') {
-          // Filtra Admins e Editores, ordenados por: Admin primeiro
+          // Filtra TODOS que NÃO são Alunos (Admin, Editor, e Custom Roles não-Alunos)
           return users
-            .filter(u => u.role === UserRole.ADMIN || u.role === UserRole.EDITOR)
+            .filter(u => u.role !== UserRole.ALUNO)
             .sort((a, b) => {
                 if (a.role === UserRole.ADMIN && b.role !== UserRole.ADMIN) return -1;
                 if (a.role !== UserRole.ADMIN && b.role === UserRole.ADMIN) return 1;
                 return a.name.localeCompare(b.name);
             });
       } else {
-          // Filtra Alunos
+          // Filtra APENAS Alunos
           // Ordenação: Pendentes de Atenção primeiro, depois alfabético
           return users
             .filter(u => u.role === UserRole.ALUNO)
@@ -497,7 +497,7 @@ export default function UsersPage() {
                   <Icons.Shield className="w-4 h-4" />
                   Equipa & Gestão
                   <span className="bg-gray-100 text-gray-600 py-0.5 px-2.5 rounded-full text-xs ml-2">
-                      {users.filter(u => u.role === UserRole.ADMIN || u.role === UserRole.EDITOR).length}
+                      {users.filter(u => u.role !== UserRole.ALUNO).length}
                   </span>
               </button>
 
@@ -610,7 +610,8 @@ export default function UsersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
                             ${user.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-800' : 
-                              user.role === UserRole.EDITOR ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                              user.role === UserRole.EDITOR ? 'bg-blue-100 text-blue-800' : 
+                              user.role !== UserRole.ALUNO ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-800'}`}>
                             {getRoleName(user.roleId)}
                         </span>
                     </td>

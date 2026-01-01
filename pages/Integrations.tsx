@@ -3,9 +3,10 @@ import { useAuth } from '../App';
 import { Icons } from '../components/Icons';
 import { Button } from '../components/UI';
 import { storageService } from '../services/storageService';
+import { UploadedFile } from '../types';
 
 export default function IntegrationsPage() {
-    const { systemConfig, refreshSystemConfig } = useAuth();
+    const { systemConfig, refreshSystemConfig, user } = useAuth();
     const [webhookUrl, setWebhookUrl] = useState('');
     const [file, setFile] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -73,13 +74,28 @@ export default function IntegrationsPage() {
                     mimetype: file.type,
                     size: file.size,
                     fileData: base64Data, // Payload Base64
-                    uploadedBy: 'EduTech Platform',
+                    uploadedBy: user?.name || 'EduTech User',
                     timestamp: new Date().toISOString()
                 })
             });
 
             if (response.ok) {
-                setStatus({ type: 'success', msg: 'Sucesso! Ficheiro enviado para o fluxo de integração.' });
+                // 3. Registar o ficheiro na app
+                if (user) {
+                    const newFile: UploadedFile = {
+                        id: 'file_' + Date.now(),
+                        fileName: file.name,
+                        fileType: file.type,
+                        size: file.size,
+                        uploadedBy: user.id,
+                        uploaderName: user.name,
+                        uploadDate: new Date().toISOString(),
+                        context: 'integration'
+                    };
+                    await storageService.saveFile(newFile);
+                }
+
+                setStatus({ type: 'success', msg: 'Sucesso! Ficheiro enviado para o fluxo de integração e registado.' });
                 setFile(null); // Reset
                 // Reset input value
                 const input = document.getElementById('file-upload') as HTMLInputElement;
