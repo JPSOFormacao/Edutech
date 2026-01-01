@@ -130,14 +130,14 @@ export const emailService = {
     const config = await storageService.getEmailConfig();
     
     // VALIDACAO DETALHADA PARA DEBUG
-    if (!config) return { success: false, message: "Configuração de email vazia." };
+    if (!config) return { success: false, message: "Erro de Configuração: Configuração de email vazia." };
     
     if (!config.serviceId) {
-        return { success: false, message: "Falta configurar o Service ID." };
+        return { success: false, message: "Erro de Configuração: Falta configurar o Service ID." };
     }
     
     if (!config.publicKey) {
-        return { success: false, message: "Falta configurar a Public Key." };
+        return { success: false, message: "Erro de Configuração: Falta configurar a Public Key." };
     }
 
     // Tenta encontrar ID de verificação, senão usa notificação ou welcome como fallback
@@ -147,7 +147,7 @@ export const emailService = {
                        (config as any)?.templateId;
 
     if (!templateId) {
-         return { success: false, message: "Nenhum Template ID encontrado. Configure o template de 'Verificação' ou 'Boas-vindas'." };
+         return { success: false, message: "Erro de Configuração: Nenhum Template ID encontrado. Configure o template de 'Verificação' ou 'Boas-vindas'." };
     }
     
     // Constrói uma mensagem HTML com botão

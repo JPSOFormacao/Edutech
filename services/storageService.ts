@@ -380,10 +380,10 @@ export const storageService = {
     if (error) throw error;
   },
 
-  // --- EMAIL CONFIG (Prioridade Absoluta ao LocalStorage se existir e não for vazio) ---
+  // --- EMAIL CONFIG (Merge Strategy: DB + LocalStorage) ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
-    // Inicializar Configuração Vazia Base
-    const finalConfig: EmailConfig = {
+    // 1. Objeto Base (com valores vazios para evitar undefined)
+    const baseConfig: EmailConfig = {
         serviceId: '',
         publicKey: '',
         templates: {
@@ -395,55 +395,66 @@ export const storageService = {
         }
     };
 
-    // 1. Tentar ler DB (Backend)
+    // 2. Tentar ler da DB (Backend Source)
+    let dbData: Partial<EmailConfig> = {};
     try {
         const { data, error } = await supabase.from('email_config').select('*').single();
         if (data && !error) {
-            if (data.service_id || data.serviceId) finalConfig.serviceId = data.service_id ?? data.serviceId;
-            if (data.public_key || data.publicKey) finalConfig.publicKey = data.public_key ?? data.publicKey;
+            dbData.serviceId = data.service_id ?? data.serviceId;
+            dbData.publicKey = data.public_key ?? data.publicKey;
             
-            let dbTemplates = data.templates;
-            if (typeof dbTemplates === 'string') {
-                try { dbTemplates = JSON.parse(dbTemplates); } catch(e) {}
+            let t = data.templates;
+            if (typeof t === 'string') {
+                 try { t = JSON.parse(t); } catch(e) {}
             }
-            if (dbTemplates) {
-                // Merge templates
-                for(const key in dbTemplates) {
-                    // @ts-ignore
-                    if(dbTemplates[key]) finalConfig.templates[key] = dbTemplates[key];
-                }
-            }
+            dbData.templates = t;
         }
     } catch (e) { console.warn("Erro DB Read EmailConfig:", e); }
 
-    // 2. Ler LocalStorage (Frontend Cache/Override)
-    // A lógica aqui é: O LocalStorage sobrepõe SEMPRE se tiver valores, pois assume-se que é a edição mais recente feita pelo admin nesta máquina.
+    // 3. Tentar ler do LocalStorage (Local Cache Source)
+    let localData: Partial<EmailConfig> = {};
     try {
         const stored = localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG);
         if (stored) {
-            const localConfig = JSON.parse(stored) as EmailConfig;
-            
-            if (localConfig.serviceId) finalConfig.serviceId = localConfig.serviceId;
-            if (localConfig.publicKey) finalConfig.publicKey = localConfig.publicKey;
-            
-            if (localConfig.templates) {
-                 for(const key in localConfig.templates) {
-                     // @ts-ignore
-                     if(localConfig.templates[key]) finalConfig.templates[key] = localConfig.templates[key];
-                 }
-            }
+            localData = JSON.parse(stored);
         }
     } catch (e) { console.warn("Erro LocalStorage EmailConfig:", e); }
 
-    // Retornamos sempre um objeto válido, mesmo que vazio
-    return finalConfig;
+    // 4. Merge Estratégico (Preencher o baseConfig)
+    // Regra: Se a DB tem valor, usa DB. Se a DB não tem mas o LocalStorage tem, usa LS.
+    
+    // Service ID
+    if (dbData.serviceId) baseConfig.serviceId = dbData.serviceId;
+    else if (localData.serviceId) baseConfig.serviceId = localData.serviceId;
+
+    // Public Key
+    if (dbData.publicKey) baseConfig.publicKey = dbData.publicKey;
+    else if (localData.publicKey) baseConfig.publicKey = localData.publicKey;
+
+    // Templates
+    const dbTemplates = dbData.templates || {};
+    const localTemplates = localData.templates || {};
+
+    // Merge templates keys one by one
+    // @ts-ignore
+    baseConfig.templates.welcomeId = dbTemplates.welcomeId || localTemplates.welcomeId || '';
+    // @ts-ignore
+    baseConfig.templates.resetPasswordId = dbTemplates.resetPasswordId || localTemplates.resetPasswordId || '';
+    // @ts-ignore
+    baseConfig.templates.enrollmentId = dbTemplates.enrollmentId || localTemplates.enrollmentId || '';
+    // @ts-ignore
+    baseConfig.templates.notificationId = dbTemplates.notificationId || localTemplates.notificationId || '';
+    // @ts-ignore
+    baseConfig.templates.verificationId = dbTemplates.verificationId || localTemplates.verificationId || '';
+
+    return baseConfig;
   },
 
   saveEmailConfig: async (config: EmailConfig) => {
-    // 1. LocalStorage (Garantia de persistência local)
+    // 1. LocalStorage (Persistência Instantânea)
     localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config));
 
-    // 2. DB (Tentativa de Sincronização)
+    // 2. DB
     try {
         const payload = {
             id: 'default_config', 
@@ -455,7 +466,7 @@ export const storageService = {
         const { error } = await supabase.from('email_config').upsert(payload);
         
         if (error) {
-            console.error("Erro Supabase SnakeCase:", error);
+            console.error("Erro Supabase Email Config:", error);
             // Fallback CamelCase
             await supabase.from('email_config').upsert({
                 id: 'default_config',
@@ -466,7 +477,6 @@ export const storageService = {
         }
     } catch (e: any) {
         console.warn("Falha silenciosa ao gravar DB. Dados mantidos no LocalStorage.", e);
-        // Não lançar erro para não bloquear a UI, visto que o LS funcionou
     }
   },
 
