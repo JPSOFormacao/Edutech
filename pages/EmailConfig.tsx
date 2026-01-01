@@ -5,40 +5,57 @@ import { Button, Input } from '../components/UI';
 import { Icons } from '../components/Icons';
 import { EmailTemplates } from '../types';
 
+// Valores padrão para garantir que os inputs nunca ficam undefined
+const DEFAULT_TEMPLATES: EmailTemplates = {
+    welcomeId: '',
+    resetPasswordId: '',
+    enrollmentId: '',
+    notificationId: '',
+    verificationId: ''
+};
+
 export default function EmailConfigPage() {
   const [serviceId, setServiceId] = useState('');
   const [publicKey, setPublicKey] = useState('');
   
-  // Templates
-  const [templates, setTemplates] = useState<EmailTemplates>({
-      welcomeId: '',
-      resetPasswordId: '',
-      enrollmentId: '',
-      notificationId: '',
-      verificationId: ''
-  });
+  // Templates iniciados com padrão
+  const [templates, setTemplates] = useState<EmailTemplates>(DEFAULT_TEMPLATES);
 
   const [status, setStatus] = useState<{type: 'success' | 'error' | 'info' | 'warning', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
-    const config = await storageService.getEmailConfig();
-    if (config) {
-      setServiceId(config.serviceId);
-      setPublicKey(config.publicKey);
-      if (config.templates) {
-          setTemplates(config.templates);
-      } else {
-          // Migração legacy: se só existir templateId antigo, assumir como welcome/general
-          const legacyTemplate = (config as any).templateId || '';
-          setTemplates({
-              welcomeId: legacyTemplate,
-              resetPasswordId: legacyTemplate,
-              enrollmentId: legacyTemplate,
-              notificationId: legacyTemplate,
-              verificationId: legacyTemplate
-          });
-      }
+    try {
+        const config = await storageService.getEmailConfig();
+        if (config) {
+          setServiceId(config.serviceId || '');
+          setPublicKey(config.publicKey || '');
+          
+          if (config.templates && Object.keys(config.templates).length > 0) {
+              // MERGE IMPORTANTE: 
+              // Mistura os defaults com o que vem da DB. 
+              // Isto garante que se adicionar um novo tipo de template no futuro, o input não crasha.
+              setTemplates((prev) => ({
+                  ...DEFAULT_TEMPLATES,
+                  ...config.templates
+              }));
+          } else {
+              // Migração legacy: se só existir templateId antigo na raiz
+              const legacyTemplate = (config as any).templateId || '';
+              if (legacyTemplate) {
+                  setTemplates({
+                      ...DEFAULT_TEMPLATES,
+                      welcomeId: legacyTemplate,
+                      resetPasswordId: legacyTemplate,
+                      enrollmentId: legacyTemplate,
+                      notificationId: legacyTemplate,
+                      verificationId: legacyTemplate
+                  });
+              }
+          }
+        }
+    } catch (error) {
+        console.error("Erro ao carregar configurações:", error);
     }
   };
 
@@ -53,9 +70,11 @@ export default function EmailConfigPage() {
     }
     
     setLoading(true);
+    
+    // Preparar objeto limpo
     const config = { 
         serviceId: serviceId.trim(), 
-        templateId: templates.welcomeId, // Mantendo retrocompatibilidade no campo raiz se necessário
+        templateId: templates.welcomeId, // Legacy fallback
         publicKey: publicKey.trim(),
         templates: templates
     };
@@ -63,8 +82,9 @@ export default function EmailConfigPage() {
     try {
         await storageService.saveEmailConfig(config);
         
-        // Se a gravação foi bem sucedida (via DB ou fallback LS)
-        setStatus({ type: 'success', msg: 'Configurações guardadas com sucesso! (Persistência local garantida)' });
+        setStatus({ type: 'success', msg: 'Configurações guardadas com sucesso!' });
+        
+        // Pequeno delay para limpar mensagem, mas NÃO recarregamos a página forçosamente
         setTimeout(() => setStatus(null), 3000);
     } catch(e: any) {
         setStatus({ type: 'error', msg: 'Erro crítico: ' + (e.message || 'Falha desconhecida') });
@@ -83,6 +103,8 @@ export default function EmailConfigPage() {
         publicKey: publicKey.trim(),
         templates: templates
     };
+    
+    // Salvar antes de testar para garantir persistência
     await storageService.saveEmailConfig(config);
 
     try {

@@ -386,10 +386,22 @@ export const storageService = {
     try {
         const { data, error } = await supabase.from('email_config').select('*').single();
         if (data && !error) {
+            
+            // Garantir que templates é um objeto, mesmo se vier como string JSON de algumas DBs
+            let templates = data.templates;
+            if (typeof templates === 'string') {
+                try {
+                    templates = JSON.parse(templates);
+                } catch (e) {
+                    console.warn("Erro ao fazer parse de templates JSON string", e);
+                    templates = {};
+                }
+            }
+
             dbConfig = {
                 serviceId: data.service_id ?? data.serviceId ?? '',
                 publicKey: data.public_key ?? data.publicKey ?? '',
-                templates: data.templates || {}
+                templates: templates || {}
             } as EmailConfig;
         }
     } catch (e) {
@@ -418,7 +430,7 @@ export const storageService = {
             id: 'default_config',
             service_id: config.serviceId,
             public_key: config.publicKey,
-            templates: config.templates
+            templates: config.templates // Supabase lida com JSONB, se for text pode precisar de stringify
         });
 
         if (error) {
