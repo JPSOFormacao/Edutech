@@ -54,20 +54,19 @@ export const emailService = {
     // Tenta usar o template de welcome como default para teste, ou o genérico antigo
     const templateId = config?.templates?.welcomeId || (config as any)?.templateId;
     
-    // Debug info para a consola
     console.log("Teste de Email - Config Carregada:", config);
 
     if (!config) {
         return { success: false, message: "Objeto de configuração é nulo." };
     }
     if (!config.serviceId) {
-         return { success: false, message: "Service ID em falta." };
+         return { success: false, message: "Service ID em falta nas configurações." };
     }
     if (!config.publicKey) {
-         return { success: false, message: "Public Key em falta." };
+         return { success: false, message: "Public Key em falta nas configurações." };
     }
     if (!templateId) {
-         return { success: false, message: "Template ID (Boas-vindas) em falta." };
+         return { success: false, message: "Template ID (Boas-vindas) em falta. Configure pelo menos o template de Boas-vindas." };
     }
 
     const currentUser = storageService.getCurrentUser();
@@ -87,14 +86,12 @@ export const emailService = {
 
         // Conteúdo
         message: "O sistema de email está configurado e operacional.",
-        training_details: "Turma: Teste A\nCursos: Curso de Teste", // Exemplo para o teste
+        training_details: "Turma: Teste A\nCursos: Curso de Teste", 
         password: "senha-de-teste", 
         
         from_name: SYSTEM_NAME,
         reply_to: SYSTEM_EMAIL,
       };
-
-      console.log("Enviando Teste com Params:", templateParams);
 
       await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
       return { success: true };
@@ -108,7 +105,7 @@ export const emailService = {
     const config = await storageService.getEmailConfig();
     const templateId = config?.templates?.notificationId || (config as any)?.templateId;
     
-    if (!config || !templateId) return false;
+    if (!config || !templateId || !config.serviceId || !config.publicKey) return false;
     
     try {
         await emailjs.send(config.serviceId, templateId, {
@@ -118,7 +115,7 @@ export const emailService = {
             training_details: "N/A",
             from_name: SYSTEM_NAME,
             reply_to: SYSTEM_EMAIL,
-            to_email: toEmail, // Permite envio para utilizador (se especificado) ou sistema
+            to_email: toEmail, 
             email: toEmail,
             password: 'N/A' 
         }, config.publicKey);
@@ -132,11 +129,25 @@ export const emailService = {
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
     
-    // Tenta encontrar ID de verificação, senão usa notificação ou welcome como fallback
-    const templateId = config?.templates?.verificationId || config?.templates?.notificationId || config?.templates?.welcomeId || (config as any)?.templateId;
+    // VALIDACAO DETALHADA PARA DEBUG
+    if (!config) return { success: false, message: "Configuração de email vazia." };
+    
+    if (!config.serviceId) {
+        return { success: false, message: "Falta configurar o Service ID." };
+    }
+    
+    if (!config.publicKey) {
+        return { success: false, message: "Falta configurar a Public Key." };
+    }
 
-    if (!config || !templateId || !config.serviceId || !config.publicKey) {
-         return { success: false, message: "Serviço de Email não configurado no sistema." };
+    // Tenta encontrar ID de verificação, senão usa notificação ou welcome como fallback
+    const templateId = config.templates?.verificationId || 
+                       config.templates?.notificationId || 
+                       config.templates?.welcomeId || 
+                       (config as any)?.templateId;
+
+    if (!templateId) {
+         return { success: false, message: "Nenhum Template ID encontrado. Configure o template de 'Verificação' ou 'Boas-vindas'." };
     }
     
     // Constrói uma mensagem HTML com botão
@@ -157,15 +168,15 @@ export const emailService = {
             name: toName,
             to_email: toEmail,
             email: toEmail,
-            message: messageBody, // Garante que se o template usar {{message}}, o link vai lá
+            message: messageBody, 
             from_name: SYSTEM_NAME,
             reply_to: SYSTEM_EMAIL,
-            verification_link: verificationLink // Garante que se o template usar {{verification_link}}, o link vai lá
+            verification_link: verificationLink 
         }, config.publicKey);
         return { success: true };
     } catch (e: any) {
         console.error("Erro Email Verificação:", e);
-        return { success: false, message: e?.text || 'Erro no envio de email.' };
+        return { success: false, message: `Erro EmailJS: ${e?.text || e?.message || 'Falha de envio'}` };
     }
   },
 
@@ -173,13 +184,13 @@ export const emailService = {
     const config = await storageService.getEmailConfig();
     const templateId = config?.templates?.welcomeId || (config as any)?.templateId;
     
-    if (!config || !templateId) return { success: false, message: "Configuração de Email inexistente." };
+    if (!config) return { success: false, message: "Configuração de email vazia." };
+    if (!templateId) return { success: false, message: "Template de Boas-vindas não configurado." };
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
 
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
 
-    // Construímos o corpo da mensagem para funcionar mesmo que o utilizador use apenas {{message}} no template
     const messageBody = `
       Bem-vindo à EduTech PT!
       
@@ -197,32 +208,24 @@ export const emailService = {
     const templateParams = {
         to_name: toName,
         name: toName,
-        
-        // Variáveis de destino
         to_email: cleanEmail, 
         user_email: cleanEmail, 
         email: cleanEmail,
         recipient: cleanEmail,
         to: cleanEmail,
-        
-        // Conteúdo
-        message: messageBody, // Contém tudo concatenado por segurança
-        training_details: trainingDetails, // Variável separada para templates avançados
+        message: messageBody,
+        training_details: trainingDetails,
         password: tempPass,
-        
-        // Remetente
         from_name: SYSTEM_NAME,
         reply_to: SYSTEM_EMAIL
     };
 
     try {
-        console.log("A enviar email de boas-vindas para:", cleanEmail);
         await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
         return { success: true };
     } catch (e: any) {
         console.error("Erro Fatal EmailJS:", e);
-        const errorMsg = e?.text || e?.message || JSON.stringify(e);
-        return { success: false, message: errorMsg };
+        return { success: false, message: e?.text || e?.message || JSON.stringify(e) };
     }
   },
 
@@ -230,7 +233,7 @@ export const emailService = {
     const config = await storageService.getEmailConfig();
     const templateId = config?.templates?.resetPasswordId || (config as any)?.templateId;
     
-    if (!config || !templateId) return { success: false, message: "Configuração de Email inexistente." };
+    if (!config || !templateId) return { success: false, message: "Template de Reset de Senha não configurado." };
 
     if (!toEmail) return { success: false, message: "Email de destino vazio." };
     const cleanEmail = toEmail.trim();
@@ -256,11 +259,9 @@ export const emailService = {
         email: cleanEmail,
         recipient: cleanEmail,
         to: cleanEmail,
-        
         message: messageBody,
         training_details: trainingDetails,
         password: newPass,
-        
         from_name: SYSTEM_NAME,
         reply_to: SYSTEM_EMAIL
     };
@@ -270,8 +271,7 @@ export const emailService = {
         return { success: true };
     } catch (e: any) {
         console.error("Erro Fatal EmailJS:", e);
-        const errorMsg = e?.text || e?.message || JSON.stringify(e);
-        return { success: false, message: errorMsg };
+        return { success: false, message: e?.text || e?.message || JSON.stringify(e) };
     }
   }
 };
