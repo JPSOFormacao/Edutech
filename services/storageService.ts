@@ -267,7 +267,7 @@ export const storageService = {
           allowedCourses: [],
           avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
           mustChangePassword: false,
-          emailVerified: true, // AUTO-VERIFICADO (Alteração Solicitada)
+          emailVerified: false, // VERIFICAÇÃO OBRIGATÓRIA (Link por email)
           verificationToken: verificationToken,
           ...user
       } as User;

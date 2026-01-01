@@ -21,27 +21,28 @@ export default function EmailConfigPage() {
   const [status, setStatus] = useState<{type: 'success' | 'error' | 'info', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const load = async () => {
+    const config = await storageService.getEmailConfig();
+    if (config) {
+      setServiceId(config.serviceId);
+      setPublicKey(config.publicKey);
+      if (config.templates) {
+          setTemplates(config.templates);
+      } else {
+          // Migração legacy: se só existir templateId antigo, assumir como welcome/general
+          const legacyTemplate = (config as any).templateId || '';
+          setTemplates({
+              welcomeId: legacyTemplate,
+              resetPasswordId: legacyTemplate,
+              enrollmentId: legacyTemplate,
+              notificationId: legacyTemplate,
+              verificationId: legacyTemplate
+          });
+      }
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-        const config = await storageService.getEmailConfig();
-        if (config) {
-          setServiceId(config.serviceId);
-          setPublicKey(config.publicKey);
-          if (config.templates) {
-              setTemplates(config.templates);
-          } else {
-              // Migração legacy: se só existir templateId antigo, assumir como welcome/general
-              const legacyTemplate = (config as any).templateId || '';
-              setTemplates({
-                  welcomeId: legacyTemplate,
-                  resetPasswordId: legacyTemplate,
-                  enrollmentId: legacyTemplate,
-                  notificationId: legacyTemplate,
-                  verificationId: legacyTemplate
-              });
-          }
-        }
-    };
     load();
   }, []);
 
@@ -51,6 +52,7 @@ export default function EmailConfigPage() {
       return;
     }
     
+    setLoading(true);
     const config = { 
         serviceId: serviceId.trim(), 
         templateId: templates.welcomeId, // Mantendo retrocompatibilidade no campo raiz se necessário
@@ -58,10 +60,19 @@ export default function EmailConfigPage() {
         templates: templates
     };
     
-    await storageService.saveEmailConfig(config);
-    setStatus({ type: 'success', msg: 'Configurações guardadas com sucesso!' });
-    
-    setTimeout(() => setStatus(null), 3000);
+    try {
+        await storageService.saveEmailConfig(config);
+        
+        // Recarregar da DB para confirmar persistência
+        await load();
+        
+        setStatus({ type: 'success', msg: 'Configurações guardadas com sucesso!' });
+        setTimeout(() => setStatus(null), 3000);
+    } catch(e) {
+        setStatus({ type: 'error', msg: 'Erro ao guardar na base de dados.' });
+    } finally {
+        setLoading(false);
+    }
   };
 
   const handleTest = async () => {
@@ -177,8 +188,8 @@ export default function EmailConfigPage() {
             <Button variant="secondary" onClick={handleTest} disabled={loading}>
                 {loading ? 'A Enviar...' : 'Testar Configuração'}
             </Button>
-            <Button onClick={handleSave}>
-                Guardar Tudo
+            <Button onClick={handleSave} disabled={loading}>
+                {loading ? 'A Guardar...' : 'Guardar Tudo'}
             </Button>
       </div>
     </div>

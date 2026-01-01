@@ -4,6 +4,53 @@ import { storageService } from '../services/storageService';
 import { User, ClassEntity, UserRole, Course } from '../types';
 import { Icons } from '../components/Icons';
 
+// Extract UserCard outside to fix key prop issue and improve performance
+const UserCard = ({ student, currentUser, isSuperAdmin }: { student: User, currentUser: User | null, isSuperAdmin: boolean }) => {
+    const isMe = student.id === currentUser?.id;
+    const privacy = student.privacySettings || { showEmail: false, showCourses: false, showBio: false };
+    
+    const canSeeEmail = isMe || isSuperAdmin || privacy.showEmail;
+    const canSeeBio = isMe || isSuperAdmin || privacy.showBio;
+
+    return (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center hover:shadow-md transition-shadow relative overflow-hidden">
+            {isMe && <div className="absolute top-0 right-0 bg-indigo-600 text-white text-xs px-2 py-1 rounded-bl-lg font-bold">Eu</div>}
+            
+            <img 
+                src={student.avatarUrl || 'https://via.placeholder.com/150'} 
+                alt={student.name} 
+                className="w-24 h-24 rounded-full object-cover border-4 border-gray-100 mb-4"
+            />
+            
+            <h3 className="text-lg font-bold text-gray-900 leading-tight mb-1">{student.name}</h3>
+            <p className="text-indigo-600 text-xs font-medium uppercase tracking-wide mb-3">{student.role}</p>
+            
+            {/* Bio Section */}
+            {canSeeBio && student.bio ? (
+                <p className="text-gray-500 text-sm mb-4 line-clamp-3 italic">"{student.bio}"</p>
+            ) : (
+                <div className="flex-1 w-full flex items-center justify-center mb-4 min-h-[3rem]">
+                        <span className="text-gray-300 text-xs italic">Sem biografia pública</span>
+                </div>
+            )}
+
+            <div className="w-full border-t pt-4 space-y-3 mt-auto">
+                {/* Email */}
+                <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
+                    <Icons.Mail className="w-4 h-4 text-gray-400" />
+                    {canSeeEmail ? (
+                        <a href={`mailto:${student.email}`} className="hover:text-indigo-600 truncate max-w-[180px]" title={student.email}>
+                            {student.email}
+                        </a>
+                    ) : (
+                        <span className="text-gray-400 italic">Privado</span>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function CommunityPage() {
   const { user } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -49,52 +96,6 @@ export default function CommunityPage() {
   // Verificar se utilizador atual tem permissão de "Super View" (Admin) para dados privados
   const isSuperAdmin = user?.role === UserRole.ADMIN;
 
-  const UserCard = ({ student }: { student: User }) => {
-      const isMe = student.id === user?.id;
-      const privacy = student.privacySettings || { showEmail: false, showCourses: false, showBio: false };
-      
-      const canSeeEmail = isMe || isSuperAdmin || privacy.showEmail;
-      const canSeeBio = isMe || isSuperAdmin || privacy.showBio;
-
-      return (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center hover:shadow-md transition-shadow relative overflow-hidden">
-              {isMe && <div className="absolute top-0 right-0 bg-indigo-600 text-white text-xs px-2 py-1 rounded-bl-lg font-bold">Eu</div>}
-              
-              <img 
-                  src={student.avatarUrl || 'https://via.placeholder.com/150'} 
-                  alt={student.name} 
-                  className="w-24 h-24 rounded-full object-cover border-4 border-gray-100 mb-4"
-              />
-              
-              <h3 className="text-lg font-bold text-gray-900 leading-tight mb-1">{student.name}</h3>
-              <p className="text-indigo-600 text-xs font-medium uppercase tracking-wide mb-3">{student.role}</p>
-              
-              {/* Bio Section */}
-              {canSeeBio && student.bio ? (
-                  <p className="text-gray-500 text-sm mb-4 line-clamp-3 italic">"{student.bio}"</p>
-              ) : (
-                  <div className="flex-1 w-full flex items-center justify-center mb-4 min-h-[3rem]">
-                       <span className="text-gray-300 text-xs italic">Sem biografia pública</span>
-                  </div>
-              )}
-
-              <div className="w-full border-t pt-4 space-y-3 mt-auto">
-                  {/* Email */}
-                  <div className="flex items-center justify-center gap-2 text-sm text-gray-600">
-                      <Icons.Mail className="w-4 h-4 text-gray-400" />
-                      {canSeeEmail ? (
-                          <a href={`mailto:${student.email}`} className="hover:text-indigo-600 truncate max-w-[180px]" title={student.email}>
-                              {student.email}
-                          </a>
-                      ) : (
-                          <span className="text-gray-400 italic">Privado</span>
-                      )}
-                  </div>
-              </div>
-          </div>
-      );
-  };
-
   if (loading) return <div className="p-10 text-center">A carregar comunidade...</div>;
 
   return (
@@ -133,7 +134,12 @@ export default function CommunityPage() {
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                       {classUsers.map(student => (
-                          <UserCard key={`${course.id}-${student.id}`} student={student} />
+                          <UserCard 
+                              key={`${course.id}-${student.id}`} 
+                              student={student} 
+                              currentUser={user}
+                              isSuperAdmin={isSuperAdmin}
+                          />
                       ))}
                   </div>
               </div>

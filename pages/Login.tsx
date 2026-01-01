@@ -160,23 +160,21 @@ export default function Login() {
 
       try {
           // 1. Criar utilizador
-          // A conta agora é criada com emailVerified: true por defeito (ver storageService)
-          await storageService.register({
+          // Retorna o token necessário para o link
+          const { token } = await storageService.register({
               name: regName,
               fullName: regFullName,
               email: regEmail,
               password: regPass
           });
 
-          // 2. Enviar email de "Registo Recebido" / Boas-vindas (SEM link de verificação)
-          // Substituímos o sendVerificationEmail por sendNotification para o utilizador
-          const messageBody = `Olá ${regName},\n\nO seu registo na EduTech PT foi recebido com sucesso.\nA sua conta encontra-se atualmente pendente de aprovação por um Administrador.\n\nReceberá um novo email assim que a sua conta for ativada.`;
+          // 2. Enviar email de Verificação (Com Link)
+          const link = `${window.location.origin}/#/verify-email?token=${token}`;
+          const emailResult = await emailService.sendVerificationEmail(regName, regEmail, link);
           
-          const emailResult = await emailService.sendNotification(regName, messageBody, regEmail);
-          
-          if (!emailResult) {
+          if (!emailResult.success) {
               console.warn("FALHA ENVIO EMAIL DE REGISTO.");
-              setEmailError("A conta foi criada, mas não foi possível enviar o email de confirmação.");
+              setEmailError(emailResult.message || "Erro desconhecido ao enviar email.");
           }
 
           setRegisterSuccess(true);
@@ -462,10 +460,10 @@ export default function Login() {
                                <h4 className="font-bold text-red-800">Atenção: Falha no Envio de Email</h4>
                            </div>
                            <p className="text-sm text-red-700 mb-2">
-                               A sua conta foi criada com sucesso, mas o sistema não conseguiu enviar o email de confirmação.
+                               A sua conta foi criada com sucesso, mas o sistema não conseguiu enviar o email de verificação.
                            </p>
                            <p className="text-sm text-red-700">
-                               Isto acontece normalmente quando as credenciais de email (EmailJS) não estão configuradas na plataforma.
+                               {emailError}
                            </p>
                        </div>
                   ) : (
@@ -476,17 +474,16 @@ export default function Login() {
                   
                   {!emailError && (
                     <>
-                        <h3 className="text-lg leading-6 font-medium text-gray-900">Confirmação de Registo</h3>
+                        <h3 className="text-lg leading-6 font-medium text-gray-900">Verifique o seu Email</h3>
                         <p className="mt-2 text-sm text-gray-500">
-                            A sua conta foi criada com sucesso e aguarda aprovação.
-                            Enviámos um email de confirmação para <strong>{regEmail}</strong>.
+                            A sua conta foi criada. Enviámos um link de verificação para <strong>{regEmail}</strong>.
+                        </p>
+                        <p className="mt-2 text-sm text-gray-500">
+                            Por favor clique no link para validar o seu email antes de continuar.
                         </p>
                     </>
                   )}
 
-                  <p className="mt-2 text-sm text-gray-500 font-medium">
-                      Não é necessário verificar o email. Assim que um Administrador aprovar o seu registo, receberá um novo aviso.
-                  </p>
                   <div className="mt-6">
                       <Button onClick={() => setIsRegisterModalOpen(false)} className="w-full">Entendi</Button>
                   </div>
