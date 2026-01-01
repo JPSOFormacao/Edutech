@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
-import { UploadedFile, UserRole } from '../types';
+import { UploadedFile, UserRole, User } from '../types';
 import { useAuth } from '../App';
 import { Button, Badge } from '../components/UI';
 import { Icons } from '../components/Icons';
@@ -11,6 +11,10 @@ export default function FileManager() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  
+  // Selection State
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   useEffect(() => {
     loadFiles();
@@ -30,89 +34,123 @@ export default function FileManager() {
     setLoading(false);
   };
 
-  const handleDelete = async (file: UploadedFile) => {
-      if(!user) return;
+  // Lógica Central de Eliminação (Reutilizável)
+  const processFileDeletion = async (file: UploadedFile, currentUser: User): Promise<void> => {
+      const hasDriveId = !!file.driveFileId;
+      const pipedreamUrl = systemConfig?.pipedreamDeleteUrl;
 
+      // 1. Apagar do Google Drive (se configurado)
+      if (hasDriveId && pipedreamUrl) {
+          const deleteUrl = new URL(pipedreamUrl);
+          deleteUrl.searchParams.append('fileId', file.driveFileId!);
+
+          const response = await fetch(deleteUrl.toString(), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                  fileId: file.driveFileId,
+                  action: 'delete'
+              })
+          });
+
+          if (!response.ok) {
+              throw new Error(`Serviço Drive: Erro ${response.status} - ${response.statusText}`);
+          }
+      }
+
+      // 2. Apagar da Base de Dados Local
+      await storageService.deleteFile(file.id);
+
+      // 3. Registar Log e Verificar Email de Segurança
+      const pendingLogs = await storageService.addDeletionLog(file, currentUser);
+      
+      if (pendingLogs.length >= 10) {
+          console.log("Limite de 10 ficheiros eliminados atingido. A enviar relatório...");
+          const emailSent = await emailService.sendDeletionBatchEmail(pendingLogs);
+          
+          if (emailSent) {
+              const logIds = pendingLogs.map(l => l.id);
+              await storageService.markLogsAsSent(logIds);
+              console.log("Relatório enviado e contagem reiniciada.");
+          }
+      }
+  };
+
+  const handleDeleteSingle = async (file: UploadedFile) => {
+      if(!user) return;
       const hasDriveId = !!file.driveFileId;
       const pipedreamUrl = systemConfig?.pipedreamDeleteUrl;
       
-      // Mensagem inicial
       const confirmMsg = hasDriveId && pipedreamUrl
         ? 'Tem a certeza? Isto irá tentar apagar o ficheiro do Google Drive e remover o registo da aplicação.'
-        : 'Tem a certeza que deseja remover o registo? (O ficheiro pode manter-se no Drive se não houver automatismo configurado)';
+        : 'Tem a certeza que deseja remover o registo?';
 
       if (confirm(confirmMsg)) {
           setDeleting(file.id);
           try {
-              // Tentar apagar no Drive via Pipedream se configurado e se tivermos ID
-              if (hasDriveId && pipedreamUrl) {
-                  const deleteUrl = new URL(pipedreamUrl);
-                  // Query String para garantir compatibilidade
-                  deleteUrl.searchParams.append('fileId', file.driveFileId!);
-
-                  console.log(`[FileManager] A solicitar delete do ficheiro Drive: ${file.driveFileId}`);
-
-                  // Request
-                  const response = await fetch(deleteUrl.toString(), {
-                      method: 'POST', // Geralmente Webhooks aceitam POST
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ 
-                          fileId: file.driveFileId,
-                          action: 'delete'
-                      })
-                  });
-
-                  // Se o Pipedream/Drive retornar erro (ex: 404 not found, 500 error)
-                  if (!response.ok) {
-                      throw new Error(`O serviço remoto retornou erro ${response.status} (${response.statusText}).`);
-                  }
-              } else if (hasDriveId && !pipedreamUrl) {
-                  console.warn("URL de Delete do Pipedream não configurado. Apagando apenas registo local.");
-              }
-              
-              // Se tudo correu bem (ou não havia config remota), apaga local
-              await storageService.deleteFile(file.id);
-              
-              // LOGGING & BATCH EMAIL LOGIC
-              try {
-                  const pendingLogs = await storageService.addDeletionLog(file, user);
-                  
-                  // Se atingir 10 ficheiros não reportados
-                  if (pendingLogs.length >= 10) {
-                      console.log("Limite de 10 ficheiros eliminados atingido. A enviar relatório...");
-                      const emailSent = await emailService.sendDeletionBatchEmail(pendingLogs);
-                      
-                      if (emailSent) {
-                          const logIds = pendingLogs.map(l => l.id);
-                          await storageService.markLogsAsSent(logIds);
-                          console.log("Email de relatório enviado e logs marcados.");
-                          alert("Atenção: Relatório de segurança de ficheiros eliminados enviado ao administrador.");
-                      } else {
-                          console.error("Falha ao enviar email de relatório.");
-                      }
-                  }
-              } catch (logErr) {
-                  console.error("Erro ao registar log de eliminação:", logErr);
-              }
-
+              await processFileDeletion(file, user);
               loadFiles();
-
+              // Se estava selecionado, remover da seleção
+              setSelectedIds(prev => prev.filter(id => id !== file.id));
           } catch (e: any) {
               console.error(e);
-              // FALLBACK: Permitir apagar o registo local mesmo se o remoto falhar
-              const forceDelete = confirm(
-                  `ERRO NA REMOÇÃO DO DRIVE:\n${e.message}\n\nO ficheiro provavelmente ainda existe no Google Drive.\nDeseja forçar a eliminação do registo na aplicação (base de dados) de qualquer forma?`
-              );
-
-              if (forceDelete) {
+              // Fallback para erro no Drive
+              if (confirm(`ERRO NO DRIVE: ${e.message}\n\nDeseja forçar a eliminação do registo local apenas?`)) {
                    await storageService.deleteFile(file.id);
-                   // Também logar o force delete
                    await storageService.addDeletionLog(file, user); 
                    loadFiles();
               }
           } finally {
               setDeleting(null);
           }
+      }
+  };
+
+  const handleBulkDelete = async () => {
+      if (!user || selectedIds.length === 0) return;
+
+      if (confirm(`Tem a certeza que deseja apagar os ${selectedIds.length} ficheiros selecionados?`)) {
+          setIsBulkDeleting(true);
+          const filesToDelete = files.filter(f => selectedIds.includes(f.id));
+          let successCount = 0;
+          let errors = [];
+
+          for (const file of filesToDelete) {
+              try {
+                  await processFileDeletion(file, user);
+                  successCount++;
+              } catch (e: any) {
+                  errors.push(`${file.fileName}: ${e.message}`);
+              }
+          }
+
+          if (errors.length > 0) {
+              alert(`Eliminação concluída com avisos.\nSucesso: ${successCount}\nErros:\n${errors.join('\n')}`);
+          } else {
+              // Feedback subtil se tudo correu bem
+              // alert(`${successCount} ficheiros eliminados com sucesso.`);
+          }
+
+          setIsBulkDeleting(false);
+          setSelectedIds([]);
+          loadFiles();
+      }
+  };
+
+  // Selection Handlers
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.checked) {
+          setSelectedIds(files.map(f => f.id));
+      } else {
+          setSelectedIds([]);
+      }
+  };
+
+  const handleSelectOne = (id: string) => {
+      if (selectedIds.includes(id)) {
+          setSelectedIds(prev => prev.filter(curr => curr !== id));
+      } else {
+          setSelectedIds(prev => [...prev, id]);
       }
   };
 
@@ -135,7 +173,7 @@ export default function FileManager() {
         </h2>
         {user?.role === UserRole.ADMIN && (
             <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                Modo Administrador: A ver todos os ficheiros
+                Modo Admin
             </span>
         )}
       </div>
@@ -144,6 +182,24 @@ export default function FileManager() {
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded text-sm mb-4 flex items-center gap-2">
               <Icons.Settings className="w-4 h-4" />
               <span><strong>Atenção:</strong> O URL de Delete não está configurado em "Config. Sistema". Os ficheiros apagados aqui continuarão a existir no Google Drive.</span>
+          </div>
+      )}
+
+      {/* Bulk Actions Toolbar */}
+      {selectedIds.length > 0 && (
+          <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-lg flex justify-between items-center animate-fade-in">
+              <span className="text-sm font-medium text-indigo-800 ml-2">
+                  {selectedIds.length} ficheiro(s) selecionado(s)
+              </span>
+              <Button 
+                variant="danger" 
+                size="sm" 
+                onClick={handleBulkDelete} 
+                disabled={isBulkDeleting}
+                icon={Icons.Delete}
+              >
+                  {isBulkDeleting ? 'A apagar...' : 'Apagar Selecionados'}
+              </Button>
           </div>
       )}
 
@@ -157,6 +213,14 @@ export default function FileManager() {
               <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                       <tr>
+                          <th className="px-6 py-3 w-10">
+                              <input 
+                                type="checkbox" 
+                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                                checked={files.length > 0 && selectedIds.length === files.length}
+                                onChange={handleSelectAll}
+                              />
+                          </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado Drive</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contexto</th>
@@ -168,7 +232,15 @@ export default function FileManager() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                       {files.map((file) => (
-                          <tr key={file.id}>
+                          <tr key={file.id} className={selectedIds.includes(file.id) ? 'bg-indigo-50' : ''}>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                  <input 
+                                    type="checkbox" 
+                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                                    checked={selectedIds.includes(file.id)}
+                                    onChange={() => handleSelectOne(file.id)}
+                                  />
+                              </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                   <div className="flex items-center">
                                       <Icons.FileText className="w-5 h-5 text-gray-400 mr-2" />
@@ -208,18 +280,15 @@ export default function FileManager() {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                   <button 
-                                    onClick={() => handleDelete(file)} 
+                                    onClick={() => handleDeleteSingle(file)} 
                                     className="text-red-600 hover:text-red-900 flex items-center gap-1 ml-auto disabled:opacity-50"
-                                    disabled={deleting === file.id}
-                                    title={file.driveFileId ? "Remover do Drive e da App" : "Remover registo da App"}
+                                    disabled={deleting === file.id || isBulkDeleting}
+                                    title="Apagar"
                                   >
                                       {deleting === file.id ? (
-                                          "A remover..."
+                                          "..."
                                       ) : (
-                                          <>
-                                            <Icons.Delete className="w-4 h-4" /> 
-                                            {file.driveFileId && systemConfig?.pipedreamDeleteUrl ? 'Apagar' : 'Remover'}
-                                          </>
+                                          <Icons.Delete className="w-4 h-4" /> 
                                       )}
                                   </button>
                               </td>

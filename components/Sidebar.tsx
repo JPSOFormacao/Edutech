@@ -14,10 +14,12 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission, systemConfig }) => {
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
+  const [auditColorClass, setAuditColorClass] = useState('text-slate-400'); // Default
 
-  // Verificar utilizadores pendentes ou com pedidos
+  // Verificar utilizadores pendentes e Logs de Auditoria
   useEffect(() => {
-    const checkPendingUsers = async () => {
+    const checkNotifications = async () => {
+        // 1. Verificar Utilizadores Pendentes
         if (hasPermission(PERMISSIONS.MANAGE_USERS)) {
             try {
                 const users = await storageService.getUsers();
@@ -30,24 +32,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
                 console.error("Erro ao verificar notificações sidebar", e);
             }
         }
+
+        // 2. Verificar Logs de Auditoria para cor do link
+        if (hasPermission(PERMISSIONS.VIEW_LOGS)) {
+            try {
+                const logs = await storageService.getDeletionLogs();
+                const pendingLogs = logs.filter(l => !l.emailSent).length;
+                
+                // Lógica solicitada:
+                // - Vermelha quando o email for enviado (ou prestes a ser, >= 10)
+                // - Verde antes de enviar (< 10) ou quando recomeçar a contagem
+                if (pendingLogs >= 10) {
+                    setAuditColorClass('text-red-500 animate-pulse'); // Vermelho (Alerta/Enviado)
+                } else {
+                    setAuditColorClass('text-emerald-400'); // Verde (Seguro/Contagem Reiniciada)
+                }
+            } catch (e) {
+                setAuditColorClass('text-slate-400');
+            }
+        }
     };
     // Executar imediatamente e sempre que mudar a rota
-    checkPendingUsers();
+    checkNotifications();
   }, [user, location.pathname, hasPermission]); 
 
-  const NavItem = ({ to, icon: Icon, label, badgeCount }: { to: string; icon: any; label: string, badgeCount?: number }) => (
+  const NavItem = ({ to, icon: Icon, label, badgeCount, customClass }: { to: string; icon: any; label: string, badgeCount?: number, customClass?: string }) => (
     <NavLink
       to={to}
       className={({ isActive }) =>
         `flex items-center justify-between px-4 py-3 text-sm font-medium rounded-md transition-colors mb-1 group ${
           isActive
             ? 'bg-slate-800 text-indigo-400 border-r-4 border-indigo-500'
-            : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            : customClass ? `${customClass} hover:bg-slate-800` : 'text-slate-400 hover:bg-slate-800 hover:text-white'
         }`
       }
     >
       <div className="flex items-center">
-          <Icon className="mr-3 h-5 w-5" />
+          <Icon className={`mr-3 h-5 w-5 ${customClass ? 'text-current' : ''}`} />
           {label}
       </div>
       {badgeCount !== undefined && badgeCount > 0 && (
@@ -146,7 +167,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
             )}
 
             {hasPermission(PERMISSIONS.VIEW_LOGS) && (
-                 <NavItem to="/audit-logs" icon={Icons.Audit} label="Registos / Auditoria" />
+                 <NavItem 
+                    to="/audit-logs" 
+                    icon={Icons.Audit} 
+                    label="Registos / Auditoria" 
+                    customClass={auditColorClass} // Passa a cor dinâmica
+                 />
             )}
              
             {hasPermission(PERMISSIONS.MANAGE_SETTINGS) && (
