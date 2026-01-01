@@ -189,12 +189,24 @@ export interface EmailCustomContent {
     verificationText?: string;
     resetPasswordText?: string;
     auditLogText?: string; // Novo texto para Logs de Auditoria
+    _profiles_backup?: EmailConfigProfile[]; // Interno: Store multiple profiles inside JSON
+}
+
+export interface EmailConfigProfile {
+    serviceId: string;
+    publicKey: string;
+    templates: EmailTemplates;
 }
 
 export interface EmailConfig {
-  serviceId: string;
-  publicKey: string;
-  templates: EmailTemplates;
+  serviceId: string; // Active Service ID
+  publicKey: string; // Active Public Key
+  templates: EmailTemplates; // Active Templates
+  
+  // Multi-profile support
+  activeProfileIndex: number;
+  profiles: EmailConfigProfile[];
+
   customErrorMessage?: string; 
   customContent?: EmailCustomContent; 
 }

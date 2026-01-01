@@ -1,4 +1,4 @@
-import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig, UploadedFile, FileDeletionLog } from '../types';
+import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig, UploadedFile, FileDeletionLog, EmailConfigProfile, EmailTemplates } from '../types';
 import { supabase } from './supabaseClient';
 
 const STORAGE_KEYS = {
@@ -457,17 +457,21 @@ export const storageService = {
 
   // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
+    const emptyTemplates: EmailTemplates = {
+        welcomeId: '',
+        resetPasswordId: '',
+        enrollmentId: '',
+        notificationId: '',
+        verificationId: '',
+        auditLogId: ''
+    };
+
     const baseConfig: EmailConfig = {
         serviceId: '',
         publicKey: '',
-        templates: {
-            welcomeId: '',
-            resetPasswordId: '',
-            enrollmentId: '',
-            notificationId: '',
-            verificationId: '',
-            auditLogId: ''
-        },
+        templates: { ...emptyTemplates },
+        activeProfileIndex: 0,
+        profiles: Array(5).fill(null).map(() => ({ serviceId: '', publicKey: '', templates: { ...emptyTemplates } })),
         customErrorMessage: '',
         customContent: {
             welcomeText: '',
@@ -491,39 +495,72 @@ export const storageService = {
         if(stored) localData = JSON.parse(stored);
     } catch(e) {}
 
-    // Merge
-    const mergedTemplates = {
-        ...baseConfig.templates,
-        ...(localData.templates || {}),
-        ...(dbData.templates || {})
-    };
-    
-    // Merge Custom Content
-    const mergedCustomContent = {
-        ...baseConfig.customContent,
-        ...(localData.customContent || {}),
-        ...(dbData.custom_content || {})
-    };
+    // Recuperar dados básicos
+    const serviceId = dbData.service_id || localData.serviceId || '';
+    const publicKey = dbData.public_key || localData.publicKey || '';
+    const templates = { ...baseConfig.templates, ...(localData.templates || {}), ...(dbData.templates || {}) };
+    const customErrorMessage = dbData.custom_error_message || localData.customErrorMessage || '';
+    const customContent = { ...baseConfig.customContent, ...(localData.customContent || {}), ...(dbData.custom_content || {}) };
+
+    // Recuperar Perfis (guardados no customContent._profiles_backup ou localStorage)
+    let loadedProfiles: EmailConfigProfile[] = baseConfig.profiles;
+    let loadedActiveIndex = localData.activeProfileIndex || 0;
+
+    // Tentar carregar perfis do custom content (DB Persistence)
+    if (customContent._profiles_backup && Array.isArray(customContent._profiles_backup)) {
+        loadedProfiles = customContent._profiles_backup;
+    } 
+    // Se não existir, verificar se o localStorage tem (Local persistence)
+    else if (localData.profiles && Array.isArray(localData.profiles)) {
+        loadedProfiles = localData.profiles;
+    }
+
+    // Se ainda estiver tudo vazio mas existir configuração "legacy" (serviceId/templates na raiz), popular o Perfil 0
+    if ((!loadedProfiles[0].serviceId) && serviceId) {
+        loadedProfiles[0] = {
+            serviceId: serviceId,
+            publicKey: publicKey,
+            templates: templates
+        };
+    }
+
+    // Garantir que temos 5 perfis
+    while (loadedProfiles.length < 5) {
+        loadedProfiles.push({ serviceId: '', publicKey: '', templates: { ...emptyTemplates } });
+    }
 
     return {
-        serviceId: dbData.service_id || localData.serviceId || '',
-        publicKey: dbData.public_key || localData.publicKey || '',
-        customErrorMessage: dbData.custom_error_message || localData.customErrorMessage || '',
-        templates: mergedTemplates,
-        customContent: mergedCustomContent
+        serviceId, // Mantemos para retrocompatibilidade do serviço
+        publicKey,
+        templates,
+        activeProfileIndex: loadedActiveIndex,
+        profiles: loadedProfiles,
+        customErrorMessage,
+        customContent
     };
   },
 
   saveEmailConfig: async (config: EmailConfig) => {
     localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config));
+    
+    // Preparar dados para o Supabase
+    // IMPORTANTE: As colunas `service_id` e `public_key` na DB guardarão o perfil ATIVO.
+    // O array completo de perfis será guardado dentro de `custom_content` para persistência.
+    
+    const activeProfile = config.profiles[config.activeProfileIndex] || config.profiles[0];
+    const customContentWithProfiles = {
+        ...config.customContent,
+        _profiles_backup: config.profiles // Backup dos 5 perfis
+    };
+
     try {
         await supabase.from('email_config').upsert({
             id: 'default_config', 
-            service_id: config.serviceId,
-            public_key: config.publicKey,
-            templates: config.templates,
+            service_id: activeProfile.serviceId, // Guarda o ativo nas colunas principais
+            public_key: activeProfile.publicKey,
+            templates: activeProfile.templates,
             custom_error_message: config.customErrorMessage,
-            custom_content: config.customContent
+            custom_content: customContentWithProfiles
         });
     } catch (e) {}
   },

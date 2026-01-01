@@ -73,6 +73,27 @@ const getErrorMsg = async (originalError: any): Promise<string> => {
     return techError;
 };
 
+// --- Helper to get Active Config ---
+const getActiveConfig = async () => {
+    const config = await storageService.getEmailConfig();
+    if (!config) return null;
+
+    // Tentar obter o perfil ativo com base no índice
+    const activeProfile = config.profiles?.[config.activeProfileIndex || 0];
+    
+    // Se o perfil ativo tiver dados, usar. Senão usar a raiz (legacy support)
+    const serviceId = activeProfile?.serviceId || config.serviceId;
+    const publicKey = activeProfile?.publicKey || config.publicKey;
+    const templates = activeProfile?.templates || config.templates;
+
+    return {
+        ...config,
+        serviceId,
+        publicKey,
+        templates
+    };
+};
+
 export const emailService = {
   // Teste Genérico
   sendTestEmail: async (): Promise<EmailResult> => {
@@ -81,7 +102,7 @@ export const emailService = {
 
   // Teste Específico por Tipo de Template
   sendSpecificTemplateTest: async (templateKey: keyof EmailTemplates): Promise<EmailResult> => {
-    const config = await storageService.getEmailConfig();
+    const config = await getActiveConfig();
     
     // Validações Básicas
     if (!config) return { success: false, message: "Configuração não encontrada." };
@@ -204,7 +225,7 @@ export const emailService = {
   },
 
   sendNotification: async (toName: string, message: string, toEmail: string = SYSTEM_EMAIL): Promise<boolean> => {
-    const config = await storageService.getEmailConfig();
+    const config = await getActiveConfig();
     let templateId = config?.templates?.notificationId;
     
     // Fallback
@@ -235,7 +256,7 @@ export const emailService = {
   },
 
   sendDeletionBatchEmail: async (logs: FileDeletionLog[]): Promise<boolean> => {
-      const config = await storageService.getEmailConfig();
+      const config = await getActiveConfig();
       if (!config || !config.serviceId || !config.publicKey) return false;
 
       // 1. Determinar o Template ID (Prioridade ao novo auditLogId)
@@ -296,7 +317,7 @@ ${list}
   },
 
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
-    const config = await storageService.getEmailConfig();
+    const config = await getActiveConfig();
     
     if (!config) return { success: false, message: "Erro Config: Objeto vazio." };
     if (!config.serviceId) return { success: false, message: "Erro Config: Service ID em falta." };
@@ -359,7 +380,7 @@ ${list}
   },
 
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
-    const config = await storageService.getEmailConfig();
+    const config = await getActiveConfig();
     let templateId = config?.templates?.welcomeId || (config as any)?.templateId;
     
     if (!templateId && config?.templates) {
@@ -422,7 +443,7 @@ ${list}
   },
 
   sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
-    const config = await storageService.getEmailConfig();
+    const config = await getActiveConfig();
     let templateId = config?.templates?.resetPasswordId || (config as any)?.templateId;
     
     if (!templateId && config?.templates) {
