@@ -159,6 +159,7 @@ export interface EmailConfig {
   serviceId: string;
   publicKey: string;
   templates: EmailTemplates;
+  customErrorMessage?: string; // Novo campo para mensagem de erro personalizada
 }
 
 export interface SystemConfig {

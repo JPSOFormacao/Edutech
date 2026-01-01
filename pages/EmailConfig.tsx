@@ -5,7 +5,7 @@ import { Button, Input } from '../components/UI';
 import { Icons } from '../components/Icons';
 import { EmailTemplates } from '../types';
 
-// Valores padrão para garantir que os inputs nunca ficam undefined
+// Valores padrão
 const DEFAULT_TEMPLATES: EmailTemplates = {
     welcomeId: '',
     resetPasswordId: '',
@@ -17,8 +17,8 @@ const DEFAULT_TEMPLATES: EmailTemplates = {
 export default function EmailConfigPage() {
   const [serviceId, setServiceId] = useState('');
   const [publicKey, setPublicKey] = useState('');
+  const [customErrorMessage, setCustomErrorMessage] = useState('');
   
-  // Templates iniciados com padrão
   const [templates, setTemplates] = useState<EmailTemplates>(DEFAULT_TEMPLATES);
 
   const [status, setStatus] = useState<{type: 'success' | 'error' | 'info' | 'warning', msg: string} | null>(null);
@@ -33,6 +33,7 @@ export default function EmailConfigPage() {
         if (config) {
           setServiceId(config.serviceId || '');
           setPublicKey(config.publicKey || '');
+          setCustomErrorMessage(config.customErrorMessage || '');
           
           if (config.templates && Object.keys(config.templates).length > 0) {
               setTemplates((prev) => ({
@@ -73,9 +74,9 @@ export default function EmailConfigPage() {
     
     const config = { 
         serviceId: serviceId.trim(), 
-        // templateId removed to match EmailConfig type
         publicKey: publicKey.trim(),
-        templates: templates
+        templates: templates,
+        customErrorMessage: customErrorMessage.trim()
     };
     
     try {
@@ -90,62 +91,46 @@ export default function EmailConfigPage() {
     }
   };
 
-  // Teste Genérico (Botão Fundo)
-  const handleTestGeneric = async () => {
-    setLoading(true);
-    setStatus({ type: 'info', msg: 'A iniciar teste de envio...' });
-    
-    // Auto-save antes de testar para garantir que o serviço lê o mais recente
-    await handleSave();
-
-    try {
-      const result = await emailService.sendTestEmail();
-      if (result.success) {
-        setStatus({ type: 'success', msg: 'Email de teste enviado com sucesso para EduTechPT@hotmail.com!' });
-      } else {
-        throw new Error(result.message);
-      }
-    } catch (error: any) {
-      setStatus({ type: 'error', msg: error?.message || 'Falha ao enviar email.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Teste Específico por Template
   const handleTestSpecific = async (key: keyof EmailTemplates) => {
       setTestingTemplate(prev => ({ ...prev, [key]: true }));
+      setStatus({ type: 'info', msg: `A testar template '${key}'...` });
       
-      // Salvar rápido para garantir integridade
+      // Auto-save antes de testar
       await storageService.saveEmailConfig({ 
           serviceId: serviceId.trim(), 
           publicKey: publicKey.trim(), 
-          templates 
+          templates,
+          customErrorMessage
       });
 
       try {
           const result = await emailService.sendSpecificTemplateTest(key);
           if (result.success) {
-              alert(`Sucesso! Email de teste (${key}) enviado para EduTechPT@hotmail.com`);
+              setStatus({ type: 'success', msg: `Sucesso! Email de teste enviado para EduTechPT@hotmail.com` });
+              alert(`Sucesso! Verifique o email EduTechPT@hotmail.com`);
           } else {
-              alert(`Erro ao enviar: ${result.message}`);
+              setStatus({ type: 'error', msg: `Erro: ${result.message}` });
+              alert(`Erro: ${result.message}`);
           }
       } catch (e: any) {
-          alert(`Erro: ${e.message}`);
+          setStatus({ type: 'error', msg: `Exceção: ${e.message}` });
       } finally {
           setTestingTemplate(prev => ({ ...prev, [key]: false }));
       }
   };
 
+  // Helper para renderizar Input + Botão de Teste
   const renderTemplateField = (key: keyof EmailTemplates, label: string, placeholder: string) => {
       return (
-          <div className="flex gap-2 items-start">
+          <div className="flex gap-2 items-start mb-4">
               <div className="flex-1">
                   <Input 
                       label={label} 
                       value={templates[key]} 
                       onChange={e => setTemplates({...templates, [key]: e.target.value})} 
                       placeholder={placeholder}
+                      className="mb-0" // Remover margem inferior do Input para alinhar
                   />
               </div>
               <div className="mt-7"> 
@@ -154,8 +139,8 @@ export default function EmailConfigPage() {
                     variant="secondary" 
                     size="md"
                     onClick={() => handleTestSpecific(key)}
-                    disabled={testingTemplate[key] || loading || !templates[key]}
-                    title="Testar este template"
+                    disabled={testingTemplate[key] || loading}
+                    title="Enviar teste para EduTechPT@hotmail.com"
                     className="px-3"
                   >
                       {testingTemplate[key] ? (
@@ -182,48 +167,70 @@ export default function EmailConfigPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Credenciais */}
-          <div className="bg-white shadow rounded-lg p-6 space-y-4 h-fit">
-             <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
-                 <Icons.Settings className="w-4 h-4" /> Credenciais API
-             </h3>
-             <Input 
-                label="Service ID" 
-                value={serviceId} 
-                onChange={e => setServiceId(e.target.value)} 
-                placeholder="ex: service_xxxxxx"
-             />
-             <Input 
-                label="Public Key" 
-                value={publicKey} 
-                onChange={e => setPublicKey(e.target.value)} 
-                placeholder="ex: user_xxxxxx"
-                type="password"
-             />
-             
-             <div className="bg-blue-50 p-4 rounded text-xs text-blue-800 border border-blue-100 mt-4">
-                 <p className="mb-2 font-bold">Variáveis para o EmailJS:</p>
-                 <ul className="list-disc ml-4 space-y-1">
-                     <li><code>to_name</code>: Nome do destinatário</li>
-                     <li><code>to_email</code>: Email do destinatário</li>
-                     <li><code>message</code>: Corpo da mensagem</li>
-                     <li><code>verification_link</code>: Link de confirmação</li>
-                     <li><code>password</code>: Senha temporária</li>
-                 </ul>
-             </div>
+          {/* Credenciais e Erros */}
+          <div className="space-y-6 h-fit">
+              <div className="bg-white shadow rounded-lg p-6 space-y-4">
+                 <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
+                     <Icons.Settings className="w-4 h-4" /> Credenciais API
+                 </h3>
+                 <Input 
+                    label="Service ID" 
+                    value={serviceId} 
+                    onChange={e => setServiceId(e.target.value)} 
+                    placeholder="ex: service_xxxxxx"
+                 />
+                 <Input 
+                    label="Public Key" 
+                    value={publicKey} 
+                    onChange={e => setPublicKey(e.target.value)} 
+                    placeholder="ex: user_xxxxxx"
+                    type="password"
+                 />
+                 
+                 <div className="bg-blue-50 p-4 rounded text-xs text-blue-800 border border-blue-100 mt-4">
+                     <p className="mb-2 font-bold">Variáveis para o EmailJS:</p>
+                     <ul className="list-disc ml-4 space-y-1">
+                         <li><code>to_name</code>: Nome do destinatário</li>
+                         <li><code>to_email</code>: Email do destinatário</li>
+                         <li><code>message</code>: Corpo da mensagem</li>
+                         <li><code>verification_link</code>: Link de confirmação</li>
+                         <li><code>password</code>: Senha temporária</li>
+                     </ul>
+                 </div>
+              </div>
+
+              {/* Nova Secção de Mensagem de Erro */}
+              <div className="bg-white shadow rounded-lg p-6 space-y-4">
+                   <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
+                     <Icons.Shield className="w-4 h-4" /> Mensagem de Erro Personalizada
+                   </h3>
+                   <div>
+                       <label className="block text-sm font-medium text-gray-700 mb-1">Texto de Fallback (Erro)</label>
+                       <textarea 
+                           className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                           rows={3}
+                           placeholder="Ex: O serviço de email está temporariamente indisponível. Por favor contacte o administrador."
+                           value={customErrorMessage}
+                           onChange={e => setCustomErrorMessage(e.target.value)}
+                       />
+                       <p className="text-xs text-gray-500 mt-1">
+                           Este texto será exibido aos utilizadores se o envio de email falhar.
+                       </p>
+                   </div>
+              </div>
           </div>
           
           {/* Templates */}
-          <div className="bg-white shadow rounded-lg p-6 space-y-4">
+          <div className="bg-white shadow rounded-lg p-6 space-y-1 h-fit">
                <h3 className="font-bold text-gray-900 border-b pb-2 mb-4 flex items-center gap-2">
                    <Icons.FileText className="w-4 h-4" /> Templates de Email (IDs)
                </h3>
                <p className="text-xs text-gray-500 mb-4">
-                   Insira o ID do template e clique no ícone de email ao lado para enviar um teste específico para <strong>EduTechPT@hotmail.com</strong>.
+                   Insira o ID e clique no ícone de envelope para enviar um teste para <strong>EduTechPT@hotmail.com</strong>.
                </p>
                
-               <div className="bg-yellow-50 p-2 rounded border border-yellow-200 mb-2">
-                   {renderTemplateField('welcomeId', 'Boas-vindas / Criação de Conta (Padrão)', 'ex: template_welcome')}
+               <div className="bg-yellow-50 p-2 rounded border border-yellow-200 mb-4">
+                   {renderTemplateField('welcomeId', 'Boas-vindas (Padrão)', 'ex: template_welcome')}
                </div>
                
                {renderTemplateField('verificationId', 'Verificação de Email', 'ex: template_verify')}
@@ -244,10 +251,7 @@ export default function EmailConfigPage() {
             </div>
       )}
 
-      <div className="flex justify-between pt-4 border-t">
-            <Button variant="secondary" onClick={handleTestGeneric} disabled={loading}>
-                {loading ? 'A Enviar...' : 'Teste Geral de Conexão'}
-            </Button>
+      <div className="flex justify-end pt-4 border-t">
             <Button onClick={handleSave} disabled={loading}>
                 {loading ? 'A Guardar...' : 'Guardar Tudo'}
             </Button>

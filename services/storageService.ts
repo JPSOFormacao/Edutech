@@ -392,16 +392,18 @@ export const storageService = {
             enrollmentId: '',
             notificationId: '',
             verificationId: ''
-        }
+        },
+        customErrorMessage: ''
     };
 
     // 2. Tentar ler da DB (Backend Source)
-    let dbData: Partial<EmailConfig> = {};
+    let dbData: Partial<EmailConfig & { custom_error_message?: string }> = {};
     try {
         const { data, error } = await supabase.from('email_config').select('*').single();
         if (data && !error) {
             dbData.serviceId = data.service_id ?? data.serviceId;
             dbData.publicKey = data.public_key ?? data.publicKey;
+            dbData.custom_error_message = data.custom_error_message;
             
             let t = data.templates;
             if (typeof t === 'string') {
@@ -430,6 +432,10 @@ export const storageService = {
     // Public Key
     if (dbData.publicKey) baseConfig.publicKey = dbData.publicKey;
     else if (localData.publicKey) baseConfig.publicKey = localData.publicKey;
+    
+    // Custom Error Message
+    if (dbData.custom_error_message) baseConfig.customErrorMessage = dbData.custom_error_message;
+    else if (localData.customErrorMessage) baseConfig.customErrorMessage = localData.customErrorMessage;
 
     // Templates (Seguro com Cast to Any para evitar erros de TS se objeto for vazio)
     const dbT = (dbData.templates || {}) as any;
@@ -460,7 +466,8 @@ export const storageService = {
             id: 'default_config', 
             service_id: config.serviceId,
             public_key: config.publicKey,
-            templates: config.templates 
+            templates: config.templates,
+            custom_error_message: config.customErrorMessage
         };
         
         const { error } = await supabase.from('email_config').upsert(payload);
@@ -472,7 +479,8 @@ export const storageService = {
                 id: 'default_config',
                 serviceId: config.serviceId,
                 publicKey: config.publicKey,
-                templates: config.templates
+                templates: config.templates,
+                customErrorMessage: config.customErrorMessage
             });
         }
     } catch (e: any) {

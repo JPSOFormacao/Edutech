@@ -13,38 +13,53 @@ const SYSTEM_NAME = 'EduTech PT Formação';
 
 // Helper para gerar o texto de detalhes da formação
 const getTrainingDetailsString = async (classId?: string, courseIds?: string[]): Promise<string> => {
-    const classes = await storageService.getClasses();
-    const courses = await storageService.getCourses();
+    try {
+        const classes = await storageService.getClasses();
+        const courses = await storageService.getCourses();
 
-    let detailsParts = [];
-    let hasInfo = false;
+        let detailsParts = [];
+        let hasInfo = false;
 
-    // Verificar Turma
-    if (classId) {
-        const cls = classes.find(c => c.id === classId);
-        if (cls) {
-            detailsParts.push(`Turma: ${cls.name}`);
-            hasInfo = true;
+        // Verificar Turma
+        if (classId) {
+            const cls = classes.find(c => c.id === classId);
+            if (cls) {
+                detailsParts.push(`Turma: ${cls.name}`);
+                hasInfo = true;
+            }
         }
-    }
 
-    // Verificar Cursos
-    if (courseIds && courseIds.length > 0) {
-        const courseNames = courses
-            .filter(c => courseIds.includes(c.id))
-            .map(c => c.title);
-        
-        if (courseNames.length > 0) {
-            detailsParts.push(`Cursos Inscritos: ${courseNames.join(', ')}`);
-            hasInfo = true;
+        // Verificar Cursos
+        if (courseIds && courseIds.length > 0) {
+            const courseNames = courses
+                .filter(c => courseIds.includes(c.id))
+                .map(c => c.title);
+            
+            if (courseNames.length > 0) {
+                detailsParts.push(`Cursos Inscritos: ${courseNames.join(', ')}`);
+                hasInfo = true;
+            }
         }
-    }
 
-    if (!hasInfo) {
-        return "A turma e/ou o curso será atribuída posteriormente pelo Formador";
-    }
+        if (!hasInfo) {
+            return "A turma e/ou o curso será atribuída posteriormente pelo Formador";
+        }
 
-    return detailsParts.join('\n');
+        return detailsParts.join('\n');
+    } catch (e) {
+        console.warn("Erro ao obter detalhes de formação para email:", e);
+        return "Detalhes de formação indisponíveis.";
+    }
+};
+
+const getErrorMsg = async (originalError: any): Promise<string> => {
+    const config = await storageService.getEmailConfig();
+    const techError = originalError?.text || originalError?.message || 'Erro desconhecido';
+    
+    if (config?.customErrorMessage) {
+        return `${config.customErrorMessage} [Detalhe Técnico: ${techError}]`;
+    }
+    return techError;
 };
 
 export const emailService = {
@@ -62,15 +77,18 @@ export const emailService = {
     if (!config.serviceId) return { success: false, message: "Service ID em falta." };
     if (!config.publicKey) return { success: false, message: "Public Key em falta." };
 
-    // Tenta obter o ID específico. Se não existir, tenta o fallback geral 'welcomeId' ou o primeiro disponível
     let templateId = config.templates?.[templateKey];
     
-    // Lógica de Fallback visual para o teste:
-    // Se o utilizador está a testar o botão "Verificação" mas não tem ID lá,
-    // avisamos que vai falhar ou tentamos usar o fallback se a lógica do sistema assim o permitir.
-    // Neste caso, para ser fiel ao teste, se o campo está vazio, deve dar erro ou avisar.
+    // Se o campo específico estiver vazio, alertamos o utilizador, mas tentamos o fallback para demonstração se for Welcome
     if (!templateId) {
-        return { success: false, message: `O campo para este template está vazio. Guarde um ID antes de testar.` };
+        if (templateKey === 'welcomeId') {
+             // Tenta encontrar qualquer um para o teste genérico
+             const any = Object.values(config.templates || {}).find(v => v);
+             if (any) templateId = any;
+             else return { success: false, message: "Nenhum template configurado." };
+        } else {
+             return { success: false, message: `O ID para '${templateKey}' está vazio. Guarde uma configuração válida primeiro.` };
+        }
     }
 
     // Dados Fictícios para o Teste
@@ -85,30 +103,34 @@ export const emailService = {
     };
 
     let specificParams = {};
+    
+    // Obter o URL base atual (ex: http://localhost:5173 ou https://meu-site.com)
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
 
     switch (templateKey) {
         case 'verificationId':
             specificParams = {
-                message: "Este é um email de teste para validar o template de Verificação de Conta.",
-                verification_link: "https://edutech.pt/#/verify-email?token=TESTE-TOKEN-123"
+                message: "Email de teste para Validação de Conta.",
+                // Correção: Usa o URL atual do browser
+                verification_link: `${baseUrl}/#/verify-email?token=TESTE-TOKEN-123`
             };
             break;
         case 'resetPasswordId':
             specificParams = {
-                message: "Este é um email de teste para validar o template de Recuperação de Senha.",
+                message: "Email de teste para Recuperação de Senha.",
                 password: "nova-senha-teste-123",
                 training_details: "Cursos: Exemplo de Curso Python"
             };
             break;
         case 'notificationId':
             specificParams = {
-                message: "Esta é uma notificação de teste do sistema EduTech PT.",
+                message: "Notificação de teste do sistema.",
                 training_details: "N/A"
             };
             break;
         case 'enrollmentId':
             specificParams = {
-                message: "O utilizador inscreveu-se no curso: Desenvolvimento Web (Teste).",
+                message: "Inscrição no curso: Desenvolvimento Web (Teste).",
                 course_name: "Desenvolvimento Web Fullstack",
                 student_name: "Aluno Teste"
             };
@@ -116,7 +138,7 @@ export const emailService = {
         case 'welcomeId':
         default:
             specificParams = {
-                message: "Bem-vindo à EduTech PT! A sua conta foi criada com sucesso.",
+                message: "Bem-vindo à EduTech PT! Conta criada com sucesso.",
                 password: "senha-inicial-teste",
                 training_details: "Turma: Demo\nCursos: Introdução à IA"
             };
@@ -126,20 +148,21 @@ export const emailService = {
     const templateParams = { ...commonParams, ...specificParams };
 
     try {
-      console.log(`A enviar teste (${templateKey}) para ${SYSTEM_EMAIL} usando ID: ${templateId}`);
+      console.log(`[EmailTest] Envio para ${SYSTEM_EMAIL} | Template: ${templateKey} (${templateId})`);
       await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
       return { success: true };
     } catch (error: any) {
       console.error("EmailJS Error:", error);
-      return { success: false, message: error?.text || error?.message || 'Erro desconhecido no envio.' };
+      const msg = await getErrorMsg(error);
+      return { success: false, message: msg };
     }
   },
 
   sendNotification: async (toName: string, message: string, toEmail: string = SYSTEM_EMAIL): Promise<boolean> => {
     const config = await storageService.getEmailConfig();
-    // Tenta ID específico, depois fallback genérico
-    let templateId = config?.templates?.notificationId || (config as any)?.templateId;
+    let templateId = config?.templates?.notificationId;
     
+    // Fallback
     if (!templateId && config?.templates) {
         const anyTemplate = Object.values(config.templates).find(v => v && typeof v === 'string' && v.length > 0);
         if (anyTemplate) templateId = anyTemplate;
@@ -169,39 +192,25 @@ export const emailService = {
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
     const config = await storageService.getEmailConfig();
     
-    // VALIDACAO DETALHADA PARA DEBUG
-    if (!config) return { success: false, message: "Erro de Configuração: Configuração de email vazia." };
-    
-    if (!config.serviceId) {
-        return { success: false, message: "Erro de Configuração: Falta configurar o Service ID." };
-    }
-    
-    if (!config.publicKey) {
-        return { success: false, message: "Erro de Configuração: Falta configurar a Public Key." };
-    }
+    if (!config) return { success: false, message: "Erro Config: Objeto vazio." };
+    if (!config.serviceId) return { success: false, message: "Erro Config: Service ID em falta." };
+    if (!config.publicKey) return { success: false, message: "Erro Config: Public Key em falta." };
 
-    // Estratégia de Fallback em Cascata
-    // 1. Tenta o ID específico de verificação
-    // 2. Tenta o ID de notificação
-    // 3. Tenta o ID de boas-vindas
-    // 4. Tenta o ID legado na raiz
-    // 5. Tenta QUALQUER string que esteja no objeto templates (Fallback Supremo)
+    // Estratégia de Fallback
     let templateId = config.templates?.verificationId || 
                      config.templates?.notificationId || 
                      config.templates?.welcomeId || 
                      (config as any)?.templateId;
 
     if (!templateId && config.templates) {
-         // Procura qualquer valor preenchido
          const fallback = Object.values(config.templates).find(v => v && typeof v === 'string' && v.trim().length > 0);
          if (fallback) templateId = fallback;
     }
 
     if (!templateId) {
-         return { success: false, message: "Erro de Configuração: Nenhum Template ID encontrado. Por favor configure pelo menos UM template (ex: Boas-vindas) nas definições." };
+         return { success: false, message: "Erro de Configuração: Nenhum Template ID encontrado. Configure pelo menos UM template (ex: Boas-vindas)." };
     }
     
-    // Constrói uma mensagem HTML com botão
     const messageBody = `
       Olá ${toName},
       
@@ -210,7 +219,7 @@ export const emailService = {
       
       ${verificationLink}
       
-      Após a verificação, a sua conta ficará pendente de aprovação por um Administrador.
+      Após a verificação, a sua conta ficará pendente de aprovação.
     `;
 
     try {
@@ -227,7 +236,8 @@ export const emailService = {
         return { success: true };
     } catch (e: any) {
         console.error("Erro Email Verificação:", e);
-        return { success: false, message: `Erro EmailJS: ${e?.text || e?.message || 'Falha de envio'}` };
+        const msg = await getErrorMsg(e);
+        return { success: false, message: msg };
     }
   },
 
@@ -235,15 +245,12 @@ export const emailService = {
     const config = await storageService.getEmailConfig();
     let templateId = config?.templates?.welcomeId || (config as any)?.templateId;
     
-    // Fallback Supremo
     if (!templateId && config?.templates) {
          const fallback = Object.values(config.templates).find(v => v && typeof v === 'string' && v.trim().length > 0);
          if (fallback) templateId = fallback;
     }
     
-    if (!config) return { success: false, message: "Configuração de email vazia." };
-    if (!templateId) return { success: false, message: "Nenhum Template ID configurado." };
-    if (!toEmail) return { success: false, message: "Email de destino vazio." };
+    if (!config || !templateId) return { success: false, message: "Template ID em falta." };
 
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
@@ -281,8 +288,8 @@ export const emailService = {
         await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
         return { success: true };
     } catch (e: any) {
-        console.error("Erro Fatal EmailJS:", e);
-        return { success: false, message: e?.text || e?.message || JSON.stringify(e) };
+        const msg = await getErrorMsg(e);
+        return { success: false, message: msg };
     }
   },
 
@@ -290,25 +297,20 @@ export const emailService = {
     const config = await storageService.getEmailConfig();
     let templateId = config?.templates?.resetPasswordId || (config as any)?.templateId;
     
-    // Fallback Supremo
     if (!templateId && config?.templates) {
          const fallback = Object.values(config.templates).find(v => v && typeof v === 'string' && v.trim().length > 0);
          if (fallback) templateId = fallback;
     }
 
-    if (!config || !templateId) return { success: false, message: "Nenhum Template ID configurado." };
+    if (!config || !templateId) return { success: false, message: "Template ID em falta." };
 
-    if (!toEmail) return { success: false, message: "Email de destino vazio." };
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
     
     const messageBody = `
       Olá ${toName},
-
-      A sua senha de acesso à plataforma EduTech PT foi redefinida.
-      
+      A sua senha foi redefinida.
       ${trainingDetails}
-
       Novas credenciais:
       Email: ${cleanEmail}
       Nova Senha: ${newPass}
@@ -333,8 +335,8 @@ export const emailService = {
         await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
         return { success: true };
     } catch (e: any) {
-        console.error("Erro Fatal EmailJS:", e);
-        return { success: false, message: e?.text || e?.message || JSON.stringify(e) };
+        const msg = await getErrorMsg(e);
+        return { success: false, message: msg };
     }
   }
 };
