@@ -34,6 +34,7 @@ export default function Login() {
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null); // Novo estado para erro de email
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null); // Guardar token para fallback
 
   // Public Data
   const [courses, setCourses] = useState<Course[]>([]);
@@ -140,6 +141,7 @@ export default function Login() {
       setRegConfirmPass('');
       setRegisterSuccess(false);
       setEmailError(null);
+      setGeneratedToken(null);
       setIsRegisterModalOpen(true);
   };
 
@@ -157,6 +159,7 @@ export default function Login() {
 
       setRegisterLoading(true);
       setEmailError(null);
+      setGeneratedToken(null);
 
       try {
           // 1. Criar utilizador
@@ -167,6 +170,9 @@ export default function Login() {
               email: regEmail,
               password: regPass
           });
+
+          // Guardar token caso o email falhe
+          setGeneratedToken(token);
 
           // 2. Enviar email de Verificação (Com Link)
           const link = `${window.location.origin}/#/verify-email?token=${token}`;
@@ -462,9 +468,25 @@ export default function Login() {
                            <p className="text-sm text-red-700 mb-2">
                                A sua conta foi criada com sucesso, mas o sistema não conseguiu enviar o email de verificação.
                            </p>
-                           <p className="text-sm text-red-700">
+                           <p className="text-sm text-red-700 font-mono bg-white p-2 border rounded">
                                {emailError}
                            </p>
+
+                           {/* Fallback para verificação manual em DEV */}
+                           {generatedToken && (
+                               <div className="mt-4 pt-4 border-t border-red-200">
+                                   <p className="text-xs font-bold text-gray-600 uppercase mb-2">Modo Manual (Debug):</p>
+                                   <p className="text-sm mb-1">Utilize este link para validar a conta:</p>
+                                   <a 
+                                        href={`${window.location.origin}/#/verify-email?token=${generatedToken}`}
+                                        className="text-indigo-600 underline text-sm break-all font-medium hover:text-indigo-800 block p-2 bg-indigo-50 rounded"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                   >
+                                       Validar Conta Agora
+                                   </a>
+                               </div>
+                           )}
                        </div>
                   ) : (
                       <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
