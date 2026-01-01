@@ -496,19 +496,27 @@ export const storageService = {
 
   // --- SYSTEM CONFIG ---
   getSystemConfig: async (): Promise<SystemConfig | null> => {
-    // Similar merge strategy
-    let dbConfig: SystemConfig = {};
+    let dbConfig: Partial<SystemConfig> = {};
     try {
         const { data } = await supabase.from('system_config').select('*').single();
         if(data) {
-             dbConfig = {
+             // Fetch possible values
+             const rawConfig: SystemConfig = {
                  logoUrl: data.logo_url,
                  faviconUrl: data.favicon_url,
                  platformName: data.platform_name,
                  pipedreamWebhookUrl: data.pipedream_webhook_url,
-                 pipedreamDeleteUrl: data.pipedream_delete_url, // New field mapping
+                 pipedreamDeleteUrl: data.pipedream_delete_url,
                  customMaterialTypes: data.custom_material_types
              };
+             
+             // Remove undefined properties to prevent overwriting local storage with undefined
+             Object.keys(rawConfig).forEach(key => {
+                 if (rawConfig[key as keyof SystemConfig] === undefined) {
+                     delete rawConfig[key as keyof SystemConfig];
+                 }
+             });
+             dbConfig = rawConfig;
         }
     } catch(e) {}
 
@@ -573,7 +581,9 @@ export const storageService = {
     // Determinar Role ID
     let roleId = user.roleId;
     if (!roleId) {
-         if (user.role === UserRole.ADMIN) roleId = 'role_admin';
+         // Fix: TypeScript knows user.role is not ADMIN here because of the early return above.
+         // We safely cast to avoid type overlap error.
+         if ((user.role as string) === UserRole.ADMIN) roleId = 'role_admin';
          else if (user.role === UserRole.EDITOR) roleId = 'role_editor';
          else roleId = 'role_aluno';
     }
@@ -622,7 +632,7 @@ export const storageService = {
       }
     } else {
         // Auto-reparação de Super Admin
-        // Cast user.role to UserRole to avoid overlap error if TS thinks user.role excludes ADMIN
+        // Cast user.role to string/UserRole to avoid overlap error if TS thinks user.role excludes ADMIN
         if (isSuperAdmin && ((user.role as string) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
              user = { ...user, role: UserRole.ADMIN, roleId: 'role_admin', status: UserStatus.ACTIVE };
              await storageService.saveUser(user);
