@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Courses from './pages/Courses';
 import UsersPage from './pages/AdminUsers';
 import Materials from './pages/Materials';
+import MaterialEditor from './pages/MaterialEditor'; // Nova Importação
 import CMS from './pages/CMS';
 import AIStudio from './pages/AIStudio';
 import PageViewer from './pages/PageViewer';
@@ -20,7 +21,7 @@ import CatalogPage from './pages/Catalog';
 import VerifyEmail from './pages/VerifyEmail';
 import SystemSettings from './pages/SystemSettings'; 
 import DatabaseTest from './pages/DatabaseTest'; 
-import IntegrationsPage from './pages/Integrations'; // Nova Página
+import IntegrationsPage from './pages/Integrations'; 
 import { Icons } from './components/Icons';
 import { Input, Button } from './components/UI';
 
@@ -336,6 +337,14 @@ export default function App() {
             <Route path="/catalog" element={<CatalogPage />} />
             
             <Route path="/materials" element={<Materials />} />
+            {/* Nova Rota: Editor de Material */}
+            <Route path="/materials/new" element={
+                hasPermission(PERMISSIONS.CREATE_MATERIAL) ? <MaterialEditor /> : <Navigate to="/materials" />
+            } />
+            <Route path="/materials/edit/:id" element={
+                hasPermission(PERMISSIONS.CREATE_MATERIAL) ? <MaterialEditor /> : <Navigate to="/materials" />
+            } />
+
             <Route path="/p/:slug" element={<PageViewer />} />
             
             <Route path="/profile" element={<ProfilePage />} />

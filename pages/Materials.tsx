@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { storageService } from '../services/storageService';
-import { Material, MaterialType, UserRole, Course } from '../types';
+import { Material, MaterialType, UserRole, Course, PERMISSIONS } from '../types';
 import { useAuth } from '../App';
-import { Button, Modal, Input, Badge } from '../components/UI';
+import { Button, Badge } from '../components/UI';
 import { Icons } from '../components/Icons';
 
 export default function Materials() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [materials, setMaterials] = useState<Material[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingMaterial, setEditingMaterial] = useState<Partial<Material>>({});
   const [loading, setLoading] = useState(true);
   
-  const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.EDITOR;
+  const navigate = useNavigate();
+
+  // Use the specific permission for editing materials
+  const canEdit = hasPermission(PERMISSIONS.CREATE_MATERIAL) || user?.role === UserRole.ADMIN || user?.role === UserRole.EDITOR;
 
   useEffect(() => {
     loadData();
@@ -40,23 +42,11 @@ export default function Materials() {
   };
 
   const handleCreate = () => {
-    setEditingMaterial({
-      id: Date.now().toString(),
-      title: '',
-      type: MaterialType.RECURSO,
-      courseId: courses.length > 0 ? courses[0].id : '',
-      linkOrContent: '',
-      createdAt: new Date().toISOString()
-    });
-    setIsModalOpen(true);
+    navigate('/materials/new');
   };
 
-  const handleSave = async () => {
-    if (!editingMaterial.title || !editingMaterial.courseId) return;
-    
-    await storageService.saveMaterials([editingMaterial as Material]);
-    loadData();
-    setIsModalOpen(false);
+  const handleEdit = (id: string) => {
+    navigate(`/materials/edit/${id}`);
   };
 
   const handleDelete = async (id: string) => {
@@ -66,22 +56,27 @@ export default function Materials() {
     }
   };
 
-  const getMaterialIcon = (type: MaterialType) => {
-      switch(type) {
+  const getMaterialIcon = (type: string) => {
+      // Normalizar para garantir match com Enum se possível
+      const normalized = type.toUpperCase();
+      
+      switch(normalized) {
           case MaterialType.AVALIACAO: return <Icons.Quiz className="text-red-500" />;
           case MaterialType.DIAGNOSTICO: return <Icons.Search className="text-blue-500" />;
           case MaterialType.TRABALHO: return <Icons.Users className="text-green-500" />;
-          default: return <Icons.Materials className="text-gray-500" />;
+          case MaterialType.RECURSO: return <Icons.Materials className="text-indigo-500" />;
+          default: return <Icons.FileText className="text-gray-500" />; // Ícone genérico para tipos custom
       }
   };
 
-  const translateType = (type: MaterialType) => {
+  const translateType = (type: string) => {
+      // Tentar traduzir tipos conhecidos, senão mostrar o texto raw
       switch (type) {
           case MaterialType.DIAGNOSTICO: return "Diagnóstico";
           case MaterialType.AVALIACAO: return "Avaliação";
           case MaterialType.TRABALHO: return "Trabalho";
           case MaterialType.RECURSO: return "Recurso";
-          default: return type;
+          default: return type.replace(/_/g, ' '); // Formatar string custom
       }
   };
 
@@ -110,7 +105,7 @@ export default function Materials() {
             if (courseMaterials.length === 0 && !canEdit) return null;
 
             return (
-                <div key={course.id} className="bg-white shadow rounded-lg overflow-hidden">
+                <div key={course.id} className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
                      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
                         <h3 className="text-lg font-bold text-gray-900">{course.title}</h3>
                         <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full">{courseMaterials.length} Materiais</span>
@@ -138,19 +133,22 @@ export default function Materials() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <a 
-                                            href={material.linkOrContent} 
+                                            href={material.linkOrContent.startsWith('[') ? '#' : material.linkOrContent} 
                                             target="_blank" 
                                             rel="noreferrer"
+                                            onClick={(e) => {
+                                                if (material.linkOrContent.startsWith('[')) {
+                                                    e.preventDefault();
+                                                    alert("Este material é um ficheiro Drive. Verifique a descrição ou contacte o formador.");
+                                                }
+                                            }}
                                             className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full"
                                             title="Abrir Recurso"
                                             >
                                                 <Icons.Link className="w-5 h-5" />
                                             </a>
                                             {canEdit && (
-                                                <button onClick={() => {
-                                                    setEditingMaterial(material);
-                                                    setIsModalOpen(true);
-                                                }} className="text-gray-400 hover:text-gray-600 ml-1 p-2 hover:bg-gray-100 rounded-full">
+                                                <button onClick={() => handleEdit(material.id)} className="text-gray-400 hover:text-gray-600 ml-1 p-2 hover:bg-gray-100 rounded-full">
                                                     <Icons.Edit className="w-5 h-5" />
                                                 </button>
                                             )}
@@ -172,59 +170,6 @@ export default function Materials() {
              <div className="p-8 text-center text-gray-500">Não existem cursos associados.</div>
         )}
       </div>
-
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        title={editingMaterial.id ? "Editar Material" : "Novo Material"}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-            <Button variant="primary" onClick={handleSave}>Guardar</Button>
-          </>
-        }
-      >
-          <div className="space-y-4">
-            <Input 
-                label="Título do Material" 
-                value={editingMaterial.title || ''} 
-                onChange={e => setEditingMaterial({...editingMaterial, title: e.target.value})} 
-            />
-            
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Curso Associado</label>
-                <select 
-                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
-                    value={editingMaterial.courseId || ''}
-                    onChange={e => setEditingMaterial({...editingMaterial, courseId: e.target.value})}
-                >
-                    {courses.map(c => (
-                        <option key={c.id} value={c.id}>{c.title}</option>
-                    ))}
-                </select>
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Material</label>
-                <select 
-                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm border p-2"
-                    value={editingMaterial.type || MaterialType.RECURSO}
-                    onChange={e => setEditingMaterial({...editingMaterial, type: e.target.value as MaterialType})}
-                >
-                    {Object.values(MaterialType).map(t => (
-                        <option key={t} value={t}>{translateType(t)}</option>
-                    ))}
-                </select>
-            </div>
-
-            <Input 
-                label="Link ou URL do Conteúdo" 
-                value={editingMaterial.linkOrContent || ''} 
-                onChange={e => setEditingMaterial({...editingMaterial, linkOrContent: e.target.value})} 
-                placeholder="https://..."
-            />
-          </div>
-      </Modal>
     </div>
   );
 }

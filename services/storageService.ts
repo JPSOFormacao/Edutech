@@ -1,4 +1,3 @@
-
 import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -39,9 +38,10 @@ const INITIAL_ROLES = [
       PERMISSIONS.MANAGE_USERS,
       PERMISSIONS.MANAGE_COURSES,
       PERMISSIONS.MANAGE_CONTENT,
+      PERMISSIONS.CREATE_MATERIAL, // Nova Permissão
       PERMISSIONS.USE_AI_STUDIO,
       PERMISSIONS.VIEW_COURSES,
-      PERMISSIONS.USE_PIPEDREAM // Formadores podem usar Pipedream
+      PERMISSIONS.USE_PIPEDREAM 
     ]
   },
   {
@@ -344,7 +344,6 @@ export const storageService = {
     const roles = await fetchWithFallback('roles', STORAGE_KEYS.ROLES, INITIAL_ROLES);
     
     // Atualizar dinamicamente o Admin para ter SEMPRE todas as permissões no array
-    // Isto resolve a questão visual nos "Cargos" onde apareciam desmarcadas se a BD estivesse desatualizada.
     const adminRole = roles.find(r => r.id === 'role_admin');
     if (adminRole) {
         adminRole.permissions = Object.values(PERMISSIONS);
@@ -494,7 +493,8 @@ export const storageService = {
                  logoUrl: data.logo_url,
                  faviconUrl: data.favicon_url,
                  platformName: data.platform_name,
-                 pipedreamWebhookUrl: data.pipedream_webhook_url // Handle new field
+                 pipedreamWebhookUrl: data.pipedream_webhook_url,
+                 customMaterialTypes: data.custom_material_types // Handle new field
              };
         }
     } catch(e) {}
@@ -516,7 +516,8 @@ export const storageService = {
               logo_url: config.logoUrl,
               favicon_url: config.faviconUrl,
               platform_name: config.platformName,
-              pipedream_webhook_url: config.pipedreamWebhookUrl // Handle new field
+              pipedream_webhook_url: config.pipedreamWebhookUrl,
+              custom_material_types: config.customMaterialTypes // Handle new field
           });
       } catch (e) {}
   },
@@ -549,8 +550,6 @@ export const storageService = {
     if (!user) return [];
     
     // AUTOMATIC ADMIN PERMISSIONS:
-    // Garante que Administradores têm SEMPRE todas as permissões definidas no código,
-    // independentemente do que possa estar desatualizado na base de dados.
     if (user.role === UserRole.ADMIN || user.roleId === 'role_admin') {
         return Object.values(PERMISSIONS);
     }
@@ -609,8 +608,8 @@ export const storageService = {
       }
     } else {
         // Auto-reparação de Super Admin
-        // Cast user.role to string to avoid overlap error if TS thinks user.role excludes ADMIN
-        if (isSuperAdmin && ((user.role as string) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
+        // Cast user.role to any to avoid overlap error if TS thinks user.role excludes ADMIN
+        if (isSuperAdmin && ((user.role as any) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
              user = { ...user, role: UserRole.ADMIN, roleId: 'role_admin', status: UserStatus.ACTIVE };
              await storageService.saveUser(user);
         }

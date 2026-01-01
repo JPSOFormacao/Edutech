@@ -31,11 +31,12 @@ export const PERMISSIONS = {
   MANAGE_ROLES: 'manage_roles',
   MANAGE_CLASSES: 'manage_classes',
   MANAGE_COURSES: 'manage_courses',
-  MANAGE_CONTENT: 'manage_content', // Materials, CMS
+  MANAGE_CONTENT: 'manage_content', // Materials View/List
+  CREATE_MATERIAL: 'create_material', // Nova permissão específica para a página de criação
   VIEW_COURSES: 'view_courses',
   USE_AI_STUDIO: 'use_ai_studio',
   MANAGE_SETTINGS: 'manage_settings',
-  USE_PIPEDREAM: 'use_pipedream' // Nova permissão
+  USE_PIPEDREAM: 'use_pipedream'
 };
 
 export const PERMISSION_LABELS: Record<string, string> = {
@@ -44,7 +45,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   [PERMISSIONS.MANAGE_ROLES]: 'Gerir Cargos e Permissões',
   [PERMISSIONS.MANAGE_CLASSES]: 'Gerir Turmas',
   [PERMISSIONS.MANAGE_COURSES]: 'Criar e Editar Cursos',
-  [PERMISSIONS.MANAGE_CONTENT]: 'Gerir Conteúdos (Materiais e Páginas)',
+  [PERMISSIONS.MANAGE_CONTENT]: 'Ver e Gerir Lista de Conteúdos',
+  [PERMISSIONS.CREATE_MATERIAL]: 'Criar/Editar Materiais (Acesso ao Editor Completo)',
   [PERMISSIONS.VIEW_COURSES]: 'Ver Cursos Disponíveis (Acesso Aluno)',
   [PERMISSIONS.USE_AI_STUDIO]: 'Utilizar Estúdio de Inteligência Artificial',
   [PERMISSIONS.MANAGE_SETTINGS]: 'Configurações de Sistema (Email, Branding)',
@@ -113,7 +115,7 @@ export interface Material {
   id: string;
   courseId: string;
   title: string;
-  type: MaterialType;
+  type: string; // Alterado de MaterialType enum para string para permitir custom
   linkOrContent: string;
   createdAt: string;
 }
@@ -176,4 +178,5 @@ export interface SystemConfig {
   faviconUrl?: string;
   platformName?: string;
   pipedreamWebhookUrl?: string; // Novo campo para integração
+  customMaterialTypes?: string[]; // Novos tipos de material criados pelo utilizador
 }
