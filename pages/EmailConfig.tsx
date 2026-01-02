@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
+import { emailService } from '../services/emailService';
 import { Button, Input, Badge } from '../components/UI';
 import { Icons } from '../components/Icons';
 import { EmailTemplates, EmailCustomContent, EmailConfig, EmailConfigProfile } from '../types';
@@ -24,6 +25,10 @@ export default function EmailConfigPage() {
   const [status, setStatus] = useState<{type: 'success' | 'error' | 'info' | 'warning', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
   const [showKeys, setShowKeys] = useState<Record<number, boolean>>({});
+
+  // Estados para o botão de teste
+  const [testingKey, setTestingKey] = useState<string | null>(null);
+  const [successKey, setSuccessKey] = useState<string | null>(null);
   
   const load = async () => {
     try {
@@ -91,6 +96,41 @@ export default function EmailConfigPage() {
       });
 
       setConfig({ ...config, profiles: updatedProfiles });
+  };
+
+  // Função para testar envio de email
+  const handleTestEmail = async (key: keyof EmailTemplates) => {
+      if (!config) return;
+      
+      setTestingKey(key as string);
+      setSuccessKey(null);
+      setStatus(null); // Limpar mensagens anteriores
+
+      // 1. Guardar configurações primeiro para garantir que o serviço usa os dados mais recentes
+      const configToSave: EmailConfig = {
+          ...config,
+          activeProfileIndex: activeTab, 
+          customErrorMessage: customErrorMessage.trim()
+      };
+      await storageService.saveEmailConfig(configToSave);
+
+      // 2. Tentar enviar
+      try {
+          const result = await emailService.sendSpecificTemplateTest(key);
+          
+          if (result.success) {
+              // Sucesso: Botão fica verde
+              setSuccessKey(key as string);
+              setTimeout(() => setSuccessKey(null), 3000); // Reset após 3 segundos
+          } else {
+              // Erro: Mostra na faixa global para ser legível
+              setStatus({ type: 'error', msg: `Erro ao testar envio: ${result.message}` });
+          }
+      } catch (e: any) {
+          setStatus({ type: 'error', msg: `Exceção: ${e.message}` });
+      } finally {
+          setTestingKey(null);
+      }
   };
 
   const handleSave = async () => {
@@ -253,6 +293,8 @@ export default function EmailConfigPage() {
                           const isProfileActive = config.profiles[selectedIdx]?.isActive;
                           
                           const isEmpty = !currentIdVal || currentIdVal.trim() === '';
+                          const isTesting = testingKey === def.key;
+                          const isSuccess = successKey === def.key;
 
                           return (
                               <tr key={def.key} className={`hover:bg-gray-50 transition-colors ${isEmpty ? 'bg-red-50' : ''}`}>
@@ -278,13 +320,31 @@ export default function EmailConfigPage() {
                                       )}
                                   </td>
                                   <td className="px-6 py-4">
-                                      <input 
-                                          type="text"
-                                          className={`block w-full text-sm rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2 font-mono ${isEmpty ? 'border-red-300 bg-white placeholder-red-300' : 'border-gray-300'}`}
-                                          placeholder={`ex: ${def.key}_xxxx`}
-                                          value={currentIdVal}
-                                          onChange={(e) => handleUpdateTemplateMapping(def.key, selectedIdx, e.target.value)}
-                                      />
+                                      <div className="flex gap-2">
+                                          <input 
+                                              type="text"
+                                              className={`block w-full text-sm rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2 font-mono ${isEmpty ? 'border-red-300 bg-white placeholder-red-300' : 'border-gray-300'}`}
+                                              placeholder={`ex: ${def.key}_xxxx`}
+                                              value={currentIdVal}
+                                              onChange={(e) => handleUpdateTemplateMapping(def.key, selectedIdx, e.target.value)}
+                                          />
+                                          <Button 
+                                            size="sm" 
+                                            variant="secondary"
+                                            onClick={() => handleTestEmail(def.key)}
+                                            disabled={isEmpty || isTesting || isSuccess}
+                                            className={`${isSuccess ? '!bg-green-600 !text-white !border-transparent hover:!bg-green-700' : ''} whitespace-nowrap min-w-[80px]`}
+                                            title="Guardar e Testar"
+                                          >
+                                              {isTesting ? (
+                                                  <span className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"></span>
+                                              ) : isSuccess ? (
+                                                  'Enviado'
+                                              ) : (
+                                                  'Testar'
+                                              )}
+                                          </Button>
+                                      </div>
                                   </td>
                               </tr>
                           );
