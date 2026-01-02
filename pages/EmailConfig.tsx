@@ -65,8 +65,8 @@ export default function EmailConfigPage() {
     
     // Validação básica do perfil ativo (apenas aviso, não bloqueia)
     const currentProfile = config.profiles[activeTab];
-    if (!currentProfile.serviceId || !currentProfile.publicKey) {
-       if(!confirm("A conta atual parece incompleta (falta Service ID ou Public Key). Deseja guardar mesmo assim?")) {
+    if (currentProfile.isActive && (!currentProfile.serviceId || !currentProfile.publicKey)) {
+       if(!confirm("A conta atual está marcada como Ativa mas parece incompleta (falta Service ID ou Public Key). Deseja guardar mesmo assim?")) {
            return;
        }
     }
@@ -75,13 +75,13 @@ export default function EmailConfigPage() {
     
     const configToSave: EmailConfig = {
         ...config,
-        activeProfileIndex: activeTab, // O separador atual passa a ser o ativo
+        activeProfileIndex: activeTab, // O separador atual passa a ser o selecionado
         customErrorMessage: customErrorMessage.trim()
     };
     
     try {
         await storageService.saveEmailConfig(configToSave);
-        setStatus({ type: 'success', msg: `Configurações guardadas! A Conta #${activeTab + 1} está agora Ativa.` });
+        setStatus({ type: 'success', msg: `Configurações guardadas! A Conta #${activeTab + 1} foi atualizada.` });
         setTimeout(() => setStatus(null), 3000);
     } catch(e: any) {
         setStatus({ type: 'error', msg: 'Erro crítico: ' + (e.message || 'Falha desconhecida') });
@@ -102,32 +102,30 @@ export default function EmailConfigPage() {
         </div>
         <div>
             <h2 className="text-2xl font-bold text-gray-900">Credenciais Email (EmailJS)</h2>
-            <p className="text-sm text-gray-500">Gerencie múltiplas contas de envio. Selecione a aba desejada e clique em guardar para ativar.</p>
+            <p className="text-sm text-gray-500">Gerencie múltiplas contas de envio. É possível ter várias contas ativas simultaneamente para finalidades diferentes.</p>
         </div>
       </div>
 
       {/* TABS HEADER */}
       <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-2 overflow-x-auto" aria-label="Tabs">
-              {config.profiles.map((_, idx) => {
-                  const isActive = activeTab === idx;
-                  const isSystemActive = config.activeProfileIndex === idx;
+              {config.profiles.map((profile, idx) => {
+                  const isSelected = activeTab === idx;
+                  const isActive = profile.isActive;
                   
                   return (
                       <button
                           key={idx}
                           onClick={() => setActiveTab(idx)}
                           className={`${
-                              isActive
+                              isSelected
                                   ? 'border-orange-500 text-orange-600 bg-orange-50'
                                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                           } whitespace-nowrap py-3 px-6 border-b-2 font-medium text-sm rounded-t-lg transition-colors flex items-center gap-2`}
                       >
                           Conta #{idx + 1}
-                          {isSystemActive && (
-                              <span className="bg-green-100 text-green-800 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide border border-green-200">
-                                  Ativa
-                              </span>
+                          {isActive && (
+                              <span className="w-2 h-2 rounded-full bg-green-500 shadow-sm" title="Conta Ativa"></span>
                           )}
                       </button>
                   );
@@ -138,19 +136,27 @@ export default function EmailConfigPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* Lado Esquerdo: Credenciais */}
         <div className="space-y-6 h-fit">
-            <div className="bg-white shadow rounded-lg p-6 space-y-4 border-t-4 border-orange-500">
+            <div className={`bg-white shadow rounded-lg p-6 space-y-4 border-t-4 ${currentProfile.isActive ? 'border-green-500' : 'border-gray-300'}`}>
                 <div className="flex justify-between items-center border-b pb-2 mb-4">
                     <h3 className="font-bold text-gray-900 flex items-center gap-2">
                         <Icons.Settings className="w-4 h-4" /> 
                         Credenciais da Conta #{activeTab + 1}
                     </h3>
-                    {config.activeProfileIndex === activeTab ? (
-                        <span className="text-xs text-green-600 font-bold flex items-center gap-1">
-                            <Icons.Check className="w-4 h-4" /> Em Uso
-                        </span>
-                    ) : (
-                        <span className="text-xs text-gray-400">Inativa (Clique Guardar para Ativar)</span>
-                    )}
+                    <label className="flex items-center cursor-pointer">
+                        <div className="relative">
+                            <input 
+                                type="checkbox" 
+                                className="sr-only" 
+                                checked={currentProfile.isActive} 
+                                onChange={e => handleUpdateProfile('isActive', e.target.checked)}
+                            />
+                            <div className={`block w-10 h-6 rounded-full transition-colors ${currentProfile.isActive ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                            <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${currentProfile.isActive ? 'transform translate-x-4' : ''}`}></div>
+                        </div>
+                        <div className="ml-2 text-xs font-medium text-gray-700">
+                            {currentProfile.isActive ? 'Conta Ativa' : 'Inativa'}
+                        </div>
+                    </label>
                 </div>
 
                 <Input 
@@ -269,7 +275,7 @@ export default function EmailConfigPage() {
 
       <div className="flex justify-end pt-4 border-t pb-8">
             <Button onClick={handleSave} disabled={loading}>
-                {loading ? 'A Guardar...' : `Guardar e Ativar Conta #${activeTab + 1}`}
+                {loading ? 'A Guardar...' : `Guardar Conta #${activeTab + 1}`}
             </Button>
       </div>
     </div>

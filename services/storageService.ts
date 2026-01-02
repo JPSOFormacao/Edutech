@@ -471,7 +471,7 @@ export const storageService = {
         publicKey: '',
         templates: { ...emptyTemplates },
         activeProfileIndex: 0,
-        profiles: Array(5).fill(null).map(() => ({ serviceId: '', publicKey: '', templates: { ...emptyTemplates } })),
+        profiles: Array(5).fill(null).map(() => ({ serviceId: '', publicKey: '', templates: { ...emptyTemplates }, isActive: false })),
         customErrorMessage: '',
         customContent: {
             welcomeText: '',
@@ -502,35 +502,39 @@ export const storageService = {
     const customErrorMessage = dbData.custom_error_message || localData.customErrorMessage || '';
     const customContent = { ...baseConfig.customContent, ...(localData.customContent || {}), ...(dbData.custom_content || {}) };
 
-    // Recuperar Perfis (guardados no customContent._profiles_backup ou localStorage)
+    // Recuperar Perfis
     let loadedProfiles: EmailConfigProfile[] = baseConfig.profiles;
     let loadedActiveIndex = localData.activeProfileIndex || 0;
 
-    // Tentar carregar perfis do custom content (DB Persistence)
     if (customContent._profiles_backup && Array.isArray(customContent._profiles_backup)) {
         loadedProfiles = customContent._profiles_backup;
-    } 
-    // Se não existir, verificar se o localStorage tem (Local persistence)
-    else if (localData.profiles && Array.isArray(localData.profiles)) {
+    } else if (localData.profiles && Array.isArray(localData.profiles)) {
         loadedProfiles = localData.profiles;
     }
 
-    // Se ainda estiver tudo vazio mas existir configuração "legacy" (serviceId/templates na raiz), popular o Perfil 0
+    // Populate Profile 0 if empty but legacy data exists
     if ((!loadedProfiles[0].serviceId) && serviceId) {
         loadedProfiles[0] = {
             serviceId: serviceId,
             publicKey: publicKey,
-            templates: templates
+            templates: templates,
+            isActive: true // Assume legacy single account is active
         };
     }
 
-    // Garantir que temos 5 perfis
+    // Migration: If isActive is not set on profiles, set based on loadedActiveIndex
+    loadedProfiles = loadedProfiles.map((p, idx) => ({
+        ...p,
+        isActive: p.isActive !== undefined ? p.isActive : (idx === loadedActiveIndex)
+    }));
+
+    // Ensure 5 profiles
     while (loadedProfiles.length < 5) {
-        loadedProfiles.push({ serviceId: '', publicKey: '', templates: { ...emptyTemplates } });
+        loadedProfiles.push({ serviceId: '', publicKey: '', templates: { ...emptyTemplates }, isActive: false });
     }
 
     return {
-        serviceId, // Mantemos para retrocompatibilidade do serviço
+        serviceId, 
         publicKey,
         templates,
         activeProfileIndex: loadedActiveIndex,
@@ -544,19 +548,19 @@ export const storageService = {
     localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config));
     
     // Preparar dados para o Supabase
-    // IMPORTANTE: As colunas `service_id` e `public_key` na DB guardarão o perfil ATIVO.
-    // O array completo de perfis será guardado dentro de `custom_content` para persistência.
-    
+    // As colunas principais guardam o perfil "Selecionado na UI" (activeProfileIndex) apenas para fallback,
+    // mas o array completo em custom_content é a fonte da verdade.
     const activeProfile = config.profiles[config.activeProfileIndex] || config.profiles[0];
+    
     const customContentWithProfiles = {
         ...config.customContent,
-        _profiles_backup: config.profiles // Backup dos 5 perfis
+        _profiles_backup: config.profiles 
     };
 
     try {
         await supabase.from('email_config').upsert({
             id: 'default_config', 
-            service_id: activeProfile.serviceId, // Guarda o ativo nas colunas principais
+            service_id: activeProfile.serviceId, 
             public_key: activeProfile.publicKey,
             templates: activeProfile.templates,
             custom_error_message: config.customErrorMessage,

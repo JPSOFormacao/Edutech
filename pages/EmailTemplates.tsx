@@ -83,6 +83,12 @@ export default function EmailTemplatesPage() {
       }
   };
 
+  const handleCopy = (text: string) => {
+      navigator.clipboard.writeText(text);
+      setStatus({ type: 'info', msg: `Variável ${text} copiada!` });
+      setTimeout(() => setStatus(null), 2000);
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-center gap-3 mb-6">
@@ -91,7 +97,7 @@ export default function EmailTemplatesPage() {
         </div>
         <div>
             <h2 className="text-2xl font-bold text-gray-900">Personalizar Emails</h2>
-            <p className="text-sm text-gray-500">Edite o conteúdo de texto dos emails enviados pelo sistema.</p>
+            <p className="text-sm text-gray-500">Edite o conteúdo de texto dos emails enviados pelo sistema. <b>HTML é suportado</b>.</p>
         </div>
       </div>
 
@@ -103,7 +109,7 @@ export default function EmailTemplatesPage() {
               <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200">
                    <div className="flex justify-between items-start border-b pb-2 mb-2">
                        <div>
-                           <h3 className="font-bold text-gray-900">Email de Boas-Vindas</h3>
+                           <h3 className="font-bold text-gray-900">Email de Boas-Vindas <span className="text-xs font-normal text-indigo-600 ml-1">(HTML Suportado)</span></h3>
                            <p className="text-xs text-gray-500 mt-1">Enviado ao criar conta ou aprovar registo.</p>
                        </div>
                        <Button 
@@ -117,18 +123,18 @@ export default function EmailTemplatesPage() {
                    </div>
                    <textarea 
                        className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono bg-gray-50"
-                       rows={8}
+                       rows={10}
                        value={customContent.welcomeText || ''}
                        onChange={e => setCustomContent({...customContent, welcomeText: e.target.value})}
-                       placeholder={`Bem-vindo à EduTech PT!
-          
-A sua conta foi criada com sucesso.
+                       placeholder={`<h1>Bem-vindo à EduTech PT!</h1>
+<p>A sua conta foi criada com sucesso.</p>
 
-{training_details}
+<p><b>Detalhes da Formação:</b><br/>
+{{training_details}}</p>
 
-As suas credenciais de acesso são:
-Email: {email}
-Senha Temporária: {password}`}
+<p>As suas credenciais de acesso são:<br/>
+Email: {{email}}<br/>
+Senha: {{password}}</p>`}
                    />
               </div>
 
@@ -137,7 +143,7 @@ Senha Temporária: {password}`}
                    <div className="flex justify-between items-start border-b pb-2 mb-2">
                        <div>
                            <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                               <Icons.Shield className="w-4 h-4 text-red-500" /> Relatório de Ficheiros Eliminados
+                               <Icons.Shield className="w-4 h-4 text-red-500" /> Relatório de Ficheiros <span className="text-xs font-normal text-red-600 ml-1">(HTML Suportado)</span>
                            </h3>
                            <p className="text-xs text-gray-500 mt-1">Enviado ao admin quando 10 ficheiros são apagados.</p>
                        </div>
@@ -155,14 +161,12 @@ Senha Temporária: {password}`}
                        rows={8}
                        value={customContent.auditLogText || ''}
                        onChange={e => setCustomContent({...customContent, auditLogText: e.target.value})}
-                       placeholder={`Relatório de Auditoria - Eliminação de Ficheiros
+                       placeholder={`<h3>Relatório de Auditoria</h3>
+<p>O sistema detetou a eliminação de <b>{{total_files}}</b> ficheiros.</p>
 
-O sistema detetou a eliminação de {total_files} ficheiros.
-
-Lista de ficheiros afetados:
-{file_list}
-
-Por favor verifique se estas ações foram autorizadas.`}
+<hr/>
+<pre>{{file_list}}</pre>
+<hr/>`}
                    />
               </div>
 
@@ -170,7 +174,7 @@ Por favor verifique se estas ações foram autorizadas.`}
               <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200">
                    <div className="flex justify-between items-start border-b pb-2 mb-2">
                        <div>
-                           <h3 className="font-bold text-gray-900">Email de Verificação</h3>
+                           <h3 className="font-bold text-gray-900">Email de Verificação <span className="text-xs font-normal text-indigo-600 ml-1">(HTML Suportado)</span></h3>
                            <p className="text-xs text-gray-500 mt-1">Enviado para validar o endereço de email.</p>
                        </div>
                        <Button 
@@ -187,10 +191,9 @@ Por favor verifique se estas ações foram autorizadas.`}
                        rows={6}
                        value={customContent.verificationText || ''}
                        onChange={e => setCustomContent({...customContent, verificationText: e.target.value})}
-                       placeholder={`Olá {name},
-
-Obrigado pelo seu registo.
-Clique aqui para validar: {link}`}
+                       placeholder={`<p>Olá {{name}},</p>
+<p>Obrigado pelo seu registo.</p>
+<a href="{{link}}">Clique aqui para validar a sua conta</a>`}
                    />
               </div>
 
@@ -198,7 +201,7 @@ Clique aqui para validar: {link}`}
                <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200">
                    <div className="flex justify-between items-start border-b pb-2 mb-2">
                        <div>
-                           <h3 className="font-bold text-gray-900">Recuperação de Senha</h3>
+                           <h3 className="font-bold text-gray-900">Recuperação de Senha <span className="text-xs font-normal text-indigo-600 ml-1">(HTML Suportado)</span></h3>
                            <p className="text-xs text-gray-500 mt-1">Enviado quando a senha é redefinida pelo admin.</p>
                        </div>
                        <Button 
@@ -215,12 +218,9 @@ Clique aqui para validar: {link}`}
                        rows={6}
                        value={customContent.resetPasswordText || ''}
                        onChange={e => setCustomContent({...customContent, resetPasswordText: e.target.value})}
-                       placeholder={`Olá {name},
-A sua senha foi redefinida.
-
-Novas credenciais:
-Email: {email}
-Nova Senha: {password}`}
+                       placeholder={`<p>Olá {{name}},</p>
+<p>A sua senha foi redefinida.</p>
+<p><b>Nova Senha:</b> {{password}}</p>`}
                    />
               </div>
           </div>
@@ -236,33 +236,68 @@ Nova Senha: {password}`}
                   </p>
                   
                   <ul className="space-y-3">
-                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm">
-                          <code className="text-pink-600 font-bold block mb-1">{`{name}`}</code>
-                          <span className="text-xs text-gray-600">Nome de exibição do utilizador.</span>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{name}}`}</code>
+                              <span className="text-xs text-gray-600">Nome de exibição do utilizador.</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{name}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
                       </li>
-                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm">
-                          <code className="text-pink-600 font-bold block mb-1">{`{email}`}</code>
-                          <span className="text-xs text-gray-600">Endereço de email do utilizador.</span>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{email}}`}</code>
+                              <span className="text-xs text-gray-600">Endereço de email do utilizador.</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{email}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
                       </li>
-                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm">
-                          <code className="text-pink-600 font-bold block mb-1">{`{password}`}</code>
-                          <span className="text-xs text-gray-600">A senha gerada (apenas em Boas-vindas e Reset).</span>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{password}}`}</code>
+                              <span className="text-xs text-gray-600">A senha gerada (Boas-vindas/Reset).</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{password}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
                       </li>
-                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm">
-                          <code className="text-pink-600 font-bold block mb-1">{`{link}`}</code>
-                          <span className="text-xs text-gray-600">O link clicável (apenas para Verificação).</span>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{link}}`}</code>
+                              <span className="text-xs text-gray-600">Link clicável (Verificação).</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{link}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
                       </li>
-                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm">
-                          <code className="text-pink-600 font-bold block mb-1">{`{training_details}`}</code>
-                          <span className="text-xs text-gray-600">Lista formatada com Turma e Cursos inscritos.</span>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{training_details}}`}</code>
+                              <span className="text-xs text-gray-600">Lista com Turma e Cursos.</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{training_details}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
                       </li>
-                      <li className="bg-red-50 p-2 rounded border border-red-200 shadow-sm">
-                          <code className="text-red-600 font-bold block mb-1">{`{file_list}`}</code>
-                          <span className="text-xs text-gray-600">Lista de ficheiros apagados (apenas Auditoria).</span>
+                      <li className="bg-red-50 p-2 rounded border border-red-200 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-red-600 font-bold block mb-1">{`{{file_list}}`}</code>
+                              <span className="text-xs text-gray-600">Lista de ficheiros (Auditoria).</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{file_list}}')} className="text-gray-400 hover:text-red-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
                       </li>
-                      <li className="bg-red-50 p-2 rounded border border-red-200 shadow-sm">
-                          <code className="text-red-600 font-bold block mb-1">{`{total_files}`}</code>
-                          <span className="text-xs text-gray-600">Número total de ficheiros no lote (apenas Auditoria).</span>
+                      <li className="bg-red-50 p-2 rounded border border-red-200 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-red-600 font-bold block mb-1">{`{{total_files}}`}</code>
+                              <span className="text-xs text-gray-600">Total de ficheiros (Auditoria).</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{total_files}}')} className="text-gray-400 hover:text-red-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
                       </li>
                   </ul>
               </div>

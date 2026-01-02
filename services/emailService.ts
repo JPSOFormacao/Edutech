@@ -15,8 +15,8 @@ const SYSTEM_NAME = 'EduTech PT Formação';
 const processTemplate = (template: string, variables: Record<string, string>): string => {
     let processed = template;
     for (const [key, value] of Object.entries(variables)) {
-        // Substitui {variavel} ou {{variavel}}
-        const regex = new RegExp(`{{?${key}}}?`, 'g');
+        // Substitui {{variavel}} com duas chavetas
+        const regex = new RegExp(`{{${key}}}`, 'g');
         processed = processed.replace(regex, value);
     }
     return processed;
@@ -73,24 +73,35 @@ const getErrorMsg = async (originalError: any): Promise<string> => {
     return techError;
 };
 
-// --- Helper to get Active Config ---
-const getActiveConfig = async () => {
+// --- Helper to get Active Config containing a specific template ---
+const getConfigForTemplate = async (templateKey: keyof EmailTemplates) => {
     const config = await storageService.getEmailConfig();
     if (!config) return null;
 
-    // Tentar obter o perfil ativo com base no índice
-    const activeProfile = config.profiles?.[config.activeProfileIndex || 0];
+    // Procurar nas contas ATIVAS uma que tenha o template definido
+    const profiles = config.profiles || [];
     
-    // Se o perfil ativo tiver dados, usar. Senão usar a raiz (legacy support)
-    const serviceId = activeProfile?.serviceId || config.serviceId;
-    const publicKey = activeProfile?.publicKey || config.publicKey;
-    const templates = activeProfile?.templates || config.templates;
+    // Filtra apenas contas ativas e que tenham o Service ID e Public Key definidos
+    const activeProfiles = profiles.filter(p => p.isActive && p.serviceId && p.publicKey);
+
+    // Tenta encontrar o primeiro perfil que tenha o Template ID solicitado
+    let matchedProfile = activeProfiles.find(p => p.templates[templateKey] && p.templates[templateKey].trim().length > 0);
+
+    // Se não encontrar, e for um pedido de template que pode ter fallback (ex: Notification), tenta o fallback
+    if (!matchedProfile && templateKey === 'notificationId') {
+         // Tenta encontrar qualquer perfil ativo que tenha ALGUM template genérico
+         matchedProfile = activeProfiles.find(p => p.templates.notificationId || p.templates.welcomeId);
+    }
+
+    if (!matchedProfile) {
+        return null;
+    }
 
     return {
-        ...config,
-        serviceId,
-        publicKey,
-        templates
+        serviceId: matchedProfile.serviceId,
+        publicKey: matchedProfile.publicKey,
+        templateId: matchedProfile.templates[templateKey],
+        customContent: config.customContent
     };
 };
 
@@ -102,24 +113,12 @@ export const emailService = {
 
   // Teste Específico por Tipo de Template
   sendSpecificTemplateTest: async (templateKey: keyof EmailTemplates): Promise<EmailResult> => {
-    const config = await getActiveConfig();
+    const config = await getConfigForTemplate(templateKey);
     
     // Validações Básicas
-    if (!config) return { success: false, message: "Configuração não encontrada." };
-    if (!config.serviceId) return { success: false, message: "Service ID em falta." };
-    if (!config.publicKey) return { success: false, message: "Public Key em falta." };
-
-    let templateId = config.templates?.[templateKey];
+    if (!config) return { success: false, message: "Nenhuma conta ativa encontrada com este template configurado." };
     
-    if (!templateId) {
-        if (templateKey === 'welcomeId') {
-             const any = Object.values(config.templates || {}).find(v => v);
-             if (any) templateId = any;
-             else return { success: false, message: "Nenhum template configurado." };
-        } else {
-             return { success: false, message: `O ID para '${templateKey}' está vazio. Guarde uma configuração válida primeiro.` };
-        }
-    }
+    const { serviceId, publicKey, templateId, customContent } = config;
 
     // Dados Fictícios para o Teste
     const commonParams = {
@@ -142,8 +141,8 @@ export const emailService = {
     switch (templateKey) {
         case 'auditLogId':
             const mockFileList = "1. Ficheiro A.pdf (Apagado por João)\n2. Ficheiro B.jpg (Apagado por Maria)";
-            if (config.customContent?.auditLogText) {
-                messageBody = processTemplate(config.customContent.auditLogText, {
+            if (customContent?.auditLogText) {
+                messageBody = processTemplate(customContent.auditLogText, {
                     name: commonParams.to_name,
                     file_list: mockFileList,
                     total_files: "2"
@@ -158,8 +157,8 @@ export const emailService = {
             };
             break;
         case 'verificationId':
-            if (config.customContent?.verificationText) {
-                messageBody = processTemplate(config.customContent.verificationText, {
+            if (customContent?.verificationText) {
+                messageBody = processTemplate(customContent.verificationText, {
                     name: commonParams.to_name,
                     link: mockLink,
                     verification_link: mockLink
@@ -175,8 +174,8 @@ export const emailService = {
             };
             break;
         case 'resetPasswordId':
-            if (config.customContent?.resetPasswordText) {
-                messageBody = processTemplate(config.customContent.resetPasswordText, {
+            if (customContent?.resetPasswordText) {
+                messageBody = processTemplate(customContent.resetPasswordText, {
                     name: commonParams.to_name,
                     email: commonParams.to_email,
                     password: "nova-senha-teste-123",
@@ -193,8 +192,8 @@ export const emailService = {
             break;
         case 'welcomeId':
         default:
-             if (config.customContent?.welcomeText) {
-                messageBody = processTemplate(config.customContent.welcomeText, {
+             if (customContent?.welcomeText) {
+                messageBody = processTemplate(customContent.welcomeText, {
                     name: commonParams.to_name,
                     email: commonParams.to_email,
                     password: "senha-inicial-teste",
@@ -214,8 +213,8 @@ export const emailService = {
     const templateParams = { ...commonParams, ...specificParams };
 
     try {
-      console.log(`[EmailTest] Envio para ${SYSTEM_EMAIL} | Template: ${templateKey} (${templateId})`);
-      await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
+      console.log(`[EmailTest] Envio para ${SYSTEM_EMAIL} | Service: ${serviceId} | Template: ${templateKey} (${templateId})`);
+      await emailjs.send(serviceId, templateId, templateParams, publicKey);
       return { success: true };
     } catch (error: any) {
       console.error("EmailJS Error:", error);
@@ -225,19 +224,13 @@ export const emailService = {
   },
 
   sendNotification: async (toName: string, message: string, toEmail: string = SYSTEM_EMAIL): Promise<boolean> => {
-    const config = await getActiveConfig();
-    let templateId = config?.templates?.notificationId;
+    const config = await getConfigForTemplate('notificationId');
+    if (!config) return false;
     
-    // Fallback
-    if (!templateId && config?.templates) {
-        const anyTemplate = Object.values(config.templates).find(v => v && typeof v === 'string' && v.length > 0);
-        if (anyTemplate) templateId = anyTemplate;
-    }
-
-    if (!config || !templateId || !config.serviceId || !config.publicKey) return false;
+    const { serviceId, publicKey, templateId } = config;
     
     try {
-        await emailjs.send(config.serviceId, templateId, {
+        await emailjs.send(serviceId, templateId, {
             to_name: toName,
             name: toName,
             message: message,
@@ -247,7 +240,7 @@ export const emailService = {
             to_email: toEmail, 
             email: toEmail,
             password: 'N/A' 
-        }, config.publicKey);
+        }, publicKey);
         return true;
     } catch (e) {
         console.error(e);
@@ -256,17 +249,18 @@ export const emailService = {
   },
 
   sendDeletionBatchEmail: async (logs: FileDeletionLog[]): Promise<boolean> => {
-      const config = await getActiveConfig();
-      if (!config || !config.serviceId || !config.publicKey) return false;
+      // Tentar obter config para auditLogId, se não existir, tenta notificationId
+      let config = await getConfigForTemplate('auditLogId');
+      if (!config) {
+          config = await getConfigForTemplate('notificationId');
+      }
 
-      // 1. Determinar o Template ID (Prioridade ao novo auditLogId)
-      // Se auditLogId não existir, tenta notificationId
-      const templateId = config.templates?.auditLogId || config.templates?.notificationId;
-
-      if (!templateId) {
-          console.error("Erro: Nenhum Template ID configurado para Auditoria ou Notificações.");
+      if (!config) {
+          console.error("Erro: Nenhum Template ID configurado para Auditoria ou Notificações em contas ativas.");
           return false;
       }
+
+      const { serviceId, publicKey, templateId, customContent } = config;
 
       // 2. Formatar lista
       const list = logs.map((log, idx) => 
@@ -277,8 +271,8 @@ export const emailService = {
 
       // 3. Preparar Mensagem (Se houver texto customizado)
       let messageBody = "";
-      if (config.customContent?.auditLogText) {
-          messageBody = processTemplate(config.customContent.auditLogText, {
+      if (customContent?.auditLogText) {
+          messageBody = processTemplate(customContent.auditLogText, {
               name: "Administrador",
               file_list: list,
               total_files: totalFiles
@@ -308,7 +302,7 @@ ${list}
       };
 
       try {
-          await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
+          await emailjs.send(serviceId, templateId, templateParams, publicKey);
           return true;
       } catch (e) {
           console.error("Falha ao enviar email de auditoria:", e);
@@ -317,30 +311,20 @@ ${list}
   },
 
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
-    const config = await getActiveConfig();
+    let config = await getConfigForTemplate('verificationId');
+    if (!config) {
+        // Fallback: Try general notification template
+        config = await getConfigForTemplate('notificationId');
+    }
     
-    if (!config) return { success: false, message: "Erro Config: Objeto vazio." };
-    if (!config.serviceId) return { success: false, message: "Erro Config: Service ID em falta." };
-    if (!config.publicKey) return { success: false, message: "Erro Config: Public Key em falta." };
-
-    let templateId = config.templates?.verificationId || 
-                     config.templates?.notificationId || 
-                     config.templates?.welcomeId || 
-                     (config as any)?.templateId;
-
-    if (!templateId && config.templates) {
-         const fallback = Object.values(config.templates).find(v => v && typeof v === 'string' && v.trim().length > 0);
-         if (fallback) templateId = fallback;
-    }
-
-    if (!templateId) {
-         return { success: false, message: "Erro de Configuração: Nenhum Template ID encontrado. Configure pelo menos UM template." };
-    }
+    if (!config) return { success: false, message: "Erro Config: Nenhum template de verificação ou notificação ativo." };
+    
+    const { serviceId, publicKey, templateId, customContent } = config;
     
     // Verificar se existe texto personalizado ou usar Default
     let messageBody = "";
-    if (config.customContent?.verificationText) {
-        messageBody = processTemplate(config.customContent.verificationText, {
+    if (customContent?.verificationText) {
+        messageBody = processTemplate(customContent.verificationText, {
             name: toName,
             link: verificationLink,
             verification_link: verificationLink
@@ -359,7 +343,7 @@ ${list}
     }
 
     try {
-        await emailjs.send(config.serviceId, templateId, {
+        await emailjs.send(serviceId, templateId, {
             to_name: toName,
             name: toName,
             to_email: toEmail,
@@ -370,7 +354,7 @@ ${list}
             verification_link: verificationLink,
             link: verificationLink,
             url: verificationLink
-        }, config.publicKey);
+        }, publicKey);
         return { success: true };
     } catch (e: any) {
         console.error("Erro Email Verificação:", e);
@@ -380,23 +364,18 @@ ${list}
   },
 
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
-    const config = await getActiveConfig();
-    let templateId = config?.templates?.welcomeId || (config as any)?.templateId;
-    
-    if (!templateId && config?.templates) {
-         const fallback = Object.values(config.templates).find(v => v && typeof v === 'string' && v.trim().length > 0);
-         if (fallback) templateId = fallback;
-    }
-    
-    if (!config || !templateId) return { success: false, message: "Template ID em falta." };
+    const config = await getConfigForTemplate('welcomeId');
+    if (!config) return { success: false, message: "Template de Boas-vindas não configurado em nenhuma conta ativa." };
+
+    const { serviceId, publicKey, templateId, customContent } = config;
 
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
 
     // Verificar se existe texto personalizado ou usar Default
     let messageBody = "";
-    if (config.customContent?.welcomeText) {
-        messageBody = processTemplate(config.customContent.welcomeText, {
+    if (customContent?.welcomeText) {
+        messageBody = processTemplate(customContent.welcomeText, {
             name: toName,
             email: cleanEmail,
             password: tempPass,
@@ -434,7 +413,7 @@ ${list}
     };
 
     try {
-        await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
+        await emailjs.send(serviceId, templateId, templateParams, publicKey);
         return { success: true };
     } catch (e: any) {
         const msg = await getErrorMsg(e);
@@ -443,23 +422,18 @@ ${list}
   },
 
   sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
-    const config = await getActiveConfig();
-    let templateId = config?.templates?.resetPasswordId || (config as any)?.templateId;
-    
-    if (!templateId && config?.templates) {
-         const fallback = Object.values(config.templates).find(v => v && typeof v === 'string' && v.trim().length > 0);
-         if (fallback) templateId = fallback;
-    }
+    const config = await getConfigForTemplate('resetPasswordId');
+    if (!config) return { success: false, message: "Template de Reset de Senha não configurado em nenhuma conta ativa." };
 
-    if (!config || !templateId) return { success: false, message: "Template ID em falta." };
+    const { serviceId, publicKey, templateId, customContent } = config;
 
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
     
     // Verificar se existe texto personalizado ou usar Default
     let messageBody = "";
-    if (config.customContent?.resetPasswordText) {
-        messageBody = processTemplate(config.customContent.resetPasswordText, {
+    if (customContent?.resetPasswordText) {
+        messageBody = processTemplate(customContent.resetPasswordText, {
             name: toName,
             email: cleanEmail,
             password: newPass,
@@ -492,7 +466,7 @@ ${list}
     };
 
     try {
-        await emailjs.send(config.serviceId, templateId, templateParams, config.publicKey);
+        await emailjs.send(serviceId, templateId, templateParams, publicKey);
         return { success: true };
     } catch (e: any) {
         const msg = await getErrorMsg(e);

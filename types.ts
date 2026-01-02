@@ -196,15 +196,16 @@ export interface EmailConfigProfile {
     serviceId: string;
     publicKey: string;
     templates: EmailTemplates;
+    isActive: boolean; // Support multiple active accounts
 }
 
 export interface EmailConfig {
-  serviceId: string; // Active Service ID
-  publicKey: string; // Active Public Key
-  templates: EmailTemplates; // Active Templates
+  serviceId: string; // Legacy/Fallback
+  publicKey: string; // Legacy/Fallback
+  templates: EmailTemplates; // Legacy/Fallback
   
   // Multi-profile support
-  activeProfileIndex: number;
+  activeProfileIndex: number; // Used for UI tab selection
   profiles: EmailConfigProfile[];
 
   customErrorMessage?: string; 

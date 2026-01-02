@@ -30,7 +30,8 @@ import {
   Cloud,
   Upload,
   ClipboardList,
-  MessageSquare
+  MessageSquare,
+  Copy
 } from 'lucide-react';
 
 export const Icons = {
@@ -67,5 +68,6 @@ export const Icons = {
   Cloud: Cloud,
   Upload: Upload,
   Audit: ClipboardList,
-  MessageSquare: MessageSquare
+  MessageSquare: MessageSquare,
+  Copy: Copy
 };
