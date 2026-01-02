@@ -95,6 +95,8 @@ export interface User {
   password?: string;
   mustChangePassword?: boolean;
   tempPasswordCreatedAt?: string; // Data de criação da senha temporária para validade de 48h
+  resetPasswordToken?: string; // Token para link de redefinição
+  resetPasswordExpires?: string; // Data de expiração do token
   bio?: string;
   privacySettings?: UserPrivacySettings;
   emailVerified?: boolean; // Novo campo

@@ -344,6 +344,55 @@ export const storageService = {
       return true;
   },
 
+  // --- PASSWORD RESET LOGIC ---
+  generatePasswordResetLink: async (userId: string): Promise<string> => {
+      const users = await storageService.getUsers();
+      const user = users.find(u => u.id === userId);
+      
+      if (!user) throw new Error("Utilizador não encontrado.");
+
+      const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      // Valid for 24 hours
+      const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      const updatedUser = {
+          ...user,
+          resetPasswordToken: token,
+          resetPasswordExpires: expires
+      };
+
+      await storageService.saveUser(updatedUser);
+
+      // Generate full link using current location origin AND path (before hash) to support subdirectories
+      const baseUrl = window.location.href.split('#')[0];
+      return `${baseUrl}#/reset-password?token=${token}`;
+  },
+
+  resetPasswordWithToken: async (token: string, newPassword: string): Promise<boolean> => {
+      const users = await storageService.getUsers();
+      const user = users.find(u => u.resetPasswordToken === token);
+
+      if (!user) {
+          throw new Error("Token inválido.");
+      }
+
+      if (user.resetPasswordExpires && new Date(user.resetPasswordExpires) < new Date()) {
+          throw new Error("Este link expirou. Solicite um novo.");
+      }
+
+      const updatedUser = {
+          ...user,
+          password: newPassword,
+          mustChangePassword: false,
+          tempPasswordCreatedAt: undefined, // Clear temp status if any
+          resetPasswordToken: undefined,
+          resetPasswordExpires: undefined
+      };
+
+      await storageService.saveUser(updatedUser);
+      return true;
+  },
+
   // --- ROLES ---
   getRoles: async (): Promise<RoleEntity[]> => {
     const roles = await fetchWithFallback('roles', STORAGE_KEYS.ROLES, INITIAL_ROLES);

@@ -20,6 +20,7 @@ import ProfilePage from './pages/Profile';
 import CommunityPage from './pages/Community';
 import CatalogPage from './pages/Catalog';
 import VerifyEmail from './pages/VerifyEmail';
+import ResetPassword from './pages/ResetPassword';
 import SystemSettings from './pages/SystemSettings'; 
 import DatabaseTest from './pages/DatabaseTest'; 
 import IntegrationsPage from './pages/Integrations'; 
@@ -333,6 +334,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />

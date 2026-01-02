@@ -20,6 +20,9 @@ export default function UsersPage() {
   
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [newPassword, setNewPassword] = useState('');
+  
+  // Reset Link State
+  const [resetLink, setResetLink] = useState('');
 
   // Estados para Importação em Massa
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
@@ -65,6 +68,31 @@ export default function UsersPage() {
   const handleGeneratePassword = () => {
       const pass = generateRandomPassword();
       setNewPassword(pass);
+  };
+
+  const handleGenerateResetLink = async () => {
+      if (!selectedUser) return;
+      try {
+          // O link é gerado e o utilizador é salvo na BD com o token
+          const link = await storageService.generatePasswordResetLink(selectedUser.id);
+          setResetLink(link);
+          
+          // CRÍTICO: Recarregar dados para garantir que temos o token na memória
+          // Caso contrário, se clicarmos em "Guardar" depois, vamos sobrescrever o utilizador com dados velhos (sem token)
+          const refreshedUsers = await storageService.getUsers();
+          setUsers(refreshedUsers);
+          const updatedSelected = refreshedUsers.find(u => u.id === selectedUser.id);
+          if (updatedSelected) {
+              setSelectedUser(updatedSelected);
+          }
+      } catch (e: any) {
+          alert("Erro ao gerar link: " + e.message);
+      }
+  };
+
+  const handleCopyLink = () => {
+      navigator.clipboard.writeText(resetLink);
+      alert("Link copiado para a área de transferência!");
   };
 
   const translateStatus = (status: UserStatus) => {
@@ -113,6 +141,7 @@ export default function UsersPage() {
   const handleEdit = (user: User) => {
     setSelectedUser({ ...user }); 
     setNewPassword(''); 
+    setResetLink(''); // Reset link state
     setIsModalOpen(true);
   };
 
@@ -137,6 +166,7 @@ export default function UsersPage() {
           classId: ''
       });
       setNewPassword(generatedPass); 
+      setResetLink('');
       setIsModalOpen(true);
   };
 
@@ -761,6 +791,34 @@ export default function UsersPage() {
                     A Password/Senha deve conter 8 caracteres com letras, números e símbolos (!#$*).
                 </p>
             </div>
+
+            {/* Secção de Link de Recuperação */}
+            {selectedUser.id && (
+                <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                    <label className="block text-sm font-bold text-blue-900 mb-2">Recuperação de Acesso</label>
+                    <div className="flex flex-col gap-2">
+                        {resetLink ? (
+                            <div className="flex gap-2">
+                                <input 
+                                    readOnly
+                                    value={resetLink}
+                                    className="block w-full text-xs border-gray-300 rounded-md p-2 border bg-white text-gray-600 font-mono"
+                                />
+                                <Button onClick={handleCopyLink} size="sm" variant="secondary" title="Copiar">
+                                    <Icons.Copy className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        ) : (
+                            <Button onClick={handleGenerateResetLink} size="sm" variant="secondary" className="w-fit">
+                                Gerar Link de Redefinição
+                            </Button>
+                        )}
+                        <p className="text-xs text-blue-700">
+                            Gera um link seguro para o utilizador redefinir a sua própria password (válido por 24h).
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
                 <div>
