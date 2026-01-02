@@ -5,7 +5,7 @@ import { storageService } from '../services/storageService';
 import { supabase } from '../services/supabaseClient';
 import { Button, Badge } from '../components/UI';
 import { Icons } from '../components/Icons';
-import { EmailTemplates } from '../types';
+import { EmailTemplates, EmailConfigProfile, EMAIL_KEYS } from '../types';
 
 type CheckStatus = 'pending' | 'ok' | 'warning' | 'error';
 
@@ -44,51 +44,86 @@ export default function SystemDiagnostics() {
         }
         newResults.push({ category: 'Base de Dados', items: dbItems });
 
-        // --- 2. Email Configuration Check ---
+        // --- 2. Email Configuration Check (MULTI-ACCOUNT AWARE) ---
         const emailItems: DiagnosticItem[] = [];
         const emailConfig = await storageService.getEmailConfig();
         
         if (!emailConfig) {
             emailItems.push({ id: 'email-conf-missing', label: 'Configuração Geral', status: 'error', message: 'Nenhuma configuração de email encontrada.', actionLabel: 'Configurar Agora', actionLink: '/email-config' });
         } else {
-            // Verificar Perfil Ativo
-            const activeProfile = emailConfig.profiles[emailConfig.activeProfileIndex];
-            if (!activeProfile || !activeProfile.isActive) {
-                emailItems.push({ id: 'email-active', label: 'Conta Ativa', status: 'error', message: 'Não existe nenhuma conta de email selecionada como "Ativa".', actionLabel: 'Ativar Conta', actionLink: '/email-config' });
+            // A. Verificar Saúde Geral das Contas
+            const profiles = emailConfig.profiles || [];
+            const activeProfiles = profiles.filter(p => p.isActive);
+            const activeAndConfigured = activeProfiles.filter(p => p.serviceId && p.publicKey);
+
+            if (activeProfiles.length === 0) {
+                emailItems.push({ id: 'email-no-active', label: 'Disponibilidade do Serviço', status: 'error', message: 'Não existem contas de email ativas.', actionLabel: 'Ativar Contas', actionLink: '/email-config' });
+            } else if (activeAndConfigured.length === 0) {
+                emailItems.push({ id: 'email-creds-missing', label: 'Credenciais', status: 'error', message: 'As contas ativas não têm Service ID ou Public Key configurados.', actionLabel: 'Configurar', actionLink: '/email-config' });
             } else {
-                // Verificar Credenciais
-                if (!activeProfile.serviceId || !activeProfile.publicKey) {
-                    emailItems.push({ id: 'email-creds', label: 'Credenciais EmailJS', status: 'error', message: 'Service ID ou Public Key em falta na conta ativa.', actionLabel: 'Preencher Credenciais', actionLink: '/email-config' });
+                emailItems.push({ id: 'email-health', label: 'Disponibilidade do Serviço', status: 'ok', message: `${activeAndConfigured.length} conta(s) ativa(s) e operaciona(is).` });
+            }
+
+            // B. Verificar Templates Críticos (Cruzando com a conta responsável)
+            // Usar EMAIL_KEYS para garantir que estamos a verificar os nomes corretos
+            const templatesToCheck: { key: keyof EmailTemplates, name: string, required: boolean }[] = [
+                { key: EMAIL_KEYS.WELCOME, name: 'Boas-vindas', required: true },
+                { key: EMAIL_KEYS.RECOVERY, name: 'Recuperação Password', required: true },
+                { key: EMAIL_KEYS.VERIFICATION, name: 'Verificação Email', required: false },
+                { key: EMAIL_KEYS.NOTIFICATION, name: 'Notificação Genérica', required: true }, 
+                { key: EMAIL_KEYS.ENROLLMENT, name: 'Inscrição Curso', required: false },
+            ];
+
+            templatesToCheck.forEach(tpl => {
+                // Encontrar QUAL conta é responsável por este template
+                
+                // 1. Existe algum perfil com o ID preenchido?
+                const assignedProfileIndex = profiles.findIndex(p => p.templates[tpl.key] && p.templates[tpl.key].trim().length > 0);
+                const assignedProfile = assignedProfileIndex >= 0 ? profiles[assignedProfileIndex] : null;
+
+                if (!assignedProfile) {
+                    // Erro: Template não configurado em lado nenhum
+                    emailItems.push({ 
+                        id: `tpl-${tpl.key}`, 
+                        label: `Template: ${tpl.name}`, 
+                        status: tpl.required ? 'error' : 'warning', 
+                        message: `ID do template não preenchido em nenhuma conta.`,
+                        actionLabel: 'Configurar',
+                        actionLink: '/email-config'
+                    });
                 } else {
-                    emailItems.push({ id: 'email-creds', label: 'Credenciais EmailJS', status: 'ok', message: 'Credenciais presentes.' });
-                }
-
-                // Verificar Templates Críticos
-                const templatesToCheck: { key: keyof EmailTemplates, name: string, required: boolean }[] = [
-                    { key: 'welcomeId', name: 'Boas-vindas', required: true },
-                    { key: 'recoveryId', name: 'Recuperação Password', required: true }, // Crítico com base no erro anterior
-                    { key: 'verificationId', name: 'Verificação Email', required: false },
-                    { key: 'notificationId', name: 'Notificação Genérica', required: true }, // Usado como fallback
-                ];
-
-                templatesToCheck.forEach(tpl => {
-                    const val = activeProfile.templates[tpl.key];
-                    if (!val || val.trim() === '') {
+                    // 2. A conta responsável está saudável?
+                    if (!assignedProfile.isActive) {
                         emailItems.push({ 
                             id: `tpl-${tpl.key}`, 
                             label: `Template: ${tpl.name}`, 
-                            status: tpl.required ? 'error' : 'warning', 
-                            message: `O ID do template '${tpl.key}' não está preenchido.`,
-                            actionLabel: 'Configurar Template',
+                            status: 'error', 
+                            message: `O ID existe na Conta #${assignedProfileIndex + 1}, mas esta conta está INATIVA.`,
+                            actionLabel: 'Ativar Conta',
+                            actionLink: '/email-config'
+                        });
+                    } else if (!assignedProfile.serviceId || !assignedProfile.publicKey) {
+                        emailItems.push({ 
+                            id: `tpl-${tpl.key}`, 
+                            label: `Template: ${tpl.name}`, 
+                            status: 'error', 
+                            message: `O ID existe na Conta #${assignedProfileIndex + 1}, mas faltam credenciais.`,
+                            actionLabel: 'Corrigir',
                             actionLink: '/email-config'
                         });
                     } else {
-                        emailItems.push({ id: `tpl-${tpl.key}`, label: `Template: ${tpl.name}`, status: 'ok', message: 'ID Configurado.' });
+                        // Sucesso: Configurado numa conta ativa
+                        emailItems.push({ 
+                            id: `tpl-${tpl.key}`, 
+                            label: `Template: ${tpl.name}`, 
+                            status: 'ok', 
+                            message: `Operacional (Via Conta #${assignedProfileIndex + 1})` 
+                        });
                     }
-                });
-            }
+                }
+            });
         }
-        newResults.push({ category: 'Sistema de Email', items: emailItems });
+        newResults.push({ category: 'Sistema de Email (Multi-Conta)', items: emailItems });
 
         // --- 3. System Integrations Check ---
         const sysItems: DiagnosticItem[] = [];
@@ -109,15 +144,10 @@ export default function SystemDiagnostics() {
 
         // --- 4. AI Service Check ---
         const aiItems: DiagnosticItem[] = [];
-        // Note: Client side checking of process.env is limited to what is exposed.
         const hasKey = process.env.API_KEY && process.env.API_KEY.length > 0;
         
         if (!hasKey) {
-             // Try check if live works? No, just warn about key.
-             // Since this is a demo env, the key might be injected differently, but let's assume standard check.
-             // If connection works, we assume key is fine.
              try {
-                 // Simple model list check or just assume if no error in generation pages
                  aiItems.push({ id: 'ai-key', label: 'API Key Gemini', status: 'ok', message: 'Chave de API detetada no ambiente.' });
              } catch(e) {
                  aiItems.push({ id: 'ai-key', label: 'API Key Gemini', status: 'warning', message: 'Não foi possível verificar a chave API diretamente.' });
@@ -139,18 +169,9 @@ export default function SystemDiagnostics() {
     const getStatusIcon = (status: CheckStatus) => {
         switch (status) {
             case 'ok': return <Icons.Check className="w-5 h-5 text-green-500" />;
-            case 'warning': return <Icons.Active className="w-5 h-5 text-yellow-500" />; // Zap icon as alert
+            case 'warning': return <Icons.Active className="w-5 h-5 text-yellow-500" />; 
             case 'error': return <Icons.Close className="w-5 h-5 text-red-500" />;
             default: return <span className="w-5 h-5 block rounded-full border-2 border-gray-300"></span>;
-        }
-    };
-
-    const getStatusColor = (status: CheckStatus) => {
-        switch (status) {
-            case 'ok': return 'bg-green-50 border-green-100';
-            case 'warning': return 'bg-yellow-50 border-yellow-100';
-            case 'error': return 'bg-red-50 border-red-200';
-            default: return 'bg-gray-50';
         }
     };
 
@@ -164,7 +185,7 @@ export default function SystemDiagnostics() {
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900">Diagnóstico do Sistema</h2>
                         <p className="text-sm text-gray-500">
-                            Verificação automática de configurações e conectividade.
+                            Verificação automática de configurações multi-conta e conectividade.
                         </p>
                     </div>
                 </div>

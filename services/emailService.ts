@@ -1,7 +1,7 @@
 
 import emailjs from '@emailjs/browser';
 import { storageService } from './storageService';
-import { EmailTemplates, FileDeletionLog } from '../types';
+import { EmailTemplates, FileDeletionLog, EMAIL_KEYS } from '../types';
 
 interface EmailResult {
     success: boolean;
@@ -120,14 +120,14 @@ const getConfigWithFallback = async (primaryKey: keyof EmailTemplates): Promise<
     console.warn(`Template '${primaryKey}' não configurado. A tentar fallback...`);
 
     // 2. Tentar Notification ID (Genérico)
-    if (primaryKey !== 'notificationId') {
-        result = await getConfigForTemplate('notificationId');
+    if (primaryKey !== EMAIL_KEYS.NOTIFICATION) {
+        result = await getConfigForTemplate(EMAIL_KEYS.NOTIFICATION);
         if (result && result.config) return result;
     }
 
     // 3. Tentar Welcome ID (Mais comum de existir)
-    if (primaryKey !== 'welcomeId') {
-        result = await getConfigForTemplate('welcomeId');
+    if (primaryKey !== EMAIL_KEYS.WELCOME) {
+        result = await getConfigForTemplate(EMAIL_KEYS.WELCOME);
         if (result && result.config) return result;
     }
 
@@ -137,7 +137,7 @@ const getConfigWithFallback = async (primaryKey: keyof EmailTemplates): Promise<
 export const emailService = {
   // Teste Genérico
   sendTestEmail: async (): Promise<EmailResult> => {
-    return emailService.sendSpecificTemplateTest('welcomeId');
+    return emailService.sendSpecificTemplateTest(EMAIL_KEYS.WELCOME);
   },
 
   // Teste Específico por Tipo de Template
@@ -176,7 +176,7 @@ export const emailService = {
     let messageBody = "";
     
     switch (templateKey) {
-        case 'auditLogId':
+        case EMAIL_KEYS.AUDIT_LOG:
             const mockFileList = "1. Ficheiro A.pdf (Apagado por João)\n2. Ficheiro B.jpg (Apagado por Maria)";
             if (customContent?.auditLogText) {
                 messageBody = processTemplate(customContent.auditLogText, {
@@ -196,7 +196,7 @@ export const emailService = {
                 site_link: baseUrl
             };
             break;
-        case 'verificationId':
+        case EMAIL_KEYS.VERIFICATION:
             if (customContent?.verificationText) {
                 messageBody = processTemplate(customContent.verificationText, {
                     name: commonParams.to_name,
@@ -216,7 +216,7 @@ export const emailService = {
                 site_link: baseUrl
             };
             break;
-        case 'resetPasswordId':
+        case EMAIL_KEYS.RESET_PASSWORD:
             // Este é o Admin Reset (Nova Senha Gerada)
             if (customContent?.resetPasswordText) {
                 messageBody = processTemplate(customContent.resetPasswordText, {
@@ -239,7 +239,7 @@ export const emailService = {
                 password_validity: validityText
             };
             break;
-        case 'recoveryId':
+        case EMAIL_KEYS.RECOVERY:
             // Este é o User Forgot Password (Link)
             if (customContent?.recoveryEmailText) {
                 messageBody = processTemplate(customContent.recoveryEmailText, {
@@ -259,7 +259,7 @@ export const emailService = {
                 site_link: baseUrl
             };
             break;
-        case 'enrollmentId':
+        case EMAIL_KEYS.ENROLLMENT:
             const mockCourse = "Curso Intensivo de Python";
             if (customContent?.enrollmentText) {
                 messageBody = processTemplate(customContent.enrollmentText, {
@@ -277,7 +277,7 @@ export const emailService = {
                 site_link: baseUrl
             };
             break;
-        case 'notificationId':
+        case EMAIL_KEYS.NOTIFICATION:
             const mockMsg = "Esta é uma notificação de teste do sistema.";
             if (customContent?.notificationText) {
                 messageBody = processTemplate(customContent.notificationText, {
@@ -294,7 +294,7 @@ export const emailService = {
                 site_link: baseUrl
             };
             break;
-        case 'welcomeId':
+        case EMAIL_KEYS.WELCOME:
         default:
              if (customContent?.welcomeText) {
                 messageBody = processTemplate(customContent.welcomeText, {
@@ -333,7 +333,7 @@ export const emailService = {
   },
 
   sendNotification: async (toName: string, message: string, toEmail: string = SYSTEM_EMAIL): Promise<boolean> => {
-    const result = await getConfigWithFallback('notificationId');
+    const result = await getConfigWithFallback(EMAIL_KEYS.NOTIFICATION);
     if (!result || !result.config) return false;
     
     const { serviceId, publicKey, templateId, customContent } = result.config;
@@ -374,7 +374,7 @@ export const emailService = {
   },
 
   sendEnrollmentEmail: async (toName: string, toEmail: string, courseName: string): Promise<EmailResult> => {
-      const result = await getConfigWithFallback('enrollmentId');
+      const result = await getConfigWithFallback(EMAIL_KEYS.ENROLLMENT);
       if (!result || !result.config) return { success: false, message: result?.error || "Configuração de email em falta." };
 
       const { serviceId, publicKey, templateId, customContent } = result.config;
@@ -420,7 +420,7 @@ export const emailService = {
 
   sendDeletionBatchEmail: async (logs: FileDeletionLog[]): Promise<boolean> => {
       // Tentar auditLogId, fallback para notificationId
-      let result = await getConfigWithFallback('auditLogId');
+      let result = await getConfigWithFallback(EMAIL_KEYS.AUDIT_LOG);
       
       if (!result || !result.config) {
           console.error("Erro: Nenhum Template ID configurado para Auditoria ou Notificações.");
@@ -483,7 +483,7 @@ ${list}
   },
 
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
-    const result = await getConfigWithFallback('verificationId');
+    const result = await getConfigWithFallback(EMAIL_KEYS.VERIFICATION);
     
     if (!result || !result.config) return { success: false, message: result?.error || "Erro de configuração de email." };
     
@@ -538,7 +538,7 @@ ${list}
 
   sendRecoveryEmail: async (toName: string, toEmail: string, recoveryLink: string): Promise<EmailResult> => {
       // Tentar recoveryId, fallback para notificationId ou welcomeId
-      const result = await getConfigWithFallback('recoveryId');
+      const result = await getConfigWithFallback(EMAIL_KEYS.RECOVERY);
       
       if (!result || !result.config) {
           return { success: false, message: result?.error || "Nenhum template disponível para envio de recuperação." };
@@ -600,7 +600,7 @@ ${list}
   },
 
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
-    const result = await getConfigWithFallback('welcomeId');
+    const result = await getConfigWithFallback(EMAIL_KEYS.WELCOME);
     if (!result || !result.config) return { success: false, message: result?.error || "Template de boas-vindas não configurado." };
 
     const { serviceId, publicKey, templateId, customContent } = result.config;
@@ -669,7 +669,7 @@ ${list}
 
   sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     // This sends the NEW password (Admin Reset), not the link
-    const result = await getConfigWithFallback('resetPasswordId');
+    const result = await getConfigWithFallback(EMAIL_KEYS.RESET_PASSWORD);
     if (!result || !result.config) return { success: false, message: result?.error || "Template de Reset não configurado." };
 
     const { serviceId, publicKey, templateId, customContent } = result.config;

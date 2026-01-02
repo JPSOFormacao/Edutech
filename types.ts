@@ -178,15 +178,20 @@ export interface QuizData {
   questions: QuizQuestion[];
 }
 
-export interface EmailTemplates {
-    welcomeId: string;
-    resetPasswordId: string; // Admin Reset (New Password)
-    recoveryId: string; // Link de recuperação (Tornado Obrigatório)
-    enrollmentId: string;
-    notificationId: string;
-    verificationId?: string; 
-    auditLogId?: string; 
-}
+// CENTRALIZED EMAIL KEYS (VARIABLES)
+// Isto evita strings "mágicas" espalhadas pelo código.
+export const EMAIL_KEYS = {
+    WELCOME: 'welcomeId',
+    RESET_PASSWORD: 'resetPasswordId', // Admin Reset (New Password)
+    RECOVERY: 'recoveryId', // Link de recuperação
+    ENROLLMENT: 'enrollmentId',
+    NOTIFICATION: 'notificationId',
+    VERIFICATION: 'verificationId',
+    AUDIT_LOG: 'auditLogId'
+} as const;
+
+// Interface dinamica baseada nas chaves
+export type EmailTemplates = Record<typeof EMAIL_KEYS[keyof typeof EMAIL_KEYS], string>;
 
 export interface EmailCustomContent {
     welcomeText?: string;

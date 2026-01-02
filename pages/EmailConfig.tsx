@@ -4,17 +4,17 @@ import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
 import { Button, Input, Badge } from '../components/UI';
 import { Icons } from '../components/Icons';
-import { EmailTemplates, EmailCustomContent, EmailConfig, EmailConfigProfile } from '../types';
+import { EmailTemplates, EmailCustomContent, EmailConfig, EmailConfigProfile, EMAIL_KEYS } from '../types';
 
-// Mapeamento de nomes amigáveis para os templates
+// Mapeamento de nomes amigáveis para os templates usando as CONSTANTES
 const TEMPLATE_DEFINITIONS: { key: keyof EmailTemplates; label: string; desc: string }[] = [
-    { key: 'welcomeId', label: 'Boas-vindas', desc: 'Enviado ao criar conta ou aprovar registo.' },
-    { key: 'recoveryId', label: 'Recuperação de Acesso (Link)', desc: 'Link para o utilizador redefinir a password.' },
-    { key: 'verificationId', label: 'Verificação de Email', desc: 'Link para validar o endereço de email.' },
-    { key: 'resetPasswordId', label: 'Nova Senha (Admin)', desc: 'Enviado quando o Admin gera uma nova senha manualmente.' },
-    { key: 'auditLogId', label: 'Relatório de Auditoria', desc: 'Alertas de segurança e eliminação de ficheiros.' },
-    { key: 'enrollmentId', label: 'Inscrição em Curso', desc: 'Notificação de nova inscrição.' },
-    { key: 'notificationId', label: 'Notificação Genérica', desc: 'Outros avisos do sistema.' },
+    { key: EMAIL_KEYS.WELCOME, label: 'Boas-vindas', desc: 'Enviado ao criar conta ou aprovar registo.' },
+    { key: EMAIL_KEYS.RECOVERY, label: 'Recuperação de Acesso (Link)', desc: 'Link para o utilizador redefinir a password.' },
+    { key: EMAIL_KEYS.VERIFICATION, label: 'Verificação de Email', desc: 'Link para validar o endereço de email.' },
+    { key: EMAIL_KEYS.RESET_PASSWORD, label: 'Nova Senha (Admin)', desc: 'Enviado quando o Admin gera uma nova senha manualmente.' },
+    { key: EMAIL_KEYS.AUDIT_LOG, label: 'Relatório de Auditoria', desc: 'Alertas de segurança e eliminação de ficheiros.' },
+    { key: EMAIL_KEYS.ENROLLMENT, label: 'Inscrição em Curso', desc: 'Notificação de nova inscrição.' },
+    { key: EMAIL_KEYS.NOTIFICATION, label: 'Notificação Genérica', desc: 'Outros avisos do sistema.' },
 ];
 
 export default function EmailConfigPage() {

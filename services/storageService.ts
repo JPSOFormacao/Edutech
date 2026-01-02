@@ -1,5 +1,5 @@
 
-import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig, UploadedFile, FileDeletionLog, EmailConfigProfile, EmailTemplates } from '../types';
+import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig, UploadedFile, FileDeletionLog, EmailConfigProfile, EmailTemplates, EMAIL_KEYS } from '../types';
 import { supabase } from './supabaseClient';
 
 const STORAGE_KEYS = {
@@ -485,9 +485,17 @@ export const storageService = {
 
   // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
-    // Definir estrutura completa para garantir que campos novos (recoveryId) existam
-    // Agora recoveryId é explicitamente inicializado como string vazia
-    const emptyTemplates: EmailTemplates = { welcomeId: '', resetPasswordId: '', recoveryId: '', enrollmentId: '', notificationId: '', verificationId: '', auditLogId: '' };
+    // Definir estrutura completa usando as CONSTANTES (EMAIL_KEYS)
+    // Isto garante que se adicionarmos novas chaves em types.ts, elas são inicializadas aqui
+    const emptyTemplates: EmailTemplates = { 
+        [EMAIL_KEYS.WELCOME]: '', 
+        [EMAIL_KEYS.RESET_PASSWORD]: '', 
+        [EMAIL_KEYS.RECOVERY]: '', 
+        [EMAIL_KEYS.ENROLLMENT]: '', 
+        [EMAIL_KEYS.NOTIFICATION]: '', 
+        [EMAIL_KEYS.VERIFICATION]: '', 
+        [EMAIL_KEYS.AUDIT_LOG]: '' 
+    };
     
     const baseConfig: EmailConfig = {
         serviceId: '', publicKey: '', templates: { ...emptyTemplates }, activeProfileIndex: 0,
@@ -532,12 +540,11 @@ export const storageService = {
         loadedProfiles[0] = { serviceId, publicKey, templates: { ...emptyTemplates, ...localData.templates }, isActive: true };
     }
 
-    // HIDRATAÇÃO: Garantir que todos os perfis carregados tenham a estrutura completa de templates
-    // Isto corrige o erro onde 'recoveryId' é undefined porque o perfil foi salvo antes da atualização
+    // HIDRATAÇÃO PROFUNDA: Garantir que todos os perfis carregados tenham a estrutura completa de templates baseada nas CONSTANTES
     loadedProfiles = loadedProfiles.map((p, idx) => ({
         ...p,
         isActive: p.isActive !== undefined ? p.isActive : (idx === loadedActiveIndex),
-        templates: { ...emptyTemplates, ...(p.templates || {}) } // Merge para garantir chaves novas
+        templates: { ...emptyTemplates, ...(p.templates || {}) } // Merge para garantir chaves novas e evitar undefined
     }));
 
     // Garantir mínimo de perfis
