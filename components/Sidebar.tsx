@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Icons } from './Icons';
@@ -177,10 +178,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
              
             {hasPermission(PERMISSIONS.MANAGE_SETTINGS) && (
                <>
+                   <div className="pt-4 pb-2 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Configuração
+                   </div>
+                   <NavItem to="/system-diagnostics" icon={Icons.Activity} label="Diagnóstico Sistema" />
                    <NavItem to="/email-config" icon={Icons.Settings} label="Credenciais Email" />
                    <NavItem to="/email-templates" icon={Icons.MessageSquare} label="Personalizar Emails" />
                    <NavItem to="/system-settings" icon={Icons.Settings} label="Config. Sistema" />
-                   <NavItem to="/db-test" icon={Icons.Active} label="Diagnóstico DB" />
+                   <NavItem to="/db-test" icon={Icons.Active} label="Teste Base de Dados" />
                </>
              )}
           </>

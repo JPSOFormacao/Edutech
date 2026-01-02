@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { User, UserRole, UserStatus, PERMISSIONS, SystemConfig } from './types';
@@ -13,7 +14,8 @@ import CMS from './pages/CMS';
 import AIStudio from './pages/AIStudio';
 import PageViewer from './pages/PageViewer';
 import EmailConfigPage from './pages/EmailConfig';
-import EmailTemplatesPage from './pages/EmailTemplates'; // Nova página
+import EmailTemplatesPage from './pages/EmailTemplates'; 
+import SystemDiagnostics from './pages/SystemDiagnostics'; // Nova Página
 import ClassesPage from './pages/Classes'; 
 import RolesPage from './pages/Roles';
 import ProfilePage from './pages/Profile';
@@ -400,6 +402,9 @@ export default function App() {
             } />
              <Route path="/db-test" element={
               hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <DatabaseTest /> : <Navigate to="/" />
+            } />
+            <Route path="/system-diagnostics" element={
+              hasPermission(PERMISSIONS.MANAGE_SETTINGS) ? <SystemDiagnostics /> : <Navigate to="/" />
             } />
           </Route>
 

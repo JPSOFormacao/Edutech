@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { 
   LayoutDashboard, 
@@ -32,7 +33,8 @@ import {
   ClipboardList,
   MessageSquare,
   Copy,
-  Code
+  Code,
+  Activity
 } from 'lucide-react';
 
 export const Icons = {
@@ -71,5 +73,6 @@ export const Icons = {
   Audit: ClipboardList,
   MessageSquare: MessageSquare,
   Copy: Copy,
-  Code: Code
+  Code: Code,
+  Activity: Activity
 };

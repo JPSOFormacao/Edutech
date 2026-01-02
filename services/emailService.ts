@@ -86,20 +86,6 @@ const getConfigForTemplate = async (templateKey: keyof EmailTemplates): Promise<
     const profileWithTemplate = profiles.find(p => p.templates[templateKey] && p.templates[templateKey].trim().length > 0);
     
     if (!profileWithTemplate) {
-        // Fallback check for notificationId
-        if (templateKey === 'notificationId') {
-             const fallbackProfile = profiles.find(p => p.isActive && p.serviceId && p.publicKey && (p.templates.notificationId || p.templates.welcomeId));
-             if (fallbackProfile) {
-                 return {
-                    config: {
-                        serviceId: fallbackProfile.serviceId,
-                        publicKey: fallbackProfile.publicKey,
-                        templateId: fallbackProfile.templates.notificationId || fallbackProfile.templates.welcomeId,
-                        customContent: config.customContent
-                    }
-                 };
-             }
-        }
         return { config: null, error: `O ID do template '${templateKey}' não está preenchido em nenhuma conta.` };
     }
 
@@ -123,6 +109,31 @@ const getConfigForTemplate = async (templateKey: keyof EmailTemplates): Promise<
     };
 };
 
+// --- Universal Fallback Helper ---
+// Tenta obter a config para a chave pedida. Se falhar, tenta 'notificationId', depois 'welcomeId'.
+// Isto permite que o sistema funcione com uma configuração mínima.
+const getConfigWithFallback = async (primaryKey: keyof EmailTemplates): Promise<{config: any, error?: string}> => {
+    // 1. Tentar a chave primária
+    let result = await getConfigForTemplate(primaryKey);
+    if (result && result.config) return result;
+
+    console.warn(`Template '${primaryKey}' não configurado. A tentar fallback...`);
+
+    // 2. Tentar Notification ID (Genérico)
+    if (primaryKey !== 'notificationId') {
+        result = await getConfigForTemplate('notificationId');
+        if (result && result.config) return result;
+    }
+
+    // 3. Tentar Welcome ID (Mais comum de existir)
+    if (primaryKey !== 'welcomeId') {
+        result = await getConfigForTemplate('welcomeId');
+        if (result && result.config) return result;
+    }
+
+    return { config: null, error: `Não foi possível encontrar nenhum template de email configurado (nem ${primaryKey}, nem Notificação, nem Boas-vindas). Configure pelo menos um em "Credenciais Email".` };
+};
+
 export const emailService = {
   // Teste Genérico
   sendTestEmail: async (): Promise<EmailResult> => {
@@ -131,6 +142,8 @@ export const emailService = {
 
   // Teste Específico por Tipo de Template
   sendSpecificTemplateTest: async (templateKey: keyof EmailTemplates): Promise<EmailResult> => {
+    // Para testes explícitos, não usamos fallback automático para não enganar o utilizador
+    // Queremos que ele saiba se AQUELE template específico está a falhar.
     const result = await getConfigForTemplate(templateKey);
     
     if (!result || !result.config) {
@@ -320,7 +333,7 @@ export const emailService = {
   },
 
   sendNotification: async (toName: string, message: string, toEmail: string = SYSTEM_EMAIL): Promise<boolean> => {
-    const result = await getConfigForTemplate('notificationId');
+    const result = await getConfigWithFallback('notificationId');
     if (!result || !result.config) return false;
     
     const { serviceId, publicKey, templateId, customContent } = result.config;
@@ -343,7 +356,7 @@ export const emailService = {
             to_name: toName,
             name: toName,
             message: messageBody,
-            original_message: message, // Allow raw fallback
+            original_message: message,
             training_details: "N/A",
             from_name: SYSTEM_NAME,
             reply_to: SYSTEM_EMAIL,
@@ -361,8 +374,8 @@ export const emailService = {
   },
 
   sendEnrollmentEmail: async (toName: string, toEmail: string, courseName: string): Promise<EmailResult> => {
-      const result = await getConfigForTemplate('enrollmentId');
-      if (!result || !result.config) return { success: false, message: "Template de Inscrição não configurado." };
+      const result = await getConfigWithFallback('enrollmentId');
+      if (!result || !result.config) return { success: false, message: result?.error || "Configuração de email em falta." };
 
       const { serviceId, publicKey, templateId, customContent } = result.config;
       const baseUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://edutech.pt';
@@ -406,14 +419,11 @@ export const emailService = {
   },
 
   sendDeletionBatchEmail: async (logs: FileDeletionLog[]): Promise<boolean> => {
-      // Tentar obter config para auditLogId, se não existir, tenta notificationId
-      let result = await getConfigForTemplate('auditLogId');
+      // Tentar auditLogId, fallback para notificationId
+      let result = await getConfigWithFallback('auditLogId');
+      
       if (!result || !result.config) {
-          result = await getConfigForTemplate('notificationId');
-      }
-
-      if (!result || !result.config) {
-          console.error("Erro: Nenhum Template ID configurado para Auditoria ou Notificações em contas ativas.");
+          console.error("Erro: Nenhum Template ID configurado para Auditoria ou Notificações.");
           return false;
       }
 
@@ -473,10 +483,7 @@ ${list}
   },
 
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
-    let result = await getConfigForTemplate('verificationId');
-    if (!result || !result.config) {
-        result = await getConfigForTemplate('notificationId');
-    }
+    const result = await getConfigWithFallback('verificationId');
     
     if (!result || !result.config) return { success: false, message: result?.error || "Erro de configuração de email." };
     
@@ -530,12 +537,11 @@ ${list}
   },
 
   sendRecoveryEmail: async (toName: string, toEmail: string, recoveryLink: string): Promise<EmailResult> => {
-      // Use specialized recoveryId template
-      const result = await getConfigForTemplate('recoveryId');
+      // Tentar recoveryId, fallback para notificationId ou welcomeId
+      const result = await getConfigWithFallback('recoveryId');
       
       if (!result || !result.config) {
-          // Improve error message for user
-          return { success: false, message: result?.error || "Template de recuperação não encontrado em nenhuma conta ativa." };
+          return { success: false, message: result?.error || "Nenhum template disponível para envio de recuperação." };
       }
 
       const { serviceId, publicKey, templateId, customContent } = result.config;
@@ -594,7 +600,7 @@ ${list}
   },
 
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
-    const result = await getConfigForTemplate('welcomeId');
+    const result = await getConfigWithFallback('welcomeId');
     if (!result || !result.config) return { success: false, message: result?.error || "Template de boas-vindas não configurado." };
 
     const { serviceId, publicKey, templateId, customContent } = result.config;
@@ -663,7 +669,7 @@ ${list}
 
   sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     // This sends the NEW password (Admin Reset), not the link
-    const result = await getConfigForTemplate('resetPasswordId');
+    const result = await getConfigWithFallback('resetPasswordId');
     if (!result || !result.config) return { success: false, message: result?.error || "Template de Reset não configurado." };
 
     const { serviceId, publicKey, templateId, customContent } = result.config;

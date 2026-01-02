@@ -4,8 +4,14 @@ import { storageService } from '../services/storageService';
 import { User, ClassEntity, UserRole, Course } from '../types';
 import { Icons } from '../components/Icons';
 
+interface UserCardProps {
+  student: User;
+  currentUser: User | null;
+  isSuperAdmin: boolean;
+}
+
 // Extract UserCard outside to fix key prop issue and improve performance
-const UserCard = ({ student, currentUser, isSuperAdmin }: { student: User, currentUser: User | null, isSuperAdmin: boolean }) => {
+const UserCard: React.FC<UserCardProps> = ({ student, currentUser, isSuperAdmin }) => {
     const isMe = student.id === currentUser?.id;
     const privacy = student.privacySettings || { showEmail: false, showCourses: false, showBio: false };
     
