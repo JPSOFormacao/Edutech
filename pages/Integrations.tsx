@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../App';
 import { Icons } from '../components/Icons';
 import { Button } from '../components/UI';
@@ -8,9 +8,10 @@ import { UploadedFile } from '../types';
 export default function IntegrationsPage() {
     const { systemConfig, refreshSystemConfig, user } = useAuth();
     const [webhookUrl, setWebhookUrl] = useState('');
-    const [file, setFile] = useState<File | null>(null);
+    const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
     const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Carregar configuração global ou local
     useEffect(() => {
@@ -28,7 +29,7 @@ export default function IntegrationsPage() {
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            setFile(e.target.files[0]);
+            setFiles(Array.from(e.target.files));
             setStatus(null);
         }
     };
@@ -43,8 +44,8 @@ export default function IntegrationsPage() {
     };
 
     const handleUpload = async () => {
-        if (!file) {
-            setStatus({ type: 'error', msg: 'Selecione um ficheiro.' });
+        if (files.length === 0) {
+            setStatus({ type: 'error', msg: 'Selecione ficheiros.' });
             return;
         }
         if (!webhookUrl) {
@@ -53,74 +54,83 @@ export default function IntegrationsPage() {
         }
 
         setUploading(true);
-        setStatus({ type: 'info', msg: 'A processar ficheiro...' });
+        let successCount = 0;
+        let errors: string[] = [];
 
-        try {
-            // 1. Converter para Base64 para envio seguro via JSON
-            const base64Data = await convertToBase64(file);
-            
-            setStatus({ type: 'info', msg: 'A enviar para o Pipedream...' });
+        // Processar ficheiros sequencialmente para manter feedback de progresso claro
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            setStatus({ type: 'info', msg: `A processar ${i + 1}/${files.length}: ${file.name}...` });
 
-            // 2. Enviar para Webhook
-            const response = await fetch(webhookUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    filename: file.name, // Nome original
-                    originalFilename: file.name,
-                    mimetype: file.type,
-                    size: file.size,
-                    fileData: base64Data, // Payload Base64
-                    uploadedBy: user?.name || 'EduTech User',
-                    timestamp: new Date().toISOString()
-                })
-            });
-
-            if (response.ok) {
-                // Tentar ler a resposta do Pipedream (se configurada corretamente)
-                let driveData = { fileId: '', webViewLink: '' };
-                try {
-                    const jsonRes = await response.json();
-                    if(jsonRes && jsonRes.fileId) {
-                        driveData.fileId = jsonRes.fileId;
-                        driveData.webViewLink = jsonRes.webViewLink;
-                    }
-                } catch(e) {
-                    console.warn("Pipedream não retornou JSON. O ficheiro foi enviado mas o link real pode não estar disponível.");
-                }
-
-                // 3. Registar o ficheiro na app
-                if (user) {
-                    const newFile: UploadedFile = {
-                        id: 'file_' + Date.now(),
-                        fileName: file.name, 
-                        fileType: file.type,
+            try {
+                // 1. Converter para Base64 para envio seguro via JSON
+                const base64Data = await convertToBase64(file);
+                
+                // 2. Enviar para Webhook
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        filename: file.name, // Nome original
+                        originalFilename: file.name,
+                        mimetype: file.type,
                         size: file.size,
-                        uploadedBy: user.id,
-                        uploaderName: user.name,
-                        uploadDate: new Date().toISOString(),
-                        context: 'integration',
-                        driveFileId: driveData.fileId, // ID real do Drive
-                        webViewLink: driveData.webViewLink // Link real do Drive
-                    };
-                    await storageService.saveFile(newFile);
+                        fileData: base64Data, // Payload Base64
+                        uploadedBy: user?.name || 'EduTech User',
+                        timestamp: new Date().toISOString()
+                    })
+                });
+
+                if (response.ok) {
+                    // Tentar ler a resposta do Pipedream (se configurada corretamente)
+                    let driveData = { fileId: '', webViewLink: '' };
+                    try {
+                        const jsonRes = await response.json();
+                        if(jsonRes && jsonRes.fileId) {
+                            driveData.fileId = jsonRes.fileId;
+                            driveData.webViewLink = jsonRes.webViewLink;
+                        }
+                    } catch(e) {
+                        console.warn("Pipedream não retornou JSON. O ficheiro foi enviado mas o link real pode não estar disponível.");
+                    }
+
+                    // 3. Registar o ficheiro na app
+                    if (user) {
+                        const newFile: UploadedFile = {
+                            id: 'file_' + Date.now() + Math.random().toString(36).substr(2, 9),
+                            fileName: file.name, 
+                            fileType: file.type,
+                            size: file.size,
+                            uploadedBy: user.id,
+                            uploaderName: user.name,
+                            uploadDate: new Date().toISOString(),
+                            context: 'integration',
+                            driveFileId: driveData.fileId, // ID real do Drive
+                            webViewLink: driveData.webViewLink // Link real do Drive
+                        };
+                        await storageService.saveFile(newFile);
+                    }
+                    successCount++;
+                } else {
+                    errors.push(`${file.name}: Erro HTTP ${response.status}`);
                 }
 
-                setStatus({ type: 'success', msg: 'Sucesso! Ficheiro enviado para o Drive e registado.' });
-                setFile(null); // Reset
-                const input = document.getElementById('file-upload') as HTMLInputElement;
-                if(input) input.value = '';
-            } else {
-                setStatus({ type: 'error', msg: `Erro no envio: ${response.statusText}` });
+            } catch (error: any) {
+                console.error("Upload Error:", error);
+                errors.push(`${file.name}: ${error.message}`);
             }
+        }
 
-        } catch (error: any) {
-            console.error("Upload Error:", error);
-            setStatus({ type: 'error', msg: 'Falha na conexão: ' + error.message });
-        } finally {
-            setUploading(false);
+        setUploading(false);
+
+        if (errors.length === 0) {
+            setStatus({ type: 'success', msg: `Sucesso! ${successCount} ficheiros enviados.` });
+            setFiles([]); // Reset
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        } else {
+            setStatus({ type: 'error', msg: `Concluído com erros. ${successCount} enviados. Falhas: ${errors.join(', ')}` });
         }
     };
 
@@ -182,7 +192,7 @@ export default function IntegrationsPage() {
                 <div className="bg-white shadow rounded-lg p-6 md:col-span-2 flex flex-col items-center justify-center min-h-[300px]">
                     <div className="w-full max-w-md space-y-6 text-center">
                         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-dashed border-gray-300">
-                            {file ? (
+                            {files.length > 0 ? (
                                 <Icons.FileText className="w-10 h-10 text-indigo-500" />
                             ) : (
                                 <Icons.Upload className="w-10 h-10 text-gray-400" />
@@ -191,17 +201,38 @@ export default function IntegrationsPage() {
                         
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                {file ? `Ficheiro Selecionado: ${file.name}` : "Selecione um documento para enviar"}
+                                {files.length > 0 ? `${files.length} ficheiro(s) selecionado(s)` : "Selecione documentos para enviar"}
                             </label>
+                            
+                            {files.length > 0 && (
+                                <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded mb-4 max-h-32 overflow-y-auto border border-gray-200">
+                                    <ul className="list-none space-y-1">
+                                        {files.map((f, i) => (
+                                            <li key={i} className="flex justify-between">
+                                                <span className="truncate max-w-[200px]">{f.name}</span>
+                                                <span className="text-gray-400">{(f.size / 1024 / 1024).toFixed(2)} MB</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                             
                             <div className="flex justify-center">
                                 <label className="cursor-pointer bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
-                                    <span>Escolher Ficheiro</span>
-                                    <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} />
+                                    <span>Escolher Ficheiros</span>
+                                    <input 
+                                        id="file-upload" 
+                                        name="file-upload" 
+                                        type="file" 
+                                        className="sr-only" 
+                                        onChange={handleFileChange} 
+                                        multiple 
+                                        ref={fileInputRef}
+                                    />
                                 </label>
                             </div>
                             <p className="text-xs text-gray-500 mt-2">
-                                {file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : "PDF, DOCX, JPG, PNG até 10MB"}
+                                PDF, DOCX, JPG, PNG até 10MB (Múltipla seleção permitida)
                             </p>
                         </div>
 
@@ -217,7 +248,7 @@ export default function IntegrationsPage() {
 
                         <Button 
                             onClick={handleUpload} 
-                            disabled={!file || !webhookUrl || uploading}
+                            disabled={files.length === 0 || !webhookUrl || uploading}
                             className="w-full py-3"
                         >
                             {uploading ? (

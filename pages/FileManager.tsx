@@ -266,7 +266,7 @@ export default function FileManager() {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                   <Badge color={file.context === 'material' ? 'info' : 'success'}>
-                                      {file.context === 'material' ? 'Material Didático' : 'Integração'}
+                                      {file.context === 'material' ? 'Material Didático' : 'Carregado'}
                                   </Badge>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
