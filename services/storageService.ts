@@ -17,12 +17,9 @@ const STORAGE_KEYS = {
   DELETION_LOGS: 'edutech_deletion_logs'
 };
 
-// Lista de emails que têm permissão automática de Admin (Backdoor de recuperação/Criação Automática)
+// Lista de emails para fins de permissão (não cria conta automaticamente)
 const SUPER_ADMINS = [
-  'admin@edutech.pt', 
-  'jpsoliveira.formacao@hotmail.com',
-  'formador@edutech.pt',
-  'jpsoliveira@hotmail.com' // Adicionado conforme solicitado para garantir acesso
+  'admin@edutech.pt'
 ];
 
 // --- Seed Data ---
@@ -678,17 +675,45 @@ export const storageService = {
 
   login: async (email: string, password?: string): Promise<User> => {
     const normalizedEmail = email.trim().toLowerCase();
-    const users = await storageService.getUsers();
     
-    // Comparação mais robusta para emails
+    // 1. Tentar Cache Local Primeiro
+    const users = await storageService.getUsers();
     let user = users.find(u => u.email?.trim().toLowerCase() === normalizedEmail);
-    const isSuperAdmin = SUPER_ADMINS.includes(normalizedEmail);
+
+    // 2. Se não encontrar no cache, tentar DB direta (Fail-safe para "User not found")
+    if (!user) {
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .ilike('email', normalizedEmail)
+                .single();
+            
+            if (data && !error) {
+                // Map DB response to User Type if needed (assume direct match mostly)
+                user = {
+                    ...data,
+                    // Garante mapeamento de campos snake_case para camelCase se o supabase retornar raw
+                    resetPasswordToken: data.reset_password_token,
+                    resetPasswordExpires: data.reset_password_expires,
+                    verificationToken: data.verification_token,
+                    roleId: data.role_id || data.roleId // fallback
+                } as User;
+
+                // Atualizar cache local para agilizar próximos logins
+                await storageService.saveUser(user);
+            }
+        } catch (e) {
+            console.warn("Direct DB lookup failed:", e);
+        }
+    }
 
     if (!user) {
+      // Bootstrapping: Criar apenas o Admin Root se não existir ninguém
       const isFirstUser = users.length === 0;
-      const shouldBeAdmin = isFirstUser || isSuperAdmin;
+      const isRootAdmin = normalizedEmail === 'admin@edutech.pt';
 
-      if (shouldBeAdmin) {
+      if (isFirstUser || isRootAdmin) {
            const newUser: User = {
             id: Date.now().toString(),
             email: normalizedEmail,
@@ -724,11 +749,6 @@ export const storageService = {
         }
 
         if (user.status === UserStatus.BLOCKED) throw new Error("A sua conta encontra-se bloqueada. Contacte a administração.");
-
-        if (isSuperAdmin && ((user.role as string) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
-             user = { ...user, role: UserRole.ADMIN, roleId: 'role_admin', status: UserStatus.ACTIVE };
-             await storageService.saveUser(user);
-        }
 
         if (user.password && user.password !== password) throw new Error("Senha incorreta.");
     }
