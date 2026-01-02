@@ -396,6 +396,60 @@ ${list}
     }
   },
 
+  sendRecoveryEmail: async (toName: string, toEmail: string, recoveryLink: string): Promise<EmailResult> => {
+      // Use resetPasswordId template because it's semantically the closest
+      const config = await getConfigForTemplate('resetPasswordId');
+      if (!config) return { success: false, message: "Template de recuperação não configurado." };
+
+      const { serviceId, publicKey, templateId, customContent } = config;
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+      const cleanEmail = toEmail.trim();
+
+      // Check if there is custom text for Reset Password. 
+      // NOTE: Usually resetPasswordText is for "New Password Set". 
+      // We will construct a default message for "Recovery Link" unless the user has specifically handled it.
+      
+      const messageBody = `
+        Olá ${toName},
+        
+        Recebemos um pedido para redefinir a sua palavra-passe.
+        Para continuar, clique no link abaixo (válido por 24 horas):
+        
+        ${recoveryLink}
+        
+        Se não solicitou esta alteração, ignore este email.
+      `;
+
+      // We send 'password' as the link to ensure it appears in standard templates that might expect {{password}}
+      // But we primarily rely on `message` or explicit `link` variable if the template supports it.
+      const templateParams = {
+          to_name: toName,
+          name: toName,
+          to_email: cleanEmail,
+          email: cleanEmail,
+          recipient: cleanEmail,
+          to: cleanEmail,
+          
+          // Content
+          message: messageBody,
+          link: recoveryLink,
+          password: `Link de Recuperação: ${recoveryLink}`, // Fallback for templates expecting {{password}}
+          
+          from_name: SYSTEM_NAME,
+          reply_to: SYSTEM_EMAIL,
+          site_link: baseUrl,
+          mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
+      };
+
+      try {
+          await emailjs.send(serviceId, templateId, templateParams, publicKey);
+          return { success: true };
+      } catch (e: any) {
+          const msg = await getErrorMsg(e);
+          return { success: false, message: msg };
+      }
+  },
+
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     const config = await getConfigForTemplate('welcomeId');
     if (!config) return { success: false, message: "Template de Boas-vindas não configurado em nenhuma conta ativa." };

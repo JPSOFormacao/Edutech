@@ -137,9 +137,6 @@ async function deleteWithFallback(tableName: string, storageKey: string, id: str
 export const storageService = {
   // --- SEEDING ---
   checkAndSeedData: async () => {
-      // Forçamos um load inicial de tudo para garantir que o LocalStorage tem dados
-      // Se o Supabase falhar, o fetchWithFallback usará os dados de seed definidos abaixo.
-      
       await storageService.getRoles();
       
       const coursesSeed: Course[] = [
@@ -206,35 +203,6 @@ export const storageService = {
                 avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Joao',
                 mustChangePassword: false,
                 bio: "Formador sénior com 10 anos de experiência em desenvolvimento web."
-            },
-            { 
-                id: 'usr_aluno1', 
-                email: 'aluno1@edutech.pt', 
-                name: 'Maria Silva', 
-                fullName: 'Maria Antonia Silva',
-                role: UserRole.ALUNO, 
-                roleId: 'role_aluno', 
-                status: UserStatus.ACTIVE, 
-                allowedCourses: ['c_web_01'], 
-                classId: 'cl_a_2024',
-                password: '123', 
-                avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maria',
-                mustChangePassword: false,
-                bio: "Estudante entusiasta de tecnologia."
-            },
-            { 
-                id: 'usr_aluno2', 
-                email: 'aluno2@edutech.pt', 
-                name: 'Pedro Santos', 
-                fullName: 'Pedro Miguel Santos',
-                role: UserRole.ALUNO, 
-                roleId: 'role_aluno', 
-                status: UserStatus.ACTIVE, 
-                allowedCourses: ['c_py_01', 'c_ai_01'], 
-                classId: 'cl_b_2024',
-                password: '123', 
-                avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Pedro',
-                mustChangePassword: false
             }
       ];
       await fetchWithFallback('users', STORAGE_KEYS.USERS, usersSeed);
@@ -256,17 +224,6 @@ export const storageService = {
             rating: 5,
             status: TestimonialStatus.APPROVED,
             createdAt: new Date().toISOString()
-          },
-          {
-            id: 'tm_2',
-            userId: 'usr_aluno2',
-            userName: 'Pedro Santos',
-            userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Pedro',
-            role: 'Aluno de Python',
-            content: "Excelente plataforma. Os formadores estão sempre disponíveis e os materiais são de topo.",
-            rating: 4,
-            status: TestimonialStatus.APPROVED,
-            createdAt: new Date().toISOString()
           }
       ];
       await fetchWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, testimonialsSeed);
@@ -281,17 +238,15 @@ export const storageService = {
     // Obter dados remotos
     const remoteUsers = await fetchWithFallback('users', STORAGE_KEYS.USERS);
     
-    // Mapping & Merging: Garantir que snake_case do backend é lido, e dados locais (tokens) são preservados
+    // Mapping & Merging
     return remoteUsers.map((rUser: any) => {
         const mappedUser = {
             ...rUser,
-            // Mapeamento snake_case para camelCase se vindo direto do Supabase
             resetPasswordToken: rUser.resetPasswordToken || rUser.reset_password_token,
             resetPasswordExpires: rUser.resetPasswordExpires || rUser.reset_password_expires,
             verificationToken: rUser.verificationToken || rUser.verification_token,
         };
 
-        // Preservar dados locais críticos se estiverem em falta no remoto (ex: DB sem colunas atualizadas)
         const localUser = localUsers.find((u: User) => u.id === rUser.id);
         if (localUser) {
             if (!mappedUser.resetPasswordToken && localUser.resetPasswordToken) {
@@ -308,7 +263,6 @@ export const storageService = {
   },
   
   saveUsers: async (users: User[]) => {
-    // Para save em massa, aplicamos a mesma lógica de mapeamento para cada um
     const usersForSave = users.map(u => ({
         ...u,
         reset_password_token: u.resetPasswordToken,
@@ -319,7 +273,6 @@ export const storageService = {
   },
   
   saveUser: async (user: User) => {
-    // Criar versão com snake_case para o Supabase (caso as colunas existam)
     const userForSave = {
         ...user,
         reset_password_token: user.resetPasswordToken,
@@ -330,29 +283,19 @@ export const storageService = {
   },
   
   deleteUser: async (id: string) => {
-      // Logic for testimonials unlink
       const testimonials = await storageService.getTestimonials();
       const toUpdate = testimonials.filter(t => t.userId === id && t.status === TestimonialStatus.APPROVED).map(t => ({...t, userId: null}));
-      if (toUpdate.length > 0) await storageService.saveTestimonial(toUpdate[0] as Testimonial); // Simplification, ideally batch
-
-      // Delete testimonials pending/rejected
-      // const toDelete = testimonials.filter(t => t.userId === id && t.status !== TestimonialStatus.APPROVED);
-      // for(const t of toDelete) await deleteWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, t.id);
-
+      if (toUpdate.length > 0) await storageService.saveTestimonial(toUpdate[0] as Testimonial);
       return deleteWithFallback('users', STORAGE_KEYS.USERS, id);
   },
   
   register: async (user: Partial<User>): Promise<{user: User, token: string}> => {
       const email = user.email?.toLowerCase().trim();
-      
       const users = await storageService.getUsers();
       const existing = users.find(u => u.email === email);
-      if (existing) {
-          throw new Error("Este email já se encontra registado.");
-      }
+      if (existing) throw new Error("Este email já se encontra registado.");
       
       const verificationToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
-
       const newUser: User = {
           id: Date.now().toString(),
           email: email || '',
@@ -365,24 +308,19 @@ export const storageService = {
           allowedCourses: [],
           avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
           mustChangePassword: false,
-          // Registar data se a senha for temporária/gerada (assume-se que no registo manual o user define)
-          // Mas se o admin criar, usará outra função.
           emailVerified: false, 
           verificationToken: verificationToken,
           ...user
       } as User;
       
       await storageService.saveUser(newUser);
-      
       return { user: newUser, token: verificationToken };
   },
 
   verifyUserEmail: async (token: string): Promise<boolean> => {
       const users = await storageService.getUsers();
       const user = users.find(u => u.verificationToken === token);
-      
       if (!user) return false;
-      
       const updatedUser = { ...user, emailVerified: true, verificationToken: undefined };
       await storageService.saveUser(updatedUser as User);
       return true;
@@ -392,11 +330,9 @@ export const storageService = {
   generatePasswordResetLink: async (userId: string): Promise<string> => {
       const users = await storageService.getUsers();
       const user = users.find(u => u.id === userId);
-      
       if (!user) throw new Error("Utilizador não encontrado.");
 
       const token = Math.random().toString(36).substring(2) + Date.now().toString(36);
-      // Valid for 24 hours
       const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
       const updatedUser = {
@@ -406,19 +342,45 @@ export const storageService = {
       };
 
       await storageService.saveUser(updatedUser);
-
-      // Generate full link using current location origin AND path (before hash) to support subdirectories
       const baseUrl = window.location.href.split('#')[0];
       return `${baseUrl}#/reset-password?token=${token}`;
   },
 
-  resetPasswordWithToken: async (token: string, newPassword: string): Promise<boolean> => {
-      // getUsers now handles merging, so we should find the user even if DB dropped the token
+  // NOVO: Método dedicado para buscar por token (Bypass de Cache/Mapeamento complexo)
+  getUserByResetToken: async (token: string): Promise<User | null> => {
+      // 1. Tentar buscar diretamente no Supabase pela coluna snake_case (mais fiável)
+      try {
+          const { data, error } = await supabase
+              .from('users')
+              .select('*')
+              .eq('reset_password_token', token)
+              .single();
+          
+          if (!error && data) {
+              // Map DB response to App User type
+              return {
+                  ...data,
+                  resetPasswordToken: data.reset_password_token,
+                  resetPasswordExpires: data.reset_password_expires,
+                  verificationToken: data.verification_token
+              } as User;
+          }
+      } catch (e) {
+          // Falha silenciosa no fetch remoto
+      }
+
+      // 2. Fallback: Buscar na lista geral (para local/cache support)
       const users = await storageService.getUsers();
       const user = users.find(u => u.resetPasswordToken === token);
+      return user || null;
+  },
+
+  resetPasswordWithToken: async (token: string, newPassword: string): Promise<boolean> => {
+      // Usar a nova função de busca direta para evitar problemas de cache/lista
+      const user = await storageService.getUserByResetToken(token);
 
       if (!user) {
-          throw new Error("Token inválido.");
+          throw new Error("Token inválido ou não encontrado.");
       }
 
       if (user.resetPasswordExpires && new Date(user.resetPasswordExpires) < new Date()) {
@@ -429,102 +391,73 @@ export const storageService = {
           ...user,
           password: newPassword,
           mustChangePassword: false,
-          tempPasswordCreatedAt: undefined, // Clear temp status if any
+          tempPasswordCreatedAt: undefined,
           resetPasswordToken: undefined,
           resetPasswordExpires: undefined
       };
 
-      await storageService.saveUser(updatedUser);
+      // Guardar limpando os tokens
+      await storageService.saveUser({
+          ...updatedUser,
+          resetPasswordToken: undefined, // Force undefined to clear
+          resetPasswordExpires: undefined
+      });
+      
+      // Forçar limpeza específica no Supabase via update direto para garantir
+      try {
+          await supabase.from('users').update({ 
+              password: newPassword,
+              reset_password_token: null,
+              reset_password_expires: null,
+              must_change_password: false
+          }).eq('id', user.id);
+      } catch(e) {}
+
       return true;
   },
 
   // --- ROLES ---
   getRoles: async (): Promise<RoleEntity[]> => {
     const roles = await fetchWithFallback('roles', STORAGE_KEYS.ROLES, INITIAL_ROLES);
-    
-    // Atualizar dinamicamente o Admin para ter SEMPRE todas as permissões no array
     const adminRole = roles.find(r => r.id === 'role_admin');
-    if (adminRole) {
-        adminRole.permissions = Object.values(PERMISSIONS);
-    }
-    
+    if (adminRole) adminRole.permissions = Object.values(PERMISSIONS);
     return roles;
   },
   
-  saveRoles: async (roles: RoleEntity[]) => {
-    return saveWithFallback('roles', STORAGE_KEYS.ROLES, roles);
-  },
+  saveRoles: async (roles: RoleEntity[]) => saveWithFallback('roles', STORAGE_KEYS.ROLES, roles),
 
   // --- CLASSES ---
-  getClasses: async (): Promise<ClassEntity[]> => {
-    return fetchWithFallback('classes', STORAGE_KEYS.CLASSES);
-  },
-  saveClasses: async (classes: ClassEntity[]) => {
-    return saveWithFallback('classes', STORAGE_KEYS.CLASSES, classes);
-  },
-  deleteClass: async (id: string) => {
-    return deleteWithFallback('classes', STORAGE_KEYS.CLASSES, id);
-  },
+  getClasses: async (): Promise<ClassEntity[]> => fetchWithFallback('classes', STORAGE_KEYS.CLASSES),
+  saveClasses: async (classes: ClassEntity[]) => saveWithFallback('classes', STORAGE_KEYS.CLASSES, classes),
+  deleteClass: async (id: string) => deleteWithFallback('classes', STORAGE_KEYS.CLASSES, id),
 
   // --- COURSES ---
-  getCourses: async (): Promise<Course[]> => {
-    return fetchWithFallback('courses', STORAGE_KEYS.COURSES);
-  },
-  saveCourses: async (courses: Course[]) => {
-    return saveWithFallback('courses', STORAGE_KEYS.COURSES, courses);
-  },
-  deleteCourse: async (id: string) => {
-    return deleteWithFallback('courses', STORAGE_KEYS.COURSES, id);
-  },
+  getCourses: async (): Promise<Course[]> => fetchWithFallback('courses', STORAGE_KEYS.COURSES),
+  saveCourses: async (courses: Course[]) => saveWithFallback('courses', STORAGE_KEYS.COURSES, courses),
+  deleteCourse: async (id: string) => deleteWithFallback('courses', STORAGE_KEYS.COURSES, id),
 
   // --- MATERIALS ---
-  getMaterials: async (): Promise<Material[]> => {
-    return fetchWithFallback('materials', STORAGE_KEYS.MATERIALS);
-  },
-  saveMaterials: async (materials: Material[]) => {
-    return saveWithFallback('materials', STORAGE_KEYS.MATERIALS, materials);
-  },
-  deleteMaterial: async (id: string) => {
-    return deleteWithFallback('materials', STORAGE_KEYS.MATERIALS, id);
-  },
+  getMaterials: async (): Promise<Material[]> => fetchWithFallback('materials', STORAGE_KEYS.MATERIALS),
+  saveMaterials: async (materials: Material[]) => saveWithFallback('materials', STORAGE_KEYS.MATERIALS, materials),
+  deleteMaterial: async (id: string) => deleteWithFallback('materials', STORAGE_KEYS.MATERIALS, id),
 
   // --- PAGES ---
-  getPages: async (): Promise<Page[]> => {
-    return fetchWithFallback('pages', STORAGE_KEYS.PAGES);
-  },
-  savePages: async (pages: Page[]) => {
-    return saveWithFallback('pages', STORAGE_KEYS.PAGES, pages, 'slug');
-  },
-  deletePage: async (slug: string) => {
-    return deleteWithFallback('pages', STORAGE_KEYS.PAGES, slug, 'slug');
-  },
+  getPages: async (): Promise<Page[]> => fetchWithFallback('pages', STORAGE_KEYS.PAGES),
+  savePages: async (pages: Page[]) => saveWithFallback('pages', STORAGE_KEYS.PAGES, pages, 'slug'),
+  deletePage: async (slug: string) => deleteWithFallback('pages', STORAGE_KEYS.PAGES, slug, 'slug'),
 
   // --- TESTIMONIALS ---
-  getTestimonials: async (): Promise<Testimonial[]> => {
-    return fetchWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS);
-  },
-  saveTestimonial: async (testimonial: Testimonial) => {
-    return saveWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, [testimonial]);
-  },
-  deleteTestimonial: async (id: string) => {
-    return deleteWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, id);
-  },
+  getTestimonials: async (): Promise<Testimonial[]> => fetchWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS),
+  saveTestimonial: async (testimonial: Testimonial) => saveWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, [testimonial]),
+  deleteTestimonial: async (id: string) => deleteWithFallback('testimonials', STORAGE_KEYS.TESTIMONIALS, id),
 
   // --- UPLOADED FILES ---
-  getFiles: async (): Promise<UploadedFile[]> => {
-    return fetchWithFallback('uploaded_files', STORAGE_KEYS.FILES);
-  },
-  saveFile: async (file: UploadedFile) => {
-    return saveWithFallback('uploaded_files', STORAGE_KEYS.FILES, [file]);
-  },
-  deleteFile: async (id: string) => {
-    return deleteWithFallback('uploaded_files', STORAGE_KEYS.FILES, id);
-  },
+  getFiles: async (): Promise<UploadedFile[]> => fetchWithFallback('uploaded_files', STORAGE_KEYS.FILES),
+  saveFile: async (file: UploadedFile) => saveWithFallback('uploaded_files', STORAGE_KEYS.FILES, [file]),
+  deleteFile: async (id: string) => deleteWithFallback('uploaded_files', STORAGE_KEYS.FILES, id),
 
   // --- FILE DELETION LOGS ---
-  getDeletionLogs: async (): Promise<FileDeletionLog[]> => {
-    return fetchWithFallback('deletion_logs', STORAGE_KEYS.DELETION_LOGS);
-  },
+  getDeletionLogs: async (): Promise<FileDeletionLog[]> => fetchWithFallback('deletion_logs', STORAGE_KEYS.DELETION_LOGS),
 
   addDeletionLog: async (file: UploadedFile, user: User): Promise<FileDeletionLog[]> => {
       const newLog: FileDeletionLog = {
@@ -535,10 +468,7 @@ export const storageService = {
           deletedAt: new Date().toISOString(),
           emailSent: false
       };
-      
       await saveWithFallback('deletion_logs', STORAGE_KEYS.DELETION_LOGS, [newLog]);
-      
-      // Return fresh logs to check count
       const logs = await storageService.getDeletionLogs();
       return logs.filter(l => !l.emailSent);
   },
@@ -553,52 +483,31 @@ export const storageService = {
 
   // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
-    const emptyTemplates: EmailTemplates = {
-        welcomeId: '',
-        resetPasswordId: '',
-        enrollmentId: '',
-        notificationId: '',
-        verificationId: '',
-        auditLogId: ''
-    };
-
+    const emptyTemplates: EmailTemplates = { welcomeId: '', resetPasswordId: '', enrollmentId: '', notificationId: '', verificationId: '', auditLogId: '' };
     const baseConfig: EmailConfig = {
-        serviceId: '',
-        publicKey: '',
-        templates: { ...emptyTemplates },
-        activeProfileIndex: 0,
+        serviceId: '', publicKey: '', templates: { ...emptyTemplates }, activeProfileIndex: 0,
         profiles: Array(5).fill(null).map(() => ({ serviceId: '', publicKey: '', templates: { ...emptyTemplates }, isActive: false })),
-        customErrorMessage: '',
-        customContent: {
-            welcomeText: '',
-            verificationText: '',
-            resetPasswordText: '',
-            auditLogText: ''
-        }
+        customErrorMessage: '', customContent: { welcomeText: '', verificationText: '', resetPasswordText: '', auditLogText: '' }
     };
 
-    // Tentar DB (com fallback)
     let dbData: any = {};
     try {
         const { data } = await supabase.from('email_config').select('*').single();
         if (data) dbData = data;
     } catch(e) {}
 
-    // Tentar LocalStorage
     let localData: any = {};
     try {
         const stored = localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG);
         if(stored) localData = JSON.parse(stored);
     } catch(e) {}
 
-    // Recuperar dados básicos
     const serviceId = dbData.service_id || localData.serviceId || '';
     const publicKey = dbData.public_key || localData.publicKey || '';
     const templates = { ...baseConfig.templates, ...(localData.templates || {}), ...(dbData.templates || {}) };
     const customErrorMessage = dbData.custom_error_message || localData.customErrorMessage || '';
     const customContent = { ...baseConfig.customContent, ...(localData.customContent || {}), ...(dbData.custom_content || {}) };
 
-    // Recuperar Perfis
     let loadedProfiles: EmailConfigProfile[] = baseConfig.profiles;
     let loadedActiveIndex = localData.activeProfileIndex || 0;
 
@@ -608,50 +517,26 @@ export const storageService = {
         loadedProfiles = localData.profiles;
     }
 
-    // Populate Profile 0 if empty but legacy data exists
     if ((!loadedProfiles[0].serviceId) && serviceId) {
-        loadedProfiles[0] = {
-            serviceId: serviceId,
-            publicKey: publicKey,
-            templates: templates,
-            isActive: true // Assume legacy single account is active
-        };
+        loadedProfiles[0] = { serviceId, publicKey, templates, isActive: true };
     }
 
-    // Migration: If isActive is not set on profiles, set based on loadedActiveIndex
     loadedProfiles = loadedProfiles.map((p, idx) => ({
         ...p,
         isActive: p.isActive !== undefined ? p.isActive : (idx === loadedActiveIndex)
     }));
 
-    // Ensure 5 profiles
     while (loadedProfiles.length < 5) {
         loadedProfiles.push({ serviceId: '', publicKey: '', templates: { ...emptyTemplates }, isActive: false });
     }
 
-    return {
-        serviceId, 
-        publicKey,
-        templates,
-        activeProfileIndex: loadedActiveIndex,
-        profiles: loadedProfiles,
-        customErrorMessage,
-        customContent
-    };
+    return { serviceId, publicKey, templates, activeProfileIndex: loadedActiveIndex, profiles: loadedProfiles, customErrorMessage, customContent };
   },
 
   saveEmailConfig: async (config: EmailConfig) => {
     localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(config));
-    
-    // Preparar dados para o Supabase
-    // As colunas principais guardam o perfil "Selecionado na UI" (activeProfileIndex) apenas para fallback,
-    // mas o array completo em custom_content é a fonte da verdade.
     const activeProfile = config.profiles[config.activeProfileIndex] || config.profiles[0];
-    
-    const customContentWithProfiles = {
-        ...config.customContent,
-        _profiles_backup: config.profiles 
-    };
+    const customContentWithProfiles = { ...config.customContent, _profiles_backup: config.profiles };
 
     try {
         await supabase.from('email_config').upsert({
@@ -671,7 +556,6 @@ export const storageService = {
     try {
         const { data } = await supabase.from('system_config').select('*').single();
         if(data) {
-             // Fetch possible values
              const rawConfig: SystemConfig = {
                  logoUrl: data.logo_url,
                  faviconUrl: data.favicon_url,
@@ -679,14 +563,10 @@ export const storageService = {
                  pipedreamWebhookUrl: data.pipedream_webhook_url,
                  pipedreamDeleteUrl: data.pipedream_delete_url,
                  customMaterialTypes: data.custom_material_types,
-                 tempPasswordValidityHours: data.temp_password_validity_hours // New field
+                 tempPasswordValidityHours: data.temp_password_validity_hours
              };
-             
-             // Remove undefined properties to prevent overwriting local storage with undefined
              Object.keys(rawConfig).forEach(key => {
-                 if (rawConfig[key as keyof SystemConfig] === undefined) {
-                     delete rawConfig[key as keyof SystemConfig];
-                 }
+                 if (rawConfig[key as keyof SystemConfig] === undefined) delete rawConfig[key as keyof SystemConfig];
              });
              dbConfig = rawConfig;
         }
@@ -712,7 +592,7 @@ export const storageService = {
               pipedream_webhook_url: config.pipedreamWebhookUrl,
               pipedream_delete_url: config.pipedreamDeleteUrl,
               custom_material_types: config.customMaterialTypes,
-              temp_password_validity_hours: config.tempPasswordValidityHours // New field
+              temp_password_validity_hours: config.tempPasswordValidityHours
           });
       } catch (e) {}
   },
@@ -727,7 +607,6 @@ export const storageService = {
   refreshSession: async (): Promise<User | null> => {
       const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       if(!stored) return null;
-      
       const sessionUser = JSON.parse(stored) as User;
       const users = await storageService.getUsers();
       const freshUser = users.find(u => u.id === sessionUser.id);
@@ -743,42 +622,25 @@ export const storageService = {
   
   getUserPermissions: async (user: User | null): Promise<string[]> => {
     if (!user) return [];
-    
-    // AUTOMATIC ADMIN PERMISSIONS:
-    if (user.role === UserRole.ADMIN || user.roleId === 'role_admin') {
-        return Object.values(PERMISSIONS);
-    }
-    
+    if (user.role === UserRole.ADMIN || user.roleId === 'role_admin') return Object.values(PERMISSIONS);
     const roles = await storageService.getRoles();
-    
-    // Determinar Role ID
     let roleId = user.roleId;
     if (!roleId) {
-         // Fix: TypeScript knows user.role is not ADMIN here because of the early return above.
-         // We safely cast to avoid type overlap error.
          if ((user.role as string) === UserRole.ADMIN) roleId = 'role_admin';
          else if (user.role === UserRole.EDITOR) roleId = 'role_editor';
          else roleId = 'role_aluno';
     }
-
     const userRole = roles.find(r => r.id === roleId);
-    if (userRole) {
-        return userRole.permissions;
-    }
-    return [];
+    return userRole ? userRole.permissions : [];
   },
 
   login: async (email: string, password?: string): Promise<User> => {
     const normalizedEmail = email.trim().toLowerCase();
-    
-    // Tentar obter utilizadores (usando fallback se necessário)
     const users = await storageService.getUsers();
-    
     let user = users.find(u => u.email === normalizedEmail);
     const isSuperAdmin = SUPER_ADMINS.includes(normalizedEmail);
 
     if (!user) {
-      // Registo Automático de Admin se for o primeiro utilizador ou super admin
       const isFirstUser = users.length === 0;
       const shouldBeAdmin = isFirstUser || isSuperAdmin;
 
@@ -800,42 +662,31 @@ export const storageService = {
           await storageService.saveUser(newUser);
           user = newUser;
       } else {
-          // Utilizador não existe e não é admin -> erro (deve registar-se)
            throw new Error("Utilizador não encontrado. Registe-se primeiro.");
       }
     } else {
-        // --- 48 HOUR PASSWORD EXPIRY CHECK ---
-        // Se o utilizador tem de mudar a senha (significa que é temporária) e tem uma data de criação
         if (user.mustChangePassword && user.tempPasswordCreatedAt) {
             const systemConfig = await storageService.getSystemConfig();
-            const limitHours = systemConfig?.tempPasswordValidityHours || 48; // Default to 48 if not set
-            
+            const limitHours = systemConfig?.tempPasswordValidityHours || 48;
             const created = new Date(user.tempPasswordCreatedAt);
             const now = new Date();
             const diffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
 
             if (diffHours > limitHours) {
-                // Bloquear utilizador
                 user = { ...user, status: UserStatus.BLOCKED };
                 await storageService.saveUser(user);
                 throw new Error(`A sua senha temporária expirou (validade de ${limitHours}h). A conta foi bloqueada por segurança. Contacte o administrador.`);
             }
         }
 
-        if (user.status === UserStatus.BLOCKED) {
-            throw new Error("A sua conta encontra-se bloqueada. Contacte a administração.");
-        }
+        if (user.status === UserStatus.BLOCKED) throw new Error("A sua conta encontra-se bloqueada. Contacte a administração.");
 
-        // Auto-reparação de Super Admin
-        // Cast user.role to string/UserRole to avoid overlap error if TS thinks user.role excludes ADMIN
         if (isSuperAdmin && ((user.role as string) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
              user = { ...user, role: UserRole.ADMIN, roleId: 'role_admin', status: UserStatus.ACTIVE };
              await storageService.saveUser(user);
         }
 
-        if (user.password && user.password !== password) {
-            throw new Error("Senha incorreta.");
-        }
+        if (user.password && user.password !== password) throw new Error("Senha incorreta.");
     }
     
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
@@ -847,7 +698,6 @@ export const storageService = {
     const user = users.find(u => u.id === userId);
     
     if (user) {
-        // Ao atualizar a senha, limpa-se a data de criação temporária
         const updated = { ...user, password: newPassword, mustChangePassword: false, tempPasswordCreatedAt: undefined };
         await storageService.saveUser(updated);
         
@@ -860,7 +710,5 @@ export const storageService = {
     return null;
   },
 
-  logout: () => {
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-  }
+  logout: () => localStorage.removeItem(STORAGE_KEYS.CURRENT_USER)
 };

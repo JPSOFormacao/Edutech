@@ -36,6 +36,12 @@ export default function Login() {
   const [emailError, setEmailError] = useState<string | null>(null); // Novo estado para erro de email
   const [generatedToken, setGeneratedToken] = useState<string | null>(null); // Guardar token para fallback
 
+  // Recovery State
+  const [isRecoverModalOpen, setIsRecoverModalOpen] = useState(false);
+  const [recoverEmail, setRecoverEmail] = useState('');
+  const [recoverLoading, setRecoverLoading] = useState(false);
+  const [recoverStatus, setRecoverStatus] = useState<{type: 'success'|'error', msg: string} | null>(null);
+
   // Public Data
   const [courses, setCourses] = useState<Course[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
@@ -186,6 +192,44 @@ export default function Login() {
       }
   };
 
+  const handleRecoverPassword = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!recoverEmail) return;
+      
+      setRecoverLoading(true);
+      setRecoverStatus(null);
+      
+      try {
+          const users = await storageService.getUsers();
+          const targetUser = users.find(u => u.email === recoverEmail.toLowerCase().trim());
+          
+          if (!targetUser) {
+              // Por segurança em apps públicas, não devemos revelar se o email existe.
+              // Mas em apps internas/corporativas, é útil saber.
+              setRecoverStatus({ type: 'error', msg: 'Não existe nenhuma conta com este email.' });
+              setRecoverLoading(false);
+              return;
+          }
+
+          // 1. Gerar Link
+          const link = await storageService.generatePasswordResetLink(targetUser.id);
+          
+          // 2. Enviar Email
+          const res = await emailService.sendRecoveryEmail(targetUser.name, targetUser.email, link);
+          
+          if (res.success) {
+              setRecoverStatus({ type: 'success', msg: 'Email de recuperação enviado! Verifique a sua caixa de entrada (e spam).' });
+          } else {
+              setRecoverStatus({ type: 'error', msg: 'Erro ao enviar email: ' + res.message });
+          }
+
+      } catch (err: any) {
+          setRecoverStatus({ type: 'error', msg: 'Erro inesperado: ' + err.message });
+      } finally {
+          setRecoverLoading(false);
+      }
+  };
+
   // Star Rating Component
   const StarRating = ({ rating }: { rating: number }) => (
       <div className="flex text-yellow-400">
@@ -283,7 +327,20 @@ export default function Login() {
                 />
 
                 <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Password/Senha</label>
+                    <div className="flex justify-between items-center mb-1">
+                        <label className="block text-sm font-medium text-gray-700">Password/Senha</label>
+                        <button 
+                            type="button" 
+                            className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
+                            onClick={() => {
+                                setRecoverEmail(email); // Auto-fill if user typed email
+                                setRecoverStatus(null);
+                                setIsRecoverModalOpen(true);
+                            }}
+                        >
+                            Esqueceu-se da password?
+                        </button>
+                    </div>
                     <div className="relative">
                         <input
                             type={showPassword ? "text" : "password"}
@@ -444,6 +501,42 @@ export default function Login() {
               </div>
           </div>
       )}
+
+      {/* Recover Password Modal */}
+      <Modal
+        isOpen={isRecoverModalOpen}
+        onClose={() => setIsRecoverModalOpen(false)}
+        title="Recuperar Acesso"
+        footer={null}
+      >
+          <form onSubmit={handleRecoverPassword} className="space-y-4">
+              <p className="text-sm text-gray-600">
+                  Insira o seu endereço de email. Se a conta existir, enviaremos um link para redefinir a sua password.
+              </p>
+              
+              {recoverStatus && (
+                  <div className={`p-3 rounded text-sm ${recoverStatus.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                      {recoverStatus.msg}
+                  </div>
+              )}
+
+              <Input 
+                  label="Email da Conta"
+                  type="email"
+                  value={recoverEmail}
+                  onChange={e => setRecoverEmail(e.target.value)}
+                  placeholder="seu@email.com"
+                  required
+              />
+
+              <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="ghost" onClick={() => setIsRecoverModalOpen(false)}>Cancelar</Button>
+                  <Button type="submit" disabled={recoverLoading}>
+                      {recoverLoading ? 'A enviar...' : 'Recuperar Password'}
+                  </Button>
+              </div>
+          </form>
+      </Modal>
 
       {/* Register Modal */}
       <Modal
