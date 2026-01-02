@@ -23,6 +23,7 @@ export default function EmailConfigPage() {
   
   const [status, setStatus] = useState<{type: 'success' | 'error' | 'info' | 'warning', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showKeys, setShowKeys] = useState<Record<number, boolean>>({});
   
   const load = async () => {
     try {
@@ -176,13 +177,26 @@ export default function EmailConfigPage() {
                                   onChange={e => handleUpdateProfileCreds(idx, 'serviceId', e.target.value)} 
                                   placeholder="ex: service_xxxxxx"
                               />
-                              <Input 
-                                  label="Public Key" 
-                                  value={profile.publicKey} 
-                                  onChange={e => handleUpdateProfileCreds(idx, 'publicKey', e.target.value)} 
-                                  placeholder="ex: user_xxxxxx"
-                                  type="password"
-                              />
+                              
+                              <div className="mb-4">
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Public Key</label>
+                                  <div className="relative">
+                                      <input 
+                                          type={showKeys[idx] ? "text" : "password"}
+                                          className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border pr-10"
+                                          placeholder="ex: user_xxxxxx"
+                                          value={profile.publicKey}
+                                          onChange={e => handleUpdateProfileCreds(idx, 'publicKey', e.target.value)}
+                                      />
+                                      <button
+                                          type="button"
+                                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                                          onClick={() => setShowKeys(prev => ({...prev, [idx]: !prev[idx]}))}
+                                      >
+                                          {showKeys[idx] ? <Icons.EyeOff className="w-5 h-5" /> : <Icons.Eye className="w-5 h-5" />}
+                                      </button>
+                                  </div>
+                              </div>
                           </div>
                           
                           <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 h-full flex flex-col justify-center">
