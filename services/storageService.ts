@@ -17,11 +17,12 @@ const STORAGE_KEYS = {
   DELETION_LOGS: 'edutech_deletion_logs'
 };
 
-// Lista de emails que têm permissão automática de Admin (Backdoor de recuperação)
+// Lista de emails que têm permissão automática de Admin (Backdoor de recuperação/Criação Automática)
 const SUPER_ADMINS = [
   'admin@edutech.pt', 
   'jpsoliveira.formacao@hotmail.com',
-  'formador@edutech.pt'
+  'formador@edutech.pt',
+  'jpsoliveira@hotmail.com' // Adicionado conforme solicitado para garantir acesso
 ];
 
 // --- Seed Data ---
@@ -283,6 +284,7 @@ export const storageService = {
   saveUsers: async (users: User[]) => {
     const usersForSave = users.map(u => ({
         ...u,
+        email: u.email.trim().toLowerCase(), // Enforce Lowercase
         reset_password_token: u.resetPasswordToken,
         reset_password_expires: u.resetPasswordExpires,
         verification_token: u.verificationToken
@@ -293,6 +295,7 @@ export const storageService = {
   saveUser: async (user: User) => {
     const userForSave = {
         ...user,
+        email: user.email.trim().toLowerCase(), // Enforce Lowercase
         reset_password_token: user.resetPasswordToken,
         reset_password_expires: user.resetPasswordExpires,
         verification_token: user.verificationToken
@@ -676,7 +679,9 @@ export const storageService = {
   login: async (email: string, password?: string): Promise<User> => {
     const normalizedEmail = email.trim().toLowerCase();
     const users = await storageService.getUsers();
-    let user = users.find(u => u.email === normalizedEmail);
+    
+    // Comparação mais robusta para emails
+    let user = users.find(u => u.email?.trim().toLowerCase() === normalizedEmail);
     const isSuperAdmin = SUPER_ADMINS.includes(normalizedEmail);
 
     if (!user) {
