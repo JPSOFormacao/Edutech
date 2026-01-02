@@ -79,7 +79,7 @@ export default function EmailConfigPage() {
           
           if (idx === targetProfileIndex) {
               // Definir o ID neste perfil
-              currentTemplates[templateKey] = newIdValue;
+              currentTemplates[templateKey] = newIdValue || '';
           } else {
               // Limpar o ID dos outros perfis para garantir 1-to-1
               // Apenas limpamos se estivermos a atribuir explicitamente a outro
@@ -251,12 +251,15 @@ export default function EmailConfigPage() {
                           // Default to Account 1 (idx 0) if unassigned, purely for UI selection
                           const selectedIdx = currentProfileIdx === -1 ? 0 : currentProfileIdx; 
                           const isProfileActive = config.profiles[selectedIdx]?.isActive;
+                          
+                          const isEmpty = !currentIdVal || currentIdVal.trim() === '';
 
                           return (
-                              <tr key={def.key} className="hover:bg-gray-50 transition-colors">
+                              <tr key={def.key} className={`hover:bg-gray-50 transition-colors ${isEmpty ? 'bg-red-50' : ''}`}>
                                   <td className="px-6 py-4">
-                                      <div className="text-sm font-medium text-gray-900">{def.label}</div>
+                                      <div className={`text-sm font-medium ${isEmpty ? 'text-red-700' : 'text-gray-900'}`}>{def.label}</div>
                                       <div className="text-xs text-gray-500">{def.desc}</div>
+                                      {isEmpty && <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1 rounded">Falta Preencher</span>}
                                   </td>
                                   <td className="px-6 py-4">
                                       <select
@@ -277,7 +280,7 @@ export default function EmailConfigPage() {
                                   <td className="px-6 py-4">
                                       <input 
                                           type="text"
-                                          className="block w-full text-sm border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2 font-mono"
+                                          className={`block w-full text-sm rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2 font-mono ${isEmpty ? 'border-red-300 bg-white placeholder-red-300' : 'border-gray-300'}`}
                                           placeholder={`ex: ${def.key}_xxxx`}
                                           value={currentIdVal}
                                           onChange={(e) => handleUpdateTemplateMapping(def.key, selectedIdx, e.target.value)}

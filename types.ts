@@ -181,18 +181,18 @@ export interface QuizData {
 export interface EmailTemplates {
     welcomeId: string;
     resetPasswordId: string; // Admin Reset (New Password)
-    recoveryId?: string; // User Forgot Password (Link)
+    recoveryId: string; // Link de recuperação (Tornado Obrigatório)
     enrollmentId: string;
     notificationId: string;
     verificationId?: string; 
-    auditLogId?: string; // Novo template para Logs de Auditoria
+    auditLogId?: string; 
 }
 
 export interface EmailCustomContent {
     welcomeText?: string;
     verificationText?: string;
     resetPasswordText?: string;
-    recoveryEmailText?: string; // Novo campo para o texto do link de recuperação
+    recoveryEmailText?: string; 
     auditLogText?: string; 
     _profiles_backup?: EmailConfigProfile[]; // Interno: Store multiple profiles inside JSON
 }

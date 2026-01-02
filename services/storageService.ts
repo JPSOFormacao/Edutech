@@ -1,3 +1,4 @@
+
 import { User, Course, Material, Page, UserRole, UserStatus, MaterialType, EmailConfig, RoleEntity, ClassEntity, PERMISSIONS, Testimonial, TestimonialStatus, SystemConfig, UploadedFile, FileDeletionLog, EmailConfigProfile, EmailTemplates } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -484,6 +485,7 @@ export const storageService = {
   // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
     // Definir estrutura completa para garantir que campos novos (recoveryId) existam
+    // Agora recoveryId é explicitamente inicializado como string vazia
     const emptyTemplates: EmailTemplates = { welcomeId: '', resetPasswordId: '', recoveryId: '', enrollmentId: '', notificationId: '', verificationId: '', auditLogId: '' };
     
     const baseConfig: EmailConfig = {
