@@ -86,7 +86,10 @@ const getConfigForTemplate = async (templateKey: keyof EmailTemplates) => {
     const activeProfiles = profiles.filter(p => p.isActive && p.serviceId && p.publicKey);
 
     // Tenta encontrar o primeiro perfil que tenha o Template ID solicitado
-    let matchedProfile = activeProfiles.find(p => p.templates[templateKey] && p.templates[templateKey].trim().length > 0);
+    let matchedProfile = activeProfiles.find(p => {
+        const val = p.templates[templateKey];
+        return val && val.trim().length > 0;
+    });
 
     // Se não encontrar, e for um pedido de template que pode ter fallback (ex: Notification), tenta o fallback
     if (!matchedProfile && templateKey === 'notificationId') {
@@ -95,6 +98,11 @@ const getConfigForTemplate = async (templateKey: keyof EmailTemplates) => {
     }
 
     if (!matchedProfile) {
+        console.warn(`[EmailService] Template '${templateKey}' não encontrado em nenhuma conta ativa.`);
+        console.log("Contas ativas verificadas:", activeProfiles.length);
+        if (activeProfiles.length === 0) {
+            console.log("Atenção: Nenhuma conta de email ativa ou com credenciais válidas (Service ID + Public Key).");
+        }
         return null;
     }
 
@@ -117,7 +125,7 @@ export const emailService = {
     const config = await getConfigForTemplate(templateKey);
     
     // Validações Básicas
-    if (!config) return { success: false, message: "Nenhuma conta ativa encontrada com este template configurado." };
+    if (!config) return { success: false, message: `Nenhuma conta ativa encontrada com o template '${templateKey}' configurado.` };
     
     const { serviceId, publicKey, templateId, customContent } = config;
     const systemConfig = await storageService.getSystemConfig();
@@ -422,7 +430,7 @@ ${list}
       // Use specialized recoveryId template
       const config = await getConfigForTemplate('recoveryId');
       
-      if (!config) return { success: false, message: "Template de recuperação (recoveryId) não configurado." };
+      if (!config) return { success: false, message: "Template de recuperação (recoveryId) não configurado ou conta inativa." };
 
       const { serviceId, publicKey, templateId, customContent } = config;
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';

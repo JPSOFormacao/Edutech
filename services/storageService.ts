@@ -483,7 +483,9 @@ export const storageService = {
 
   // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
+    // Definir estrutura completa para garantir que campos novos (recoveryId) existam
     const emptyTemplates: EmailTemplates = { welcomeId: '', resetPasswordId: '', recoveryId: '', enrollmentId: '', notificationId: '', verificationId: '', auditLogId: '' };
+    
     const baseConfig: EmailConfig = {
         serviceId: '', publicKey: '', templates: { ...emptyTemplates }, activeProfileIndex: 0,
         profiles: Array(5).fill(null).map(() => ({ serviceId: '', publicKey: '', templates: { ...emptyTemplates }, isActive: false })),
@@ -502,12 +504,13 @@ export const storageService = {
         if(stored) localData = JSON.parse(stored);
     } catch(e) {}
 
+    // Fallbacks para campos legado/root
     const serviceId = dbData.service_id || localData.serviceId || '';
     const publicKey = dbData.public_key || localData.publicKey || '';
-    const templates = { ...baseConfig.templates, ...(localData.templates || {}), ...(dbData.templates || {}) };
     const customErrorMessage = dbData.custom_error_message || localData.customErrorMessage || '';
     const customContent = { ...baseConfig.customContent, ...(localData.customContent || {}), ...(dbData.custom_content || {}) };
 
+    // Carregar Perfis
     let loadedProfiles: EmailConfigProfile[] = baseConfig.profiles;
     let loadedActiveIndex = localData.activeProfileIndex || 0;
 
@@ -517,20 +520,25 @@ export const storageService = {
         loadedProfiles = localData.profiles;
     }
 
+    // Se houver dados legacy (serviceId no root), colocar no perfil 0 se estiver vazio
     if ((!loadedProfiles[0].serviceId) && serviceId) {
-        loadedProfiles[0] = { serviceId, publicKey, templates, isActive: true };
+        loadedProfiles[0] = { serviceId, publicKey, templates: { ...emptyTemplates, ...localData.templates }, isActive: true };
     }
 
+    // HIDRATAÇÃO: Garantir que todos os perfis carregados tenham a estrutura completa de templates
+    // Isto corrige o erro onde 'recoveryId' é undefined porque o perfil foi salvo antes da atualização
     loadedProfiles = loadedProfiles.map((p, idx) => ({
         ...p,
-        isActive: p.isActive !== undefined ? p.isActive : (idx === loadedActiveIndex)
+        isActive: p.isActive !== undefined ? p.isActive : (idx === loadedActiveIndex),
+        templates: { ...emptyTemplates, ...(p.templates || {}) } // Merge para garantir chaves novas
     }));
 
+    // Garantir mínimo de perfis
     while (loadedProfiles.length < 5) {
         loadedProfiles.push({ serviceId: '', publicKey: '', templates: { ...emptyTemplates }, isActive: false });
     }
 
-    return { serviceId, publicKey, templates, activeProfileIndex: loadedActiveIndex, profiles: loadedProfiles, customErrorMessage, customContent };
+    return { serviceId, publicKey, templates: loadedProfiles[loadedActiveIndex].templates, activeProfileIndex: loadedActiveIndex, profiles: loadedProfiles, customErrorMessage, customContent };
   },
 
   saveEmailConfig: async (config: EmailConfig) => {
