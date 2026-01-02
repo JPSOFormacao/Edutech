@@ -31,7 +31,8 @@ import {
   Upload,
   ClipboardList,
   MessageSquare,
-  Copy
+  Copy,
+  Code
 } from 'lucide-react';
 
 export const Icons = {
@@ -69,5 +70,6 @@ export const Icons = {
   Upload: Upload,
   Audit: ClipboardList,
   MessageSquare: MessageSquare,
-  Copy: Copy
+  Copy: Copy,
+  Code: Code
 };

@@ -12,20 +12,121 @@ const DEFAULT_CONTENT: EmailCustomContent = {
     auditLogText: ''
 };
 
+// --- Sub-component for individual template sections ---
+interface EmailSectionEditorProps {
+    title: string;
+    description: string;
+    value: string;
+    onChange: (val: string) => void;
+    onTest: () => void;
+    isTesting: boolean;
+    placeholder: string;
+    colorClass?: string; // e.g., 'border-red-200'
+    forcePreviewTrigger?: number; // Change this to force preview mode
+}
+
+const EmailSectionEditor: React.FC<EmailSectionEditorProps> = ({
+    title,
+    description,
+    value,
+    onChange,
+    onTest,
+    isTesting,
+    placeholder,
+    colorClass = 'border-gray-200',
+    forcePreviewTrigger
+}) => {
+    const [mode, setMode] = useState<'edit' | 'preview'>('preview');
+
+    useEffect(() => {
+        if (forcePreviewTrigger) {
+            setMode('preview');
+        }
+    }, [forcePreviewTrigger]);
+
+    return (
+        <div className={`bg-white shadow rounded-lg p-6 space-y-4 border ${colorClass} transition-all duration-300`}>
+            <div className="flex justify-between items-start border-b pb-2 mb-2">
+                <div>
+                    <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                        {title}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">{description}</p>
+                </div>
+                <div className="flex gap-2">
+                    <div className="flex bg-gray-100 rounded p-1">
+                        <button
+                            onClick={() => setMode('preview')}
+                            className={`p-1.5 rounded transition-all ${mode === 'preview' ? 'bg-white shadow text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="Visualizar"
+                        >
+                            <Icons.Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setMode('edit')}
+                            className={`p-1.5 rounded transition-all ${mode === 'edit' ? 'bg-white shadow text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="Editar Código / Texto"
+                        >
+                            <Icons.Code className="w-4 h-4" />
+                        </button>
+                    </div>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={onTest}
+                        disabled={isTesting}
+                    >
+                        {isTesting ? '...' : 'Testar Envio'}
+                    </Button>
+                </div>
+            </div>
+
+            {mode === 'edit' ? (
+                <div className="relative animate-fade-in">
+                    <div className="absolute top-0 right-0 -mt-6 text-[10px] text-gray-400 font-mono bg-gray-50 px-2 rounded-t border-t border-x">Editor de Código</div>
+                    <textarea
+                        className={`shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm rounded-md p-3 border font-mono text-xs leading-relaxed ${colorClass.replace('border-', 'bg-').replace('-200', '-50')} min-h-[250px]`}
+                        rows={10}
+                        value={value}
+                        onChange={e => onChange(e.target.value)}
+                        placeholder={placeholder}
+                    />
+                    <p className="text-xs text-gray-400 mt-1 text-right">Suporta HTML e Texto Simples</p>
+                </div>
+            ) : (
+                <div className="relative animate-fade-in">
+                    <div className="absolute top-0 right-0 -mt-6 text-[10px] text-indigo-400 font-bold bg-indigo-50 px-2 rounded-t border-t border-x border-indigo-100">Modo Visualização</div>
+                    <div
+                        className={`w-full min-h-[250px] rounded-md p-4 border bg-white prose prose-sm max-w-none overflow-y-auto ${colorClass}`}
+                        style={{ whiteSpace: 'pre-wrap' }} // Preserves newlines for text mode while allowing HTML
+                        dangerouslySetInnerHTML={{
+                            __html: value 
+                                ? value.replace(/{{/g, '<span class="text-pink-600 font-bold bg-pink-50 px-1 rounded">{{').replace(/}}/g, '}}</span>') // Highlight variables
+                                : '<span class="text-gray-400 italic">Sem conteúdo definido.</span>'
+                        }}
+                    />
+                </div>
+            )}
+        </div>
+    );
+};
+
 export default function EmailTemplatesPage() {
   const [customContent, setCustomContent] = useState<EmailCustomContent>(DEFAULT_CONTENT);
-  // Precisamos carregar o resto da config para não perder ao salvar
   const [fullConfig, setFullConfig] = useState<any>({});
   
   const [status, setStatus] = useState<{type: 'success' | 'error' | 'info', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
   const [testingTemplate, setTestingTemplate] = useState<Record<string, boolean>>({});
+  
+  // Trigger to reset views to preview mode after save
+  const [saveTrigger, setSaveTrigger] = useState(0);
 
   const load = async () => {
     try {
         const config = await storageService.getEmailConfig();
         if (config) {
-          setFullConfig(config); // Guardar config completa
+          setFullConfig(config);
           if (config.customContent) {
               setCustomContent(prev => ({...DEFAULT_CONTENT, ...config.customContent}));
           }
@@ -42,7 +143,6 @@ export default function EmailTemplatesPage() {
   const handleSave = async () => {
     setLoading(true);
     
-    // Atualizar apenas a parte de content
     const updatedConfig = { 
         ...fullConfig,
         customContent: customContent
@@ -51,6 +151,7 @@ export default function EmailTemplatesPage() {
     try {
         await storageService.saveEmailConfig(updatedConfig);
         setStatus({ type: 'success', msg: 'Textos personalizados guardados com sucesso!' });
+        setSaveTrigger(prev => prev + 1); // Force preview mode on all editors
         setTimeout(() => setStatus(null), 3000);
     } catch(e: any) {
         setStatus({ type: 'error', msg: 'Erro: ' + (e.message || 'Falha desconhecida') });
@@ -63,7 +164,6 @@ export default function EmailTemplatesPage() {
       setTestingTemplate(prev => ({ ...prev, [key]: true }));
       setStatus({ type: 'info', msg: `A enviar teste para EduTechPT@hotmail.com...` });
       
-      // Auto-save temporário para o teste usar o texto atual
       await storageService.saveEmailConfig({ 
           ...fullConfig,
           customContent
@@ -97,7 +197,7 @@ export default function EmailTemplatesPage() {
         </div>
         <div>
             <h2 className="text-2xl font-bold text-gray-900">Personalizar Emails</h2>
-            <p className="text-sm text-gray-500">Edite o conteúdo de texto dos emails enviados pelo sistema. <b>HTML é suportado</b>.</p>
+            <p className="text-sm text-gray-500">Edite o conteúdo de texto ou HTML dos emails enviados pelo sistema.</p>
         </div>
       </div>
 
@@ -105,28 +205,15 @@ export default function EmailTemplatesPage() {
           {/* Main Editors */}
           <div className="lg:col-span-2 space-y-6">
               
-              {/* Texto de Boas Vindas */}
-              <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200">
-                   <div className="flex justify-between items-start border-b pb-2 mb-2">
-                       <div>
-                           <h3 className="font-bold text-gray-900">Email de Boas-Vindas <span className="text-xs font-normal text-indigo-600 ml-1">(HTML Suportado)</span></h3>
-                           <p className="text-xs text-gray-500 mt-1">Enviado ao criar conta ou aprovar registo.</p>
-                       </div>
-                       <Button 
-                            size="sm" 
-                            variant="secondary"
-                            onClick={() => handleTestSpecific('welcomeId')}
-                            disabled={testingTemplate['welcomeId']}
-                       >
-                           {testingTemplate['welcomeId'] ? '...' : 'Testar Envio'}
-                       </Button>
-                   </div>
-                   <textarea 
-                       className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono bg-gray-50"
-                       rows={10}
-                       value={customContent.welcomeText || ''}
-                       onChange={e => setCustomContent({...customContent, welcomeText: e.target.value})}
-                       placeholder={`<h1>Bem-vindo à EduTech PT!</h1>
+              <EmailSectionEditor 
+                  title="Email de Boas-Vindas"
+                  description="Enviado ao criar conta ou aprovar registo."
+                  value={customContent.welcomeText || ''}
+                  onChange={(val) => setCustomContent({...customContent, welcomeText: val})}
+                  onTest={() => handleTestSpecific('welcomeId')}
+                  isTesting={testingTemplate['welcomeId']}
+                  forcePreviewTrigger={saveTrigger}
+                  placeholder={`<h1>Bem-vindo à EduTech PT!</h1>
 <p>A sua conta foi criada com sucesso.</p>
 
 <p><b>Detalhes da Formação:</b><br/>
@@ -135,94 +222,50 @@ export default function EmailTemplatesPage() {
 <p>As suas credenciais de acesso são:<br/>
 Email: {{email}}<br/>
 Senha: {{password}}</p>`}
-                   />
-              </div>
+              />
 
-              {/* Texto de Auditoria */}
-              <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-red-200">
-                   <div className="flex justify-between items-start border-b pb-2 mb-2">
-                       <div>
-                           <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                               <Icons.Shield className="w-4 h-4 text-red-500" /> Relatório de Ficheiros <span className="text-xs font-normal text-red-600 ml-1">(HTML Suportado)</span>
-                           </h3>
-                           <p className="text-xs text-gray-500 mt-1">Enviado ao admin quando 10 ficheiros são apagados.</p>
-                       </div>
-                       <Button 
-                            size="sm" 
-                            variant="secondary"
-                            onClick={() => handleTestSpecific('auditLogId')}
-                            disabled={testingTemplate['auditLogId']}
-                       >
-                           {testingTemplate['auditLogId'] ? '...' : 'Testar Envio'}
-                       </Button>
-                   </div>
-                   <textarea 
-                       className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono bg-red-50"
-                       rows={8}
-                       value={customContent.auditLogText || ''}
-                       onChange={e => setCustomContent({...customContent, auditLogText: e.target.value})}
-                       placeholder={`<h3>Relatório de Auditoria</h3>
+              <EmailSectionEditor 
+                  title="Relatório de Auditoria (Ficheiros)"
+                  description="Enviado ao admin quando 10 ficheiros são apagados."
+                  value={customContent.auditLogText || ''}
+                  onChange={(val) => setCustomContent({...customContent, auditLogText: val})}
+                  onTest={() => handleTestSpecific('auditLogId')}
+                  isTesting={testingTemplate['auditLogId']}
+                  colorClass="border-red-200"
+                  forcePreviewTrigger={saveTrigger}
+                  placeholder={`<h3>Relatório de Auditoria</h3>
 <p>O sistema detetou a eliminação de <b>{{total_files}}</b> ficheiros.</p>
 
 <hr/>
 <pre>{{file_list}}</pre>
 <hr/>`}
-                   />
-              </div>
+              />
 
-              {/* Texto de Verificação */}
-              <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200">
-                   <div className="flex justify-between items-start border-b pb-2 mb-2">
-                       <div>
-                           <h3 className="font-bold text-gray-900">Email de Verificação <span className="text-xs font-normal text-indigo-600 ml-1">(HTML Suportado)</span></h3>
-                           <p className="text-xs text-gray-500 mt-1">Enviado para validar o endereço de email.</p>
-                       </div>
-                       <Button 
-                            size="sm" 
-                            variant="secondary"
-                            onClick={() => handleTestSpecific('verificationId')}
-                            disabled={testingTemplate['verificationId']}
-                       >
-                           {testingTemplate['verificationId'] ? '...' : 'Testar Envio'}
-                       </Button>
-                   </div>
-                   <textarea 
-                       className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono bg-gray-50"
-                       rows={6}
-                       value={customContent.verificationText || ''}
-                       onChange={e => setCustomContent({...customContent, verificationText: e.target.value})}
-                       placeholder={`<p>Olá {{name}},</p>
+              <EmailSectionEditor 
+                  title="Email de Verificação"
+                  description="Enviado para validar o endereço de email."
+                  value={customContent.verificationText || ''}
+                  onChange={(val) => setCustomContent({...customContent, verificationText: val})}
+                  onTest={() => handleTestSpecific('verificationId')}
+                  isTesting={testingTemplate['verificationId']}
+                  forcePreviewTrigger={saveTrigger}
+                  placeholder={`<p>Olá {{name}},</p>
 <p>Obrigado pelo seu registo.</p>
 <a href="{{link}}">Clique aqui para validar a sua conta</a>`}
-                   />
-              </div>
+              />
 
-               {/* Texto de Reset Password */}
-               <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200">
-                   <div className="flex justify-between items-start border-b pb-2 mb-2">
-                       <div>
-                           <h3 className="font-bold text-gray-900">Recuperação de Senha <span className="text-xs font-normal text-indigo-600 ml-1">(HTML Suportado)</span></h3>
-                           <p className="text-xs text-gray-500 mt-1">Enviado quando a senha é redefinida pelo admin.</p>
-                       </div>
-                       <Button 
-                            size="sm" 
-                            variant="secondary"
-                            onClick={() => handleTestSpecific('resetPasswordId')}
-                            disabled={testingTemplate['resetPasswordId']}
-                       >
-                           {testingTemplate['resetPasswordId'] ? '...' : 'Testar Envio'}
-                       </Button>
-                   </div>
-                   <textarea 
-                       className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono bg-gray-50"
-                       rows={6}
-                       value={customContent.resetPasswordText || ''}
-                       onChange={e => setCustomContent({...customContent, resetPasswordText: e.target.value})}
-                       placeholder={`<p>Olá {{name}},</p>
+              <EmailSectionEditor 
+                  title="Recuperação de Senha"
+                  description="Enviado quando a senha é redefinida pelo admin."
+                  value={customContent.resetPasswordText || ''}
+                  onChange={(val) => setCustomContent({...customContent, resetPasswordText: val})}
+                  onTest={() => handleTestSpecific('resetPasswordId')}
+                  isTesting={testingTemplate['resetPasswordId']}
+                  forcePreviewTrigger={saveTrigger}
+                  placeholder={`<p>Olá {{name}},</p>
 <p>A sua senha foi redefinida.</p>
 <p><b>Nova Senha:</b> {{password}}</p>`}
-                   />
-              </div>
+              />
           </div>
 
           {/* Variables Legend (Sticky Sidebar) */}
@@ -232,7 +275,7 @@ Senha: {{password}}</p>`}
                       <Icons.FileText className="w-5 h-5" /> Variáveis Disponíveis
                   </h3>
                   <p className="text-xs text-blue-700 mb-4">
-                      Copie e cole estas variáveis no texto. Elas serão substituídas automaticamente pelos dados reais.
+                      Copie e cole estas variáveis no editor. Elas serão substituídas automaticamente pelos dados reais.
                   </p>
                   
                   <ul className="space-y-3">
