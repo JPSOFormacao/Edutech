@@ -65,13 +65,12 @@ async function fetchWithFallback<T>(tableName: string, storageKey: string, seedD
     try {
         const { data, error } = await supabase.from(tableName).select('*');
         if (!error && data) {
-            // Atualizar Cache Local
-            localStorage.setItem(storageKey, JSON.stringify(data));
+            // Nota: Não atualizamos o cache aqui cegamente para evitar sobrescrever dados otimistas.
+            // Deixamos o método específico (ex: getUsers) lidar com o merge e cache.
             return data as T[];
         }
     } catch (e) {
         // Ignorar erro de conexão silenciosamente e usar cache
-        // console.warn(`Supabase fetch failed for ${tableName}, using fallback.`);
     }
 
     // 2. Fallback para LocalStorage
@@ -232,24 +231,29 @@ export const storageService = {
 
   // --- USERS ---
   getUsers: async (): Promise<User[]> => {
-    // Obter dados locais primeiro para merge
+    // 1. Obter Cache Local (Contém utilizadores novos criados recentemente)
     const localStr = localStorage.getItem(STORAGE_KEYS.USERS);
-    const localUsers = localStr ? JSON.parse(localStr) : [];
+    const localUsers: User[] = localStr ? JSON.parse(localStr) : [];
 
-    // Obter dados remotos
+    // 2. Obter Dados Remotos
     const remoteUsers = await fetchWithFallback('users', STORAGE_KEYS.USERS);
     
-    // Mapping & Merging
-    return remoteUsers.map((rUser: any) => {
-        const mappedUser = {
+    // 3. MAPA DE UNIFICAÇÃO
+    const combinedUsers = new Map<string, User>();
+
+    // A. Adicionar Remotos (Prioridade para dados do servidor, exceto tokens locais que não subiram)
+    remoteUsers.forEach((rUser: any) => {
+        const localUser = localUsers.find((u: User) => u.id === rUser.id);
+        
+        const mappedUser: User = {
             ...rUser,
             resetPasswordToken: rUser.resetPasswordToken || rUser.reset_password_token,
             resetPasswordExpires: rUser.resetPasswordExpires || rUser.reset_password_expires,
             verificationToken: rUser.verificationToken || rUser.verification_token,
         };
 
-        const localUser = localUsers.find((u: User) => u.id === rUser.id);
         if (localUser) {
+            // Preservar tokens locais se o remoto não tiver (ex: acabaram de ser gerados)
             if (!mappedUser.resetPasswordToken && localUser.resetPasswordToken) {
                 mappedUser.resetPasswordToken = localUser.resetPasswordToken;
                 mappedUser.resetPasswordExpires = localUser.resetPasswordExpires;
@@ -258,9 +262,22 @@ export const storageService = {
                 mappedUser.verificationToken = localUser.verificationToken;
             }
         }
-        
-        return mappedUser;
+        combinedUsers.set(mappedUser.id, mappedUser);
     });
+
+    // B. Adicionar Locais (Novos utilizadores que ainda não estão no servidor)
+    localUsers.forEach((lUser: User) => {
+        if (!combinedUsers.has(lUser.id)) {
+            combinedUsers.set(lUser.id, lUser);
+        }
+    });
+    
+    const finalUsers = Array.from(combinedUsers.values());
+    
+    // Atualizar cache com a versão unificada para garantir consistência
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(finalUsers));
+
+    return finalUsers;
   },
   
   saveUsers: async (users: User[]) => {

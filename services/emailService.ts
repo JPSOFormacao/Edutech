@@ -98,12 +98,25 @@ const getConfigForTemplate = async (templateKey: keyof EmailTemplates): Promise<
     const profile = profiles[assignedProfileIndex];
     const label = EMAIL_KEY_LABELS[templateKey] || templateKey;
 
-    // 2. Se existe, verificar se esse perfil está ATIVO e com CREDENCIAIS
+    // 2. Se existe, verificar se esse perfil está ATIVO
+    // AUTO-ATIVACÃO: Se encontrarmos o ID, mas a conta estiver inativa, ativamos automaticamente para evitar o erro.
     if (!profile.isActive) {
-        return { 
-            config: null, 
-            error: `O template '${label}' (ID: ${profile.templates[templateKey]}) está configurado na Conta #${assignedProfileIndex + 1}, mas esta conta está INATIVA. Ative a conta em "Credenciais Email".` 
-        };
+        console.log(`[EmailService] Conta #${assignedProfileIndex + 1} inativa detetada para template '${label}'. A ativar automaticamente...`);
+        
+        // Atualizar objeto local
+        profile.isActive = true;
+        if (config.profiles && config.profiles[assignedProfileIndex]) {
+            config.profiles[assignedProfileIndex].isActive = true;
+        }
+        
+        // Persistir a ativação na BD/LocalStorage para o futuro
+        try {
+            await storageService.saveEmailConfig(config);
+            console.log(`[EmailService] Conta #${assignedProfileIndex + 1} ativada com sucesso.`);
+        } catch (e) {
+            console.error("[EmailService] Aviso: Falha ao persistir auto-ativação da conta:", e);
+            // Continuamos mesmo que a persistência falhe, usando o objeto em memória
+        }
     }
 
     if (!profile.serviceId || !profile.publicKey) {
@@ -136,8 +149,9 @@ const getConfigWithFallback = async (primaryKey: keyof EmailTemplates): Promise<
         return primaryResult;
     }
 
-    // CRÍTICO: Se encontrou a configuração (ID existe) mas deu erro (ex: conta inativa),
+    // CRÍTICO: Se encontrou a configuração (ID existe) mas deu erro (ex: sem credenciais),
     // retornamos o erro imediatamente para o utilizador corrigir, em vez de tentar um fallback enganador.
+    // Nota: A conta inativa agora é auto-ativada acima, por isso não gera erro aqui.
     if (primaryResult && primaryResult.error) {
         return primaryResult;
     }
