@@ -486,7 +486,7 @@ export const storageService = {
   // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
     // Definir estrutura completa usando as CONSTANTES (EMAIL_KEYS)
-    // Isto garante que se adicionarmos novas chaves em types.ts, elas são inicializadas aqui
+    // Isto garante que se adicionarmos novas chaves em types.ts, elas são inicializadas aqui com a chave correta
     const emptyTemplates: EmailTemplates = { 
         [EMAIL_KEYS.WELCOME]: '', 
         [EMAIL_KEYS.RESET_PASSWORD]: '', 

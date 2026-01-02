@@ -244,6 +244,68 @@ export default function SystemDiagnostics() {
                             </div>
                         );
                     })}
+
+                    {/* Mapeamento de Variáveis (Debug Helper) */}
+                    <div className="bg-slate-50 shadow rounded-lg overflow-hidden border border-slate-200 mt-4">
+                        <div className="px-6 py-4 border-b bg-slate-100 flex justify-between items-center">
+                            <h3 className="font-bold text-lg text-slate-800">Mapeamento de Variáveis Internas (Debug)</h3>
+                            <span className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-300">Info Técnica</span>
+                        </div>
+                        <div className="p-4">
+                            <p className="text-sm text-slate-600 mb-4">
+                                Esta tabela mostra a correspondência entre a variável usada no código e a chave guardada na base de dados.
+                                Se tiver erros de "Template não encontrado", verifique se o ID está preenchido no campo correto.
+                            </p>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b">
+                                            <th className="text-left py-2 font-mono text-slate-500">Variável (Código)</th>
+                                            <th className="text-left py-2 font-mono text-slate-500">Valor String (DB Key)</th>
+                                            <th className="text-left py-2 text-slate-500">Descrição</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.WELCOME</td>
+                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.WELCOME}'</td>
+                                            <td className="py-2 text-slate-600">Email de Boas-vindas</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.RECOVERY</td>
+                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.RECOVERY}'</td>
+                                            <td className="py-2 text-slate-600">Link Recuperação Password</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.VERIFICATION</td>
+                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.VERIFICATION}'</td>
+                                            <td className="py-2 text-slate-600">Verificação de Email</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.NOTIFICATION</td>
+                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.NOTIFICATION}'</td>
+                                            <td className="py-2 text-slate-600">Notificação Genérica (Fallback)</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.ENROLLMENT</td>
+                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.ENROLLMENT}'</td>
+                                            <td className="py-2 text-slate-600">Confirmação de Inscrição</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-100">
+                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.RESET_PASSWORD</td>
+                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.RESET_PASSWORD}'</td>
+                                            <td className="py-2 text-slate-600">Nova Senha (Gerada por Admin)</td>
+                                        </tr>
+                                        <tr>
+                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.AUDIT_LOG</td>
+                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.AUDIT_LOG}'</td>
+                                            <td className="py-2 text-slate-600">Relatórios de Auditoria</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
