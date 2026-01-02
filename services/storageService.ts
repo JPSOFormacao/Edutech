@@ -17,10 +17,55 @@ const STORAGE_KEYS = {
   DELETION_LOGS: 'edutech_deletion_logs'
 };
 
-// Lista de emails para fins de permissão (não cria conta automaticamente)
-const SUPER_ADMINS = [
-  'admin@edutech.pt'
-];
+// --- DATA MAPPING HELPERS (CRUCIAL FIX) ---
+// Estas funções garantem que o objeto User (camelCase) é corretamente traduzido 
+// para as colunas da DB (snake_case) e vice-versa.
+
+const mapUserToDb = (u: User) => ({
+    id: u.id,
+    email: u.email?.trim().toLowerCase(),
+    name: u.name,
+    full_name: u.fullName || u.name, // Fallback
+    role: u.role,
+    role_id: u.roleId,
+    status: u.status,
+    password: u.password,
+    avatar_url: u.avatarUrl,
+    bio: u.bio,
+    must_change_password: u.mustChangePassword,
+    temp_password_created_at: u.tempPasswordCreatedAt,
+    reset_password_token: u.resetPasswordToken,
+    reset_password_expires: u.resetPasswordExpires,
+    verification_token: u.verificationToken,
+    email_verified: u.emailVerified,
+    class_id: u.classId,
+    allowed_courses: u.allowedCourses, // Supabase handles JSONB arrays automatically
+    enrollment_requests: u.enrollmentRequests, // Supabase handles JSONB objects
+    privacy_settings: u.privacySettings
+});
+
+const mapDbToUser = (db: any): User => ({
+    id: db.id,
+    email: db.email,
+    name: db.name,
+    fullName: db.full_name,
+    role: db.role as UserRole,
+    roleId: db.role_id,
+    status: db.status as UserStatus,
+    password: db.password,
+    avatarUrl: db.avatar_url,
+    bio: db.bio,
+    mustChangePassword: db.must_change_password,
+    tempPasswordCreatedAt: db.temp_password_created_at,
+    resetPasswordToken: db.reset_password_token,
+    resetPasswordExpires: db.reset_password_expires,
+    verificationToken: db.verification_token,
+    emailVerified: db.email_verified,
+    classId: db.class_id,
+    allowedCourses: db.allowed_courses || [],
+    enrollmentRequests: db.enrollment_requests || [],
+    privacySettings: db.privacy_settings
+});
 
 // --- Seed Data ---
 const INITIAL_ROLES = [
@@ -39,7 +84,7 @@ const INITIAL_ROLES = [
       PERMISSIONS.MANAGE_USERS,
       PERMISSIONS.MANAGE_COURSES,
       PERMISSIONS.MANAGE_CONTENT,
-      PERMISSIONS.CREATE_MATERIAL, // Nova Permissão
+      PERMISSIONS.CREATE_MATERIAL,
       PERMISSIONS.USE_AI_STUDIO,
       PERMISSIONS.VIEW_COURSES,
       PERMISSIONS.USE_PIPEDREAM,
@@ -58,14 +103,18 @@ const INITIAL_ROLES = [
 ];
 
 // --- Helper Functions for Hybrid Storage ---
-async function fetchWithFallback<T>(tableName: string, storageKey: string, seedData: T[] = []): Promise<T[]> {
+async function fetchWithFallback<T>(tableName: string, storageKey: string, seedData: T[] = [], mapper?: (db: any) => T): Promise<T[]> {
     // 1. Tentar ler do Supabase
     try {
         const { data, error } = await supabase.from(tableName).select('*');
         if (!error && data) {
-            // Nota: Não atualizamos o cache aqui cegamente para evitar sobrescrever dados otimistas.
-            // Deixamos o método específico (ex: getUsers) lidar com o merge e cache.
-            return data as T[];
+            // Se tivermos um mapper (ex: Users), usamos. Senão, usamos raw.
+            const mappedData = mapper ? data.map(mapper) : data;
+            
+            // Atualizar cache local silenciosamente para manter sincronia
+            localStorage.setItem(storageKey, JSON.stringify(mappedData));
+            
+            return mappedData as T[];
         }
     } catch (e) {
         // Ignorar erro de conexão silenciosamente e usar cache
@@ -88,7 +137,7 @@ async function fetchWithFallback<T>(tableName: string, storageKey: string, seedD
     return [];
 }
 
-async function saveWithFallback<T extends { id?: string, slug?: string }>(tableName: string, storageKey: string, items: T[], idField: keyof T = 'id' as keyof T) {
+async function saveWithFallback<T>(tableName: string, storageKey: string, items: T[], idField: keyof T = 'id' as unknown as keyof T, mapper?: (item: T) => any) {
     // 1. Atualizar LocalStorage (Optimistic UI)
     try {
         const currentCacheStr = localStorage.getItem(storageKey);
@@ -105,9 +154,10 @@ async function saveWithFallback<T extends { id?: string, slug?: string }>(tableN
         localStorage.setItem(storageKey, JSON.stringify(currentCache));
     } catch (e) {}
 
-    // 2. Tentar persistir no Supabase
+    // 2. Tentar persistir no Supabase (Mapeado)
     try {
-        await supabase.from(tableName).upsert(items);
+        const dbItems = mapper ? items.map(mapper) : items;
+        await supabase.from(tableName).upsert(dbItems);
     } catch (e) {
         console.warn(`Supabase save failed for ${tableName}, data saved locally.`);
     }
@@ -135,6 +185,7 @@ async function deleteWithFallback(tableName: string, storageKey: string, id: str
 export const storageService = {
   // --- SEEDING ---
   checkAndSeedData: async () => {
+      // Carregar Roles primeiro para garantir que logins funcionam
       await storageService.getRoles();
       
       const coursesSeed: Course[] = [
@@ -173,6 +224,7 @@ export const storageService = {
       ];
       await fetchWithFallback('classes', STORAGE_KEYS.CLASSES, classesSeed);
 
+      // Users seed with mapping
       const usersSeed: User[] = [
             { 
                 id: 'usr_admin', 
@@ -186,7 +238,8 @@ export const storageService = {
                 password: 'admin', 
                 avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Admin',
                 mustChangePassword: false,
-                bio: "Gestor principal da plataforma EduTech PT."
+                bio: "Gestor principal da plataforma EduTech PT.",
+                emailVerified: true
             },
             { 
                 id: 'usr_formador', 
@@ -200,10 +253,12 @@ export const storageService = {
                 password: '123', 
                 avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Joao',
                 mustChangePassword: false,
-                bio: "Formador sénior com 10 anos de experiência em desenvolvimento web."
+                bio: "Formador sénior com 10 anos de experiência em desenvolvimento web.",
+                emailVerified: true
             }
       ];
-      await fetchWithFallback('users', STORAGE_KEYS.USERS, usersSeed);
+      // Note: Passing the mapper here is crucial for the fetch inside fetchWithFallback to work correctly
+      await fetchWithFallback('users', STORAGE_KEYS.USERS, usersSeed, mapDbToUser);
 
       const materialsSeed: Material[] = [
             { id: 'mat_01', courseId: 'c_web_01', title: 'Guia de Instalação React', type: MaterialType.RECURSO, linkOrContent: 'https://react.dev', createdAt: new Date().toISOString() },
@@ -229,75 +284,18 @@ export const storageService = {
 
   // --- USERS ---
   getUsers: async (): Promise<User[]> => {
-    // 1. Obter Cache Local (Contém utilizadores novos criados recentemente)
-    const localStr = localStorage.getItem(STORAGE_KEYS.USERS);
-    const localUsers: User[] = localStr ? JSON.parse(localStr) : [];
-
-    // 2. Obter Dados Remotos
-    const remoteUsers = await fetchWithFallback('users', STORAGE_KEYS.USERS);
-    
-    // 3. MAPA DE UNIFICAÇÃO
-    const combinedUsers = new Map<string, User>();
-
-    // A. Adicionar Remotos (Prioridade para dados do servidor, exceto tokens locais que não subiram)
-    remoteUsers.forEach((rUser: any) => {
-        const localUser = localUsers.find((u: User) => u.id === rUser.id);
-        
-        const mappedUser: User = {
-            ...rUser,
-            resetPasswordToken: rUser.resetPasswordToken || rUser.reset_password_token,
-            resetPasswordExpires: rUser.resetPasswordExpires || rUser.reset_password_expires,
-            verificationToken: rUser.verificationToken || rUser.verification_token,
-        };
-
-        if (localUser) {
-            // Preservar tokens locais se o remoto não tiver (ex: acabaram de ser gerados)
-            if (!mappedUser.resetPasswordToken && localUser.resetPasswordToken) {
-                mappedUser.resetPasswordToken = localUser.resetPasswordToken;
-                mappedUser.resetPasswordExpires = localUser.resetPasswordExpires;
-            }
-            if (!mappedUser.verificationToken && localUser.verificationToken) {
-                mappedUser.verificationToken = localUser.verificationToken;
-            }
-        }
-        combinedUsers.set(mappedUser.id, mappedUser);
-    });
-
-    // B. Adicionar Locais (Novos utilizadores que ainda não estão no servidor)
-    localUsers.forEach((lUser: User) => {
-        if (!combinedUsers.has(lUser.id)) {
-            combinedUsers.set(lUser.id, lUser);
-        }
-    });
-    
-    const finalUsers = Array.from(combinedUsers.values());
-    
-    // Atualizar cache com a versão unificada para garantir consistência
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(finalUsers));
-
-    return finalUsers;
+    // 1. Fetch using the mapper
+    return fetchWithFallback('users', STORAGE_KEYS.USERS, [], mapDbToUser);
   },
   
   saveUsers: async (users: User[]) => {
-    const usersForSave = users.map(u => ({
-        ...u,
-        email: u.email.trim().toLowerCase(), // Enforce Lowercase
-        reset_password_token: u.resetPasswordToken,
-        reset_password_expires: u.resetPasswordExpires,
-        verification_token: u.verificationToken
-    }));
-    return saveWithFallback('users', STORAGE_KEYS.USERS, usersForSave);
+    // Use the mapper to save
+    return saveWithFallback('users', STORAGE_KEYS.USERS, users, 'id', mapUserToDb);
   },
   
   saveUser: async (user: User) => {
-    const userForSave = {
-        ...user,
-        email: user.email.trim().toLowerCase(), // Enforce Lowercase
-        reset_password_token: user.resetPasswordToken,
-        reset_password_expires: user.resetPasswordExpires,
-        verification_token: user.verificationToken
-    };
-    return saveWithFallback('users', STORAGE_KEYS.USERS, [userForSave]);
+    // Use the mapper to save
+    return saveWithFallback('users', STORAGE_KEYS.USERS, [user], 'id', mapUserToDb);
   },
   
   deleteUser: async (id: string) => {
@@ -360,14 +358,12 @@ export const storageService = {
       };
 
       await storageService.saveUser(updatedUser);
-      // CORREÇÃO: Usar href completo para evitar problemas em subdiretórios
       const baseUrl = window.location.href.split('#')[0];
       return `${baseUrl}#/reset-password?token=${token}`;
   },
 
-  // NOVO: Método dedicado para buscar por token (Bypass de Cache/Mapeamento complexo)
   getUserByResetToken: async (token: string): Promise<User | null> => {
-      // 1. Tentar buscar diretamente no Supabase pela coluna snake_case (mais fiável)
+      // 1. Direct DB lookup with mapper
       try {
           const { data, error } = await supabase
               .from('users')
@@ -376,53 +372,39 @@ export const storageService = {
               .single();
           
           if (!error && data) {
-              // Map DB response to App User type
-              return {
-                  ...data,
-                  resetPasswordToken: data.reset_password_token,
-                  resetPasswordExpires: data.reset_password_expires,
-                  verificationToken: data.verification_token
-              } as User;
+              return mapDbToUser(data);
           }
-      } catch (e) {
-          // Falha silenciosa no fetch remoto
-      }
+      } catch (e) {}
 
-      // 2. Fallback: Buscar na lista geral (para local/cache support)
+      // 2. Fallback local
       const users = await storageService.getUsers();
       const user = users.find(u => u.resetPasswordToken === token);
       return user || null;
   },
 
   resetPasswordWithToken: async (token: string, newPassword: string): Promise<boolean> => {
-      // Usar a nova função de busca direta para evitar problemas de cache/lista
       const user = await storageService.getUserByResetToken(token);
 
-      if (!user) {
-          throw new Error("Token inválido ou não encontrado.");
-      }
+      if (!user) throw new Error("Token inválido ou não encontrado.");
 
       if (user.resetPasswordExpires && new Date(user.resetPasswordExpires) < new Date()) {
           throw new Error("Este link expirou. Solicite um novo.");
       }
 
-      const updatedUser = {
+      const updatedUser: User = {
           ...user,
           password: newPassword,
           mustChangePassword: false,
           tempPasswordCreatedAt: undefined,
-          resetPasswordToken: undefined,
-          resetPasswordExpires: undefined
+          resetPasswordToken: undefined, // Clear
+          resetPasswordExpires: undefined // Clear
       };
 
-      // Guardar limpando os tokens
-      await storageService.saveUser({
-          ...updatedUser,
-          resetPasswordToken: undefined, // Force undefined to clear
-          resetPasswordExpires: undefined
-      });
+      // Ensure undefined fields are handled correctly by the mapper (it preserves keys)
+      // When mapping back to DB, explicit undefined usually skips upsert update or sets null depending on DB
+      // We'll trust mapUserToDb to handle it (it passes properties through)
       
-      // Forçar limpeza específica no Supabase via update direto para garantir
+      // Explicit DB update for safety to clear columns
       try {
           await supabase.from('users').update({ 
               password: newPassword,
@@ -432,6 +414,7 @@ export const storageService = {
           }).eq('id', user.id);
       } catch(e) {}
 
+      await storageService.saveUser(updatedUser);
       return true;
   },
 
@@ -500,18 +483,12 @@ export const storageService = {
       await saveWithFallback('deletion_logs', STORAGE_KEYS.DELETION_LOGS, updatedLogs);
   },
 
-  // --- EMAIL CONFIG ---
+  // --- EMAIL & SYSTEM CONFIG (SAME AS BEFORE) ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
-    // Definir estrutura completa usando as CONSTANTES (EMAIL_KEYS)
-    // Isto garante que se adicionarmos novas chaves em types.ts, elas são inicializadas aqui com a chave correta
+    // ... existing logic ...
     const emptyTemplates: EmailTemplates = { 
-        [EMAIL_KEYS.WELCOME]: '', 
-        [EMAIL_KEYS.RESET_PASSWORD]: '', 
-        [EMAIL_KEYS.RECOVERY]: '', 
-        [EMAIL_KEYS.ENROLLMENT]: '', 
-        [EMAIL_KEYS.NOTIFICATION]: '', 
-        [EMAIL_KEYS.VERIFICATION]: '', 
-        [EMAIL_KEYS.AUDIT_LOG]: '' 
+        [EMAIL_KEYS.WELCOME]: '', [EMAIL_KEYS.RESET_PASSWORD]: '', [EMAIL_KEYS.RECOVERY]: '', 
+        [EMAIL_KEYS.ENROLLMENT]: '', [EMAIL_KEYS.NOTIFICATION]: '', [EMAIL_KEYS.VERIFICATION]: '', [EMAIL_KEYS.AUDIT_LOG]: '' 
     };
     
     const baseConfig: EmailConfig = {
@@ -520,7 +497,7 @@ export const storageService = {
         customErrorMessage: '', 
         customContent: { 
             welcomeText: '', verificationText: '', resetPasswordText: '', recoveryEmailText: '', auditLogText: '', 
-            enrollmentText: '', notificationText: '' // NEW FIELDS
+            enrollmentText: '', notificationText: '' 
         }
     };
 
@@ -536,13 +513,11 @@ export const storageService = {
         if(stored) localData = JSON.parse(stored);
     } catch(e) {}
 
-    // Fallbacks para campos legado/root
     const serviceId = dbData.service_id || localData.serviceId || '';
     const publicKey = dbData.public_key || localData.publicKey || '';
     const customErrorMessage = dbData.custom_error_message || localData.customErrorMessage || '';
     const customContent = { ...baseConfig.customContent, ...(localData.customContent || {}), ...(dbData.custom_content || {}) };
 
-    // Carregar Perfis
     let loadedProfiles: EmailConfigProfile[] = baseConfig.profiles;
     let loadedActiveIndex = localData.activeProfileIndex || 0;
 
@@ -552,19 +527,16 @@ export const storageService = {
         loadedProfiles = localData.profiles;
     }
 
-    // Se houver dados legacy (serviceId no root), colocar no perfil 0 se estiver vazio
     if ((!loadedProfiles[0].serviceId) && serviceId) {
         loadedProfiles[0] = { serviceId, publicKey, templates: { ...emptyTemplates, ...localData.templates }, isActive: true };
     }
 
-    // HIDRATAÇÃO PROFUNDA: Garantir que todos os perfis carregados tenham a estrutura completa de templates baseada nas CONSTANTES
     loadedProfiles = loadedProfiles.map((p, idx) => ({
         ...p,
         isActive: p.isActive !== undefined ? p.isActive : (idx === loadedActiveIndex),
-        templates: { ...emptyTemplates, ...(p.templates || {}) } // Merge para garantir chaves novas e evitar undefined
+        templates: { ...emptyTemplates, ...(p.templates || {}) } 
     }));
 
-    // Garantir mínimo de perfis
     while (loadedProfiles.length < 5) {
         loadedProfiles.push({ serviceId: '', publicKey: '', templates: { ...emptyTemplates }, isActive: false });
     }
@@ -589,7 +561,6 @@ export const storageService = {
     } catch (e) {}
   },
 
-  // --- SYSTEM CONFIG ---
   getSystemConfig: async (): Promise<SystemConfig | null> => {
     let dbConfig: Partial<SystemConfig> = {};
     try {
@@ -604,6 +575,7 @@ export const storageService = {
                  customMaterialTypes: data.custom_material_types,
                  tempPasswordValidityHours: data.temp_password_validity_hours
              };
+             // Cleanup undefined
              Object.keys(rawConfig).forEach(key => {
                  if (rawConfig[key as keyof SystemConfig] === undefined) delete rawConfig[key as keyof SystemConfig];
              });
@@ -676,11 +648,11 @@ export const storageService = {
   login: async (email: string, password?: string): Promise<User> => {
     const normalizedEmail = email.trim().toLowerCase();
     
-    // 1. Tentar Cache Local Primeiro
+    // 1. Tentar Cache Local Primeiro (usando getUsers que já mapeia)
     const users = await storageService.getUsers();
     let user = users.find(u => u.email?.trim().toLowerCase() === normalizedEmail);
 
-    // 2. Se não encontrar no cache, tentar DB direta (Fail-safe para "User not found")
+    // 2. Se não encontrar no cache, tentar DB direta (Fail-safe)
     if (!user) {
         try {
             const { data, error } = await supabase
@@ -690,17 +662,9 @@ export const storageService = {
                 .single();
             
             if (data && !error) {
-                // Map DB response to User Type if needed (assume direct match mostly)
-                user = {
-                    ...data,
-                    // Garante mapeamento de campos snake_case para camelCase se o supabase retornar raw
-                    resetPasswordToken: data.reset_password_token,
-                    resetPasswordExpires: data.reset_password_expires,
-                    verificationToken: data.verification_token,
-                    roleId: data.role_id || data.roleId // fallback
-                } as User;
-
-                // Atualizar cache local para agilizar próximos logins
+                // Map DB response using standard mapper
+                user = mapDbToUser(data);
+                // Atualizar cache local
                 await storageService.saveUser(user);
             }
         } catch (e) {
@@ -709,11 +673,10 @@ export const storageService = {
     }
 
     if (!user) {
-      // Bootstrapping: Criar apenas o Admin Root se não existir ninguém
-      const isFirstUser = users.length === 0;
+      // Bootstrapping: Criar apenas o Admin Root se não existir ninguém ou se for o email específico
       const isRootAdmin = normalizedEmail === 'admin@edutech.pt';
 
-      if (isFirstUser || isRootAdmin) {
+      if (isRootAdmin) {
            const newUser: User = {
             id: Date.now().toString(),
             email: normalizedEmail,
@@ -750,6 +713,14 @@ export const storageService = {
 
         if (user.status === UserStatus.BLOCKED) throw new Error("A sua conta encontra-se bloqueada. Contacte a administração.");
 
+        // Fallback para admin root se status incorreto
+        if (normalizedEmail === 'admin@edutech.pt' && user.status !== UserStatus.ACTIVE) {
+             user.status = UserStatus.ACTIVE;
+             user.role = UserRole.ADMIN;
+             user.roleId = 'role_admin';
+             await storageService.saveUser(user);
+        }
+
         if (user.password && user.password !== password) throw new Error("Senha incorreta.");
     }
     
@@ -762,7 +733,12 @@ export const storageService = {
     const user = users.find(u => u.id === userId);
     
     if (user) {
-        const updated = { ...user, password: newPassword, mustChangePassword: false, tempPasswordCreatedAt: undefined };
+        const updated: User = { 
+            ...user, 
+            password: newPassword, 
+            mustChangePassword: false, 
+            tempPasswordCreatedAt: undefined 
+        };
         await storageService.saveUser(updated);
         
         const currentUser = storageService.getCurrentUser();
