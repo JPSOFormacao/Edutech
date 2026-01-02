@@ -584,7 +584,8 @@ export const storageService = {
                  platformName: data.platform_name,
                  pipedreamWebhookUrl: data.pipedream_webhook_url,
                  pipedreamDeleteUrl: data.pipedream_delete_url,
-                 customMaterialTypes: data.custom_material_types
+                 customMaterialTypes: data.custom_material_types,
+                 tempPasswordValidityHours: data.temp_password_validity_hours // New field
              };
              
              // Remove undefined properties to prevent overwriting local storage with undefined
@@ -615,8 +616,9 @@ export const storageService = {
               favicon_url: config.faviconUrl,
               platform_name: config.platformName,
               pipedream_webhook_url: config.pipedreamWebhookUrl,
-              pipedream_delete_url: config.pipedreamDeleteUrl, // New field mapping
-              custom_material_types: config.customMaterialTypes
+              pipedream_delete_url: config.pipedreamDeleteUrl,
+              custom_material_types: config.customMaterialTypes,
+              temp_password_validity_hours: config.tempPasswordValidityHours // New field
           });
       } catch (e) {}
   },
@@ -711,15 +713,18 @@ export const storageService = {
         // --- 48 HOUR PASSWORD EXPIRY CHECK ---
         // Se o utilizador tem de mudar a senha (significa que é temporária) e tem uma data de criação
         if (user.mustChangePassword && user.tempPasswordCreatedAt) {
+            const systemConfig = await storageService.getSystemConfig();
+            const limitHours = systemConfig?.tempPasswordValidityHours || 48; // Default to 48 if not set
+            
             const created = new Date(user.tempPasswordCreatedAt);
             const now = new Date();
             const diffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
 
-            if (diffHours > 48) {
+            if (diffHours > limitHours) {
                 // Bloquear utilizador
                 user = { ...user, status: UserStatus.BLOCKED };
                 await storageService.saveUser(user);
-                throw new Error("A sua senha temporária expirou (validade de 48h). A conta foi bloqueada por segurança. Contacte o administrador.");
+                throw new Error(`A sua senha temporária expirou (validade de ${limitHours}h). A conta foi bloqueada por segurança. Contacte o administrador.`);
             }
         }
 

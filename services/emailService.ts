@@ -17,7 +17,8 @@ const processTemplate = (template: string, variables: Record<string, string>): s
     for (const [key, value] of Object.entries(variables)) {
         // Substitui {{variavel}} com duas chavetas
         const regex = new RegExp(`{{${key}}}`, 'g');
-        processed = processed.replace(regex, value);
+        // IMPORTANT: Use arrow function for replacement value to avoid interpreting special characters like '$' in the password
+        processed = processed.replace(regex, () => value);
     }
     return processed;
 };
@@ -119,6 +120,8 @@ export const emailService = {
     if (!config) return { success: false, message: "Nenhuma conta ativa encontrada com este template configurado." };
     
     const { serviceId, publicKey, templateId, customContent } = config;
+    const systemConfig = await storageService.getSystemConfig();
+    const validityText = (systemConfig?.tempPasswordValidityHours || 48) + " horas";
 
     // Dados Fictícios para o Teste
     const commonParams = {
@@ -188,7 +191,7 @@ export const emailService = {
                     password: "nova-senha-teste-123",
                     training_details: "Cursos: Exemplo de Curso Python",
                     site_link: baseUrl,
-                    password_validity: "48 horas",
+                    password_validity: validityText,
                     mailto_link: commonParams.mailto_link
                 });
             } else {
@@ -199,7 +202,7 @@ export const emailService = {
                 password: "nova-senha-teste-123",
                 training_details: "Cursos: Exemplo de Curso Python",
                 site_link: baseUrl,
-                password_validity: "48 horas"
+                password_validity: validityText
             };
             break;
         case 'welcomeId':
@@ -211,7 +214,7 @@ export const emailService = {
                     password: "senha-inicial-teste",
                     training_details: "Turma: Demo\nCursos: Introdução à IA",
                     site_link: baseUrl,
-                    password_validity: "48 horas",
+                    password_validity: validityText,
                     mailto_link: commonParams.mailto_link
                 });
             } else {
@@ -222,7 +225,7 @@ export const emailService = {
                 password: "senha-inicial-teste",
                 training_details: "Turma: Demo\nCursos: Introdução à IA",
                 site_link: baseUrl,
-                password_validity: "48 horas"
+                password_validity: validityText
             };
             break;
     }
@@ -399,6 +402,9 @@ ${list}
 
     const { serviceId, publicKey, templateId, customContent } = config;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+    
+    const systemConfig = await storageService.getSystemConfig();
+    const validityText = (systemConfig?.tempPasswordValidityHours || 48) + " horas";
 
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
@@ -412,7 +418,7 @@ ${list}
             password: tempPass,
             training_details: trainingDetails,
             site_link: baseUrl,
-            password_validity: "48 horas",
+            password_validity: validityText,
             mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
         });
     } else {
@@ -445,7 +451,7 @@ ${list}
         from_name: SYSTEM_NAME,
         reply_to: SYSTEM_EMAIL,
         site_link: baseUrl,
-        password_validity: "48 horas",
+        password_validity: validityText,
         mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
     };
 
@@ -464,6 +470,9 @@ ${list}
 
     const { serviceId, publicKey, templateId, customContent } = config;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+    
+    const systemConfig = await storageService.getSystemConfig();
+    const validityText = (systemConfig?.tempPasswordValidityHours || 48) + " horas";
 
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
@@ -477,7 +486,7 @@ ${list}
             password: newPass,
             training_details: trainingDetails,
             site_link: baseUrl,
-            password_validity: "48 horas",
+            password_validity: validityText,
             mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
         });
     } else {
@@ -505,7 +514,7 @@ ${list}
         from_name: SYSTEM_NAME,
         reply_to: SYSTEM_EMAIL,
         site_link: baseUrl,
-        password_validity: "48 horas",
+        password_validity: validityText,
         mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
     };
 

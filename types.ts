@@ -220,4 +220,5 @@ export interface SystemConfig {
   pipedreamWebhookUrl?: string; // Upload URL
   pipedreamDeleteUrl?: string; // Novo campo: Delete URL
   customMaterialTypes?: string[]; // Novos tipos de material criados pelo utilizador
+  tempPasswordValidityHours?: number; // Nova configuração de validade da senha
 }

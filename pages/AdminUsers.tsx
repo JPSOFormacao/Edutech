@@ -192,11 +192,12 @@ export default function UsersPage() {
               role: UserRole.ALUNO,
               roleId: 'role_aluno', // Hardcoded para Aluno no Bulk
               status: UserStatus.ACTIVE, // Importação Admin = Ativo
+              password: tempPassword, // Fix: password missing in previous turn
               allowedCourses: [],
               enrollmentRequests: [],
               avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
               mustChangePassword: true,
-              tempPasswordCreatedAt: new Date().toISOString(), // Validade 48h
+              tempPasswordCreatedAt: new Date().toISOString(), // Validade
               classId: bulkClassId || undefined,
               emailVerified: true
           };

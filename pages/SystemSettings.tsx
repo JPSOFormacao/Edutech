@@ -11,6 +11,7 @@ export default function SystemSettings() {
   const [platformName, setPlatformName] = useState('');
   const [pipedreamWebhook, setPipedreamWebhook] = useState('');
   const [pipedreamDeleteUrl, setPipedreamDeleteUrl] = useState('');
+  const [tempPassHours, setTempPassHours] = useState(48); // Default
   
   const [status, setStatus] = useState<{type: 'success' | 'error', msg: string} | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,6 +29,7 @@ export default function SystemSettings() {
       setPlatformName(config.platformName || '');
       setPipedreamWebhook(config.pipedreamWebhookUrl || '');
       setPipedreamDeleteUrl(config.pipedreamDeleteUrl || '');
+      setTempPassHours(config.tempPasswordValidityHours || 48);
     }
   };
 
@@ -40,7 +42,8 @@ export default function SystemSettings() {
             faviconUrl: faviconUrl.trim(),
             platformName: platformName.trim(),
             pipedreamWebhookUrl: pipedreamWebhook.trim(),
-            pipedreamDeleteUrl: pipedreamDeleteUrl.trim()
+            pipedreamDeleteUrl: pipedreamDeleteUrl.trim(),
+            tempPasswordValidityHours: Number(tempPassHours)
         });
         
         // Atualizar o contexto global para refletir as mudanças imediatamente (Favicon, Logo na Sidebar)
@@ -110,7 +113,7 @@ export default function SystemSettings() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white shadow rounded-lg p-6 space-y-4 h-fit">
               <h3 className="font-bold text-gray-900 border-b pb-2 flex items-center gap-2">
-                  <Icons.Settings className="w-4 h-4" /> Branding
+                  <Icons.Settings className="w-4 h-4" /> Branding & Segurança
               </h3>
               <Input 
                 label="Nome da Plataforma" 
@@ -130,6 +133,20 @@ export default function SystemSettings() {
                 onChange={e => setFaviconUrl(e.target.value)} 
                 placeholder="https://exemplo.com/favicon.ico"
               />
+              
+              <div className="pt-2 border-t mt-4">
+                  <Input 
+                    label="Validade da Senha Temporária (Horas)" 
+                    type="number"
+                    min="1"
+                    value={tempPassHours} 
+                    onChange={e => setTempPassHours(parseInt(e.target.value))} 
+                    placeholder="48"
+                  />
+                  <p className="text-xs text-gray-500">
+                      Define quanto tempo o utilizador tem para fazer o primeiro login após receber uma senha temporária.
+                  </p>
+              </div>
           </div>
 
           <div className="space-y-6">
