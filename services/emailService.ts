@@ -75,42 +75,50 @@ const getErrorMsg = async (originalError: any): Promise<string> => {
 };
 
 // --- Helper to get Active Config containing a specific template ---
-const getConfigForTemplate = async (templateKey: keyof EmailTemplates) => {
+const getConfigForTemplate = async (templateKey: keyof EmailTemplates): Promise<{config: any, error?: string} | null> => {
     const config = await storageService.getEmailConfig();
-    if (!config) return null;
+    if (!config) return { config: null, error: "Configurações de email não encontradas." };
 
-    // Procurar nas contas ATIVAS uma que tenha o template definido
     const profiles = config.profiles || [];
     
-    // Filtra apenas contas ativas e que tenham o Service ID e Public Key definidos
-    const activeProfiles = profiles.filter(p => p.isActive && p.serviceId && p.publicKey);
-
-    // Tenta encontrar o primeiro perfil que tenha o Template ID solicitado
-    let matchedProfile = activeProfiles.find(p => {
-        const val = p.templates[templateKey];
-        return val && val.trim().length > 0;
-    });
-
-    // Se não encontrar, e for um pedido de template que pode ter fallback (ex: Notification), tenta o fallback
-    if (!matchedProfile && templateKey === 'notificationId') {
-         // Tenta encontrar qualquer perfil ativo que tenha ALGUM template genérico
-         matchedProfile = activeProfiles.find(p => p.templates.notificationId || p.templates.welcomeId);
-    }
-
-    if (!matchedProfile) {
-        console.warn(`[EmailService] Template '${templateKey}' não encontrado em nenhuma conta ativa.`);
-        console.log("Contas ativas verificadas:", activeProfiles.length);
-        if (activeProfiles.length === 0) {
-            console.log("Atenção: Nenhuma conta de email ativa ou com credenciais válidas (Service ID + Public Key).");
+    // 1. Procurar SE existe o template em ALGUM perfil (para diagnóstico)
+    const profileWithTemplate = profiles.find(p => p.templates[templateKey] && p.templates[templateKey].trim().length > 0);
+    
+    if (!profileWithTemplate) {
+        // Fallback check for notificationId
+        if (templateKey === 'notificationId') {
+             const fallbackProfile = profiles.find(p => p.isActive && p.serviceId && p.publicKey && (p.templates.notificationId || p.templates.welcomeId));
+             if (fallbackProfile) {
+                 return {
+                    config: {
+                        serviceId: fallbackProfile.serviceId,
+                        publicKey: fallbackProfile.publicKey,
+                        templateId: fallbackProfile.templates.notificationId || fallbackProfile.templates.welcomeId,
+                        customContent: config.customContent
+                    }
+                 };
+             }
         }
-        return null;
+        return { config: null, error: `O ID do template '${templateKey}' não está preenchido em nenhuma conta.` };
     }
 
+    // 2. Se existe, verificar se esse perfil está ATIVO e com CREDENCIAIS
+    if (!profileWithTemplate.isActive) {
+        return { config: null, error: `O template '${templateKey}' existe na conta, mas a conta está INATIVA ("Conta Ativa" desligado).` };
+    }
+
+    if (!profileWithTemplate.serviceId || !profileWithTemplate.publicKey) {
+        return { config: null, error: `O template '${templateKey}' existe, mas a conta não tem Service ID ou Public Key configurados.` };
+    }
+
+    // Sucesso
     return {
-        serviceId: matchedProfile.serviceId,
-        publicKey: matchedProfile.publicKey,
-        templateId: matchedProfile.templates[templateKey],
-        customContent: config.customContent
+        config: {
+            serviceId: profileWithTemplate.serviceId,
+            publicKey: profileWithTemplate.publicKey,
+            templateId: profileWithTemplate.templates[templateKey],
+            customContent: config.customContent
+        }
     };
 };
 
@@ -122,12 +130,13 @@ export const emailService = {
 
   // Teste Específico por Tipo de Template
   sendSpecificTemplateTest: async (templateKey: keyof EmailTemplates): Promise<EmailResult> => {
-    const config = await getConfigForTemplate(templateKey);
+    const result = await getConfigForTemplate(templateKey);
     
-    // Validações Básicas
-    if (!config) return { success: false, message: `Nenhuma conta ativa encontrada com o template '${templateKey}' configurado.` };
+    if (!result || !result.config) {
+        return { success: false, message: result?.error || "Erro de configuração desconhecido." };
+    }
     
-    const { serviceId, publicKey, templateId, customContent } = config;
+    const { serviceId, publicKey, templateId, customContent } = result.config;
     const systemConfig = await storageService.getSystemConfig();
     const validityText = (systemConfig?.tempPasswordValidityHours || 48) + " horas";
 
@@ -274,10 +283,10 @@ export const emailService = {
   },
 
   sendNotification: async (toName: string, message: string, toEmail: string = SYSTEM_EMAIL): Promise<boolean> => {
-    const config = await getConfigForTemplate('notificationId');
-    if (!config) return false;
+    const result = await getConfigForTemplate('notificationId');
+    if (!result || !result.config) return false;
     
-    const { serviceId, publicKey, templateId } = config;
+    const { serviceId, publicKey, templateId } = result.config;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
     
     try {
@@ -303,17 +312,17 @@ export const emailService = {
 
   sendDeletionBatchEmail: async (logs: FileDeletionLog[]): Promise<boolean> => {
       // Tentar obter config para auditLogId, se não existir, tenta notificationId
-      let config = await getConfigForTemplate('auditLogId');
-      if (!config) {
-          config = await getConfigForTemplate('notificationId');
+      let result = await getConfigForTemplate('auditLogId');
+      if (!result || !result.config) {
+          result = await getConfigForTemplate('notificationId');
       }
 
-      if (!config) {
+      if (!result || !result.config) {
           console.error("Erro: Nenhum Template ID configurado para Auditoria ou Notificações em contas ativas.");
           return false;
       }
 
-      const { serviceId, publicKey, templateId, customContent } = config;
+      const { serviceId, publicKey, templateId, customContent } = result.config;
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
 
       // 2. Formatar lista
@@ -369,15 +378,14 @@ ${list}
   },
 
   sendVerificationEmail: async (toName: string, toEmail: string, verificationLink: string): Promise<EmailResult> => {
-    let config = await getConfigForTemplate('verificationId');
-    if (!config) {
-        // Fallback: Try general notification template
-        config = await getConfigForTemplate('notificationId');
+    let result = await getConfigForTemplate('verificationId');
+    if (!result || !result.config) {
+        result = await getConfigForTemplate('notificationId');
     }
     
-    if (!config) return { success: false, message: "Erro Config: Nenhum template de verificação ou notificação ativo." };
+    if (!result || !result.config) return { success: false, message: result?.error || "Erro de configuração de email." };
     
-    const { serviceId, publicKey, templateId, customContent } = config;
+    const { serviceId, publicKey, templateId, customContent } = result.config;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
     
     // Verificar se existe texto personalizado ou usar Default
@@ -428,11 +436,14 @@ ${list}
 
   sendRecoveryEmail: async (toName: string, toEmail: string, recoveryLink: string): Promise<EmailResult> => {
       // Use specialized recoveryId template
-      const config = await getConfigForTemplate('recoveryId');
+      const result = await getConfigForTemplate('recoveryId');
       
-      if (!config) return { success: false, message: "Template de recuperação (recoveryId) não configurado ou conta inativa." };
+      if (!result || !result.config) {
+          // Improve error message for user
+          return { success: false, message: result?.error || "Template de recuperação não encontrado em nenhuma conta ativa." };
+      }
 
-      const { serviceId, publicKey, templateId, customContent } = config;
+      const { serviceId, publicKey, templateId, customContent } = result.config;
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
       const cleanEmail = toEmail.trim();
 
@@ -488,10 +499,10 @@ ${list}
   },
 
   sendWelcomeEmail: async (toName: string, toEmail: string, tempPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
-    const config = await getConfigForTemplate('welcomeId');
-    if (!config) return { success: false, message: "Template de Boas-vindas não configurado em nenhuma conta ativa." };
+    const result = await getConfigForTemplate('welcomeId');
+    if (!result || !result.config) return { success: false, message: result?.error || "Template de boas-vindas não configurado." };
 
-    const { serviceId, publicKey, templateId, customContent } = config;
+    const { serviceId, publicKey, templateId, customContent } = result.config;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
     
     const systemConfig = await storageService.getSystemConfig();
@@ -557,10 +568,10 @@ ${list}
 
   sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
     // This sends the NEW password (Admin Reset), not the link
-    const config = await getConfigForTemplate('resetPasswordId');
-    if (!config) return { success: false, message: "Template de Reset de Senha (Admin) não configurado em nenhuma conta ativa." };
+    const result = await getConfigForTemplate('resetPasswordId');
+    if (!result || !result.config) return { success: false, message: result?.error || "Template de Reset não configurado." };
 
-    const { serviceId, publicKey, templateId, customContent } = config;
+    const { serviceId, publicKey, templateId, customContent } = result.config;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
     
     const systemConfig = await storageService.getSystemConfig();
