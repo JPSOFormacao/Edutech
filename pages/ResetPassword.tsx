@@ -33,11 +33,14 @@ export default function ResetPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       
-      if (password !== confirmPassword) {
+      const passTrimmed = password.trim();
+      const confirmTrimmed = confirmPassword.trim();
+
+      if (passTrimmed !== confirmTrimmed) {
           setStatus({ type: 'error', msg: 'As passwords não coincidem.' });
           return;
       }
-      if (password.length < 5) {
+      if (passTrimmed.length < 5) {
           setStatus({ type: 'error', msg: 'A password deve ter pelo menos 5 caracteres.' });
           return;
       }
@@ -46,7 +49,7 @@ export default function ResetPassword() {
       setStatus(null);
 
       try {
-          await storageService.resetPasswordWithToken(token, password.trim());
+          await storageService.resetPasswordWithToken(token, passTrimmed);
           setStatus({ type: 'success', msg: 'Senha alterada com sucesso! A redirecionar...' });
           setTimeout(() => navigate('/login'), 2000);
       } catch (e: any) {

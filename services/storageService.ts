@@ -274,15 +274,59 @@ export const storageService = {
 
   // --- USERS ---
   getUsers: async (): Promise<User[]> => {
-    return fetchWithFallback('users', STORAGE_KEYS.USERS);
+    // Obter dados locais primeiro para merge
+    const localStr = localStorage.getItem(STORAGE_KEYS.USERS);
+    const localUsers = localStr ? JSON.parse(localStr) : [];
+
+    // Obter dados remotos
+    const remoteUsers = await fetchWithFallback('users', STORAGE_KEYS.USERS);
+    
+    // Mapping & Merging: Garantir que snake_case do backend é lido, e dados locais (tokens) são preservados
+    return remoteUsers.map((rUser: any) => {
+        const mappedUser = {
+            ...rUser,
+            // Mapeamento snake_case para camelCase se vindo direto do Supabase
+            resetPasswordToken: rUser.resetPasswordToken || rUser.reset_password_token,
+            resetPasswordExpires: rUser.resetPasswordExpires || rUser.reset_password_expires,
+            verificationToken: rUser.verificationToken || rUser.verification_token,
+        };
+
+        // Preservar dados locais críticos se estiverem em falta no remoto (ex: DB sem colunas atualizadas)
+        const localUser = localUsers.find((u: User) => u.id === rUser.id);
+        if (localUser) {
+            if (!mappedUser.resetPasswordToken && localUser.resetPasswordToken) {
+                mappedUser.resetPasswordToken = localUser.resetPasswordToken;
+                mappedUser.resetPasswordExpires = localUser.resetPasswordExpires;
+            }
+            if (!mappedUser.verificationToken && localUser.verificationToken) {
+                mappedUser.verificationToken = localUser.verificationToken;
+            }
+        }
+        
+        return mappedUser;
+    });
   },
   
   saveUsers: async (users: User[]) => {
-    return saveWithFallback('users', STORAGE_KEYS.USERS, users);
+    // Para save em massa, aplicamos a mesma lógica de mapeamento para cada um
+    const usersForSave = users.map(u => ({
+        ...u,
+        reset_password_token: u.resetPasswordToken,
+        reset_password_expires: u.resetPasswordExpires,
+        verification_token: u.verificationToken
+    }));
+    return saveWithFallback('users', STORAGE_KEYS.USERS, usersForSave);
   },
   
   saveUser: async (user: User) => {
-    return saveWithFallback('users', STORAGE_KEYS.USERS, [user]);
+    // Criar versão com snake_case para o Supabase (caso as colunas existam)
+    const userForSave = {
+        ...user,
+        reset_password_token: user.resetPasswordToken,
+        reset_password_expires: user.resetPasswordExpires,
+        verification_token: user.verificationToken
+    };
+    return saveWithFallback('users', STORAGE_KEYS.USERS, [userForSave]);
   },
   
   deleteUser: async (id: string) => {
@@ -369,6 +413,7 @@ export const storageService = {
   },
 
   resetPasswordWithToken: async (token: string, newPassword: string): Promise<boolean> => {
+      // getUsers now handles merging, so we should find the user even if DB dropped the token
       const users = await storageService.getUsers();
       const user = users.find(u => u.resetPasswordToken === token);
 
