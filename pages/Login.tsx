@@ -74,7 +74,7 @@ export default function Login() {
     setLoading(true);
     if (email && password) {
       try {
-        await login(email.trim().toLowerCase(), password);
+        await login(email.trim().toLowerCase(), password.trim()); // Trim password to avoid copy-paste errors
       } catch (err: any) {
         setError(err.message || "Erro ao fazer login");
         setLoading(false);

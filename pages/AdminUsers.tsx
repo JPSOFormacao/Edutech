@@ -53,7 +53,8 @@ export default function UsersPage() {
   // Helpers
   const generateRandomPassword = () => {
       const length = 8;
-      const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+      // Removidos caracteres problemáticos para HTML/URL encoding em emails (ex: &, <, >, %, ^)
+      const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$*";
       let retVal = "";
       for (let i = 0; i < length; ++i) {
           retVal += charset.charAt(Math.floor(Math.random() * charset.length));
@@ -192,7 +193,7 @@ export default function UsersPage() {
               role: UserRole.ALUNO,
               roleId: 'role_aluno', // Hardcoded para Aluno no Bulk
               status: UserStatus.ACTIVE, // Importação Admin = Ativo
-              password: tempPassword, // Fix: password missing in previous turn
+              password: tempPassword,
               allowedCourses: [],
               enrollmentRequests: [],
               avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
@@ -757,7 +758,7 @@ export default function UsersPage() {
                     </Button>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                    A Password/Senha deve conter 8 caracteres com letras, números e símbolos (!@#$%^&*).
+                    A Password/Senha deve conter 8 caracteres com letras, números e símbolos (!#$*).
                 </p>
             </div>
 

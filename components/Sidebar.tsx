@@ -179,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
                <>
                    <NavItem to="/email-config" icon={Icons.Settings} label="Credenciais Email" />
                    <NavItem to="/email-templates" icon={Icons.MessageSquare} label="Personalizar Emails" />
-                   <NavItem to="/system-settings" icon={Icons.Settings} label="Branding & Sistema" />
+                   <NavItem to="/system-settings" icon={Icons.Settings} label="Config. Sistema" />
                    <NavItem to="/db-test" icon={Icons.Active} label="Diagnóstico DB" />
                </>
              )}
@@ -211,4 +211,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, hasPermission,
       </div>
     </div>
   );
-};
+}
