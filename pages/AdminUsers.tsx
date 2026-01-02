@@ -52,12 +52,18 @@ export default function UsersPage() {
 
   // Helpers
   const generateRandomPassword = () => {
-      const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$";
+      const length = 8;
+      const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
       let retVal = "";
-      for (let i = 0; i < 10; ++i) {
+      for (let i = 0; i < length; ++i) {
           retVal += charset.charAt(Math.floor(Math.random() * charset.length));
       }
       return retVal;
+  };
+
+  const handleGeneratePassword = () => {
+      const pass = generateRandomPassword();
+      setNewPassword(pass);
   };
 
   const translateStatus = (status: UserStatus) => {
@@ -115,6 +121,7 @@ export default function UsersPage() {
       const defaultRoleObj = roles.find(r => r.name === defaultRoleName) || roles.find(r => r.name === 'Aluno');
       const defaultRoleEnum = activeTab === 'staff' ? UserRole.EDITOR : UserRole.ALUNO;
 
+      const generatedPass = generateRandomPassword();
       setSelectedUser({
           id: Date.now().toString(),
           name: '',
@@ -128,7 +135,7 @@ export default function UsersPage() {
           mustChangePassword: true,
           classId: ''
       });
-      setNewPassword(generateRandomPassword()); 
+      setNewPassword(generatedPass); 
       setIsModalOpen(true);
   };
 
@@ -189,6 +196,7 @@ export default function UsersPage() {
               enrollmentRequests: [],
               avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
               mustChangePassword: true,
+              tempPasswordCreatedAt: new Date().toISOString(), // Validade 48h
               classId: bulkClassId || undefined,
               emailVerified: true
           };
@@ -344,15 +352,24 @@ export default function UsersPage() {
     if (newPassword) {
         userToSave.password = newPassword;
         userToSave.mustChangePassword = true; 
+        // Se definimos uma nova senha (mesmo no edit), ela é considerada temporária/reset se mustChangePassword for true
+        userToSave.tempPasswordCreatedAt = new Date().toISOString();
         isPasswordReset = true;
     }
     
-    // Sync Legacy Enum & Role ID
+    // Sync Legacy Enum & Role ID Logic
+    // Ensures that only 'role_aluno' (or roles explicitly named like 'aluno') are treated as Students.
+    // Everything else defaults to EDITOR/Staff.
     const selectedRoleObj = roles.find(r => r.id === userToSave.roleId);
     if (selectedRoleObj) {
-        if (selectedRoleObj.name.toLowerCase().includes('admin')) userToSave.role = UserRole.ADMIN;
-        else if (selectedRoleObj.name.toLowerCase().includes('formador')) userToSave.role = UserRole.EDITOR;
-        else userToSave.role = UserRole.ALUNO;
+        if (selectedRoleObj.id === 'role_admin' || selectedRoleObj.name.toLowerCase().includes('admin')) {
+            userToSave.role = UserRole.ADMIN;
+        } else if (selectedRoleObj.id === 'role_aluno' || selectedRoleObj.name.toLowerCase().includes('aluno')) {
+            userToSave.role = UserRole.ALUNO;
+        } else {
+            // Default to EDITOR for any other role (Formador, Gestor, Custom)
+            userToSave.role = UserRole.EDITOR;
+        }
     }
 
     const exists = currentUsers.find(u => u.id === userToSave.id);
@@ -375,7 +392,9 @@ export default function UsersPage() {
             }
         }
     } else {
-        // CREATE
+        // CREATE (Nova conta tem sempre timestamp para a senha inicial)
+        userToSave.tempPasswordCreatedAt = new Date().toISOString();
+        
         const duplicate = currentUsers.find(u => u.email === userToSave.email);
         if (duplicate) {
              alert(`JÁ EXISTE um utilizador com o email "${userToSave.email}".`);
@@ -435,7 +454,8 @@ export default function UsersPage() {
               ...user, 
               status: UserStatus.ACTIVE,
               password: generatedPass,
-              mustChangePassword: true // Obrigatório mudar no 1º login
+              mustChangePassword: true, // Obrigatório mudar no 1º login
+              tempPasswordCreatedAt: new Date().toISOString() // Validade 48h
           };
           
           await storageService.saveUser(updated);
@@ -722,13 +742,22 @@ export default function UsersPage() {
             />
 
             <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
-                <Input 
-                    label="Senha"
-                    type="text" 
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                    placeholder="Nova senha (deixe em branco para manter)"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nova Password/Senha</label>
+                <div className="flex gap-2">
+                    <input 
+                        type="text" 
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        placeholder="Deixe em branco para manter a atual"
+                        className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                    />
+                    <Button onClick={handleGeneratePassword} variant="secondary" size="sm" type="button">
+                        Gerar
+                    </Button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                    A Password/Senha deve conter 8 caracteres com letras, números e símbolos (!@#$%^&*).
+                </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

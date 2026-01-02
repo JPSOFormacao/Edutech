@@ -128,7 +128,8 @@ export const emailService = {
         user_email: SYSTEM_EMAIL,
         email: SYSTEM_EMAIL,
         from_name: SYSTEM_NAME,
-        reply_to: SYSTEM_EMAIL
+        reply_to: SYSTEM_EMAIL,
+        mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
     };
 
     let specificParams = {};
@@ -145,7 +146,9 @@ export const emailService = {
                 messageBody = processTemplate(customContent.auditLogText, {
                     name: commonParams.to_name,
                     file_list: mockFileList,
-                    total_files: "2"
+                    total_files: "2",
+                    site_link: baseUrl,
+                    mailto_link: commonParams.mailto_link
                 });
             } else {
                 messageBody = `Relatório de Teste:\n\n${mockFileList}`;
@@ -153,7 +156,8 @@ export const emailService = {
             specificParams = {
                 message: messageBody,
                 file_list: mockFileList,
-                total_files: "2"
+                total_files: "2",
+                site_link: baseUrl
             };
             break;
         case 'verificationId':
@@ -161,7 +165,9 @@ export const emailService = {
                 messageBody = processTemplate(customContent.verificationText, {
                     name: commonParams.to_name,
                     link: mockLink,
-                    verification_link: mockLink
+                    verification_link: mockLink,
+                    site_link: baseUrl,
+                    mailto_link: commonParams.mailto_link
                 });
             } else {
                 messageBody = "Email de teste para Validação de Conta.";
@@ -170,7 +176,8 @@ export const emailService = {
                 message: messageBody,
                 verification_link: mockLink,
                 link: mockLink,
-                url: mockLink
+                url: mockLink,
+                site_link: baseUrl
             };
             break;
         case 'resetPasswordId':
@@ -179,7 +186,10 @@ export const emailService = {
                     name: commonParams.to_name,
                     email: commonParams.to_email,
                     password: "nova-senha-teste-123",
-                    training_details: "Cursos: Exemplo de Curso Python"
+                    training_details: "Cursos: Exemplo de Curso Python",
+                    site_link: baseUrl,
+                    password_validity: "48 horas",
+                    mailto_link: commonParams.mailto_link
                 });
             } else {
                 messageBody = "Email de teste para Recuperação de Senha.";
@@ -187,7 +197,9 @@ export const emailService = {
             specificParams = {
                 message: messageBody,
                 password: "nova-senha-teste-123",
-                training_details: "Cursos: Exemplo de Curso Python"
+                training_details: "Cursos: Exemplo de Curso Python",
+                site_link: baseUrl,
+                password_validity: "48 horas"
             };
             break;
         case 'welcomeId':
@@ -197,7 +209,10 @@ export const emailService = {
                     name: commonParams.to_name,
                     email: commonParams.to_email,
                     password: "senha-inicial-teste",
-                    training_details: "Turma: Demo\nCursos: Introdução à IA"
+                    training_details: "Turma: Demo\nCursos: Introdução à IA",
+                    site_link: baseUrl,
+                    password_validity: "48 horas",
+                    mailto_link: commonParams.mailto_link
                 });
             } else {
                 messageBody = "Bem-vindo à EduTech PT! Conta criada com sucesso.";
@@ -205,7 +220,9 @@ export const emailService = {
             specificParams = {
                 message: messageBody,
                 password: "senha-inicial-teste",
-                training_details: "Turma: Demo\nCursos: Introdução à IA"
+                training_details: "Turma: Demo\nCursos: Introdução à IA",
+                site_link: baseUrl,
+                password_validity: "48 horas"
             };
             break;
     }
@@ -228,6 +245,7 @@ export const emailService = {
     if (!config) return false;
     
     const { serviceId, publicKey, templateId } = config;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
     
     try {
         await emailjs.send(serviceId, templateId, {
@@ -239,7 +257,9 @@ export const emailService = {
             reply_to: SYSTEM_EMAIL,
             to_email: toEmail, 
             email: toEmail,
-            password: 'N/A' 
+            password: 'N/A',
+            site_link: baseUrl,
+            mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
         }, publicKey);
         return true;
     } catch (e) {
@@ -261,6 +281,7 @@ export const emailService = {
       }
 
       const { serviceId, publicKey, templateId, customContent } = config;
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
 
       // 2. Formatar lista
       const list = logs.map((log, idx) => 
@@ -275,7 +296,9 @@ export const emailService = {
           messageBody = processTemplate(customContent.auditLogText, {
               name: "Administrador",
               file_list: list,
-              total_files: totalFiles
+              total_files: totalFiles,
+              site_link: baseUrl,
+              mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
           });
       } else {
           // Fallback message se não houver texto configurado
@@ -298,7 +321,9 @@ ${list}
           message: messageBody,
           file_list: list, // Variável direta se o template usar {{file_list}}
           total_files: totalFiles,
-          reply_to: SYSTEM_EMAIL
+          reply_to: SYSTEM_EMAIL,
+          site_link: baseUrl,
+          mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
       };
 
       try {
@@ -320,6 +345,7 @@ ${list}
     if (!config) return { success: false, message: "Erro Config: Nenhum template de verificação ou notificação ativo." };
     
     const { serviceId, publicKey, templateId, customContent } = config;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
     
     // Verificar se existe texto personalizado ou usar Default
     let messageBody = "";
@@ -327,7 +353,9 @@ ${list}
         messageBody = processTemplate(customContent.verificationText, {
             name: toName,
             link: verificationLink,
-            verification_link: verificationLink
+            verification_link: verificationLink,
+            site_link: baseUrl,
+            mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
         });
     } else {
         messageBody = `
@@ -353,7 +381,9 @@ ${list}
             reply_to: SYSTEM_EMAIL,
             verification_link: verificationLink,
             link: verificationLink,
-            url: verificationLink
+            url: verificationLink,
+            site_link: baseUrl,
+            mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
         }, publicKey);
         return { success: true };
     } catch (e: any) {
@@ -368,6 +398,7 @@ ${list}
     if (!config) return { success: false, message: "Template de Boas-vindas não configurado em nenhuma conta ativa." };
 
     const { serviceId, publicKey, templateId, customContent } = config;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
 
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
@@ -379,7 +410,10 @@ ${list}
             name: toName,
             email: cleanEmail,
             password: tempPass,
-            training_details: trainingDetails
+            training_details: trainingDetails,
+            site_link: baseUrl,
+            password_validity: "48 horas",
+            mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
         });
     } else {
         messageBody = `
@@ -409,7 +443,10 @@ ${list}
         training_details: trainingDetails,
         password: tempPass,
         from_name: SYSTEM_NAME,
-        reply_to: SYSTEM_EMAIL
+        reply_to: SYSTEM_EMAIL,
+        site_link: baseUrl,
+        password_validity: "48 horas",
+        mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
     };
 
     try {
@@ -426,6 +463,7 @@ ${list}
     if (!config) return { success: false, message: "Template de Reset de Senha não configurado em nenhuma conta ativa." };
 
     const { serviceId, publicKey, templateId, customContent } = config;
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
 
     const cleanEmail = toEmail.trim();
     const trainingDetails = await getTrainingDetailsString(classId, courseIds);
@@ -437,7 +475,10 @@ ${list}
             name: toName,
             email: cleanEmail,
             password: newPass,
-            training_details: trainingDetails
+            training_details: trainingDetails,
+            site_link: baseUrl,
+            password_validity: "48 horas",
+            mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
         });
     } else {
         messageBody = `
@@ -462,7 +503,10 @@ ${list}
         training_details: trainingDetails,
         password: newPass,
         from_name: SYSTEM_NAME,
-        reply_to: SYSTEM_EMAIL
+        reply_to: SYSTEM_EMAIL,
+        site_link: baseUrl,
+        password_validity: "48 horas",
+        mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
     };
 
     try {

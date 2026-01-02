@@ -64,11 +64,11 @@ const Layout = () => {
       const handleSubmit = (e: React.FormEvent) => {
           e.preventDefault();
           if (newPass.length < 4) {
-              setError("A senha deve ter pelo menos 4 caracteres.");
+              setError("A Password/Senha deve ter pelo menos 4 caracteres.");
               return;
           }
           if (newPass !== confirmPass) {
-              setError("As senhas não coincidem.");
+              setError("As Passwords/Senhas não coincidem.");
               return;
           }
           updatePassword(newPass);
@@ -80,16 +80,16 @@ const Layout = () => {
                 <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 mb-4">
                     <Icons.Settings className="h-6 w-6 text-indigo-600" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">Alteração de Senha</h2>
+                <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">Alteração de Password/Senha</h2>
                 <p className="text-gray-600 text-center mb-6 text-sm">
-                    É o seu primeiro acesso ou a sua senha expirou. Por favor, defina uma nova senha para continuar.
+                    É o seu primeiro acesso ou a sua senha expirou. Por favor, defina uma nova Password/Senha para continuar.
                 </p>
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {error && <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>}
                     
                     <div className="relative">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nova Senha</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nova Password/Senha</label>
                         <div className="relative">
                             <input
                                 type={showNewPass ? "text" : "password"}
@@ -106,10 +106,13 @@ const Layout = () => {
                                 {showNewPass ? <Icons.EyeOff className="h-5 w-5" /> : <Icons.Eye className="h-5 w-5" />}
                             </button>
                         </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                            A Password/Senha deve conter letras, números e símbolos (!@#$%^&*).
+                        </p>
                     </div>
 
                     <div className="relative">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Senha</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Password/Senha</label>
                         <div className="relative">
                             <input
                                 type={showConfirmPass ? "text" : "password"}
@@ -128,7 +131,7 @@ const Layout = () => {
                         </div>
                     </div>
                     
-                    <Button type="submit" className="w-full">Atualizar Senha</Button>
+                    <Button type="submit" className="w-full">Atualizar Password/Senha</Button>
                     <div className="text-center mt-4">
                          <button type="button" onClick={logout} className="text-sm text-gray-500 hover:text-gray-700">
                              Voltar ao Login

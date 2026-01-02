@@ -120,7 +120,8 @@ export default function Login() {
               status: UserStatus.PENDING,
               allowedCourses: [selectedCourseForEnroll.id],
               avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${cleanEmail}&mouth=smile`,
-              mustChangePassword: true
+              mustChangePassword: true,
+              tempPasswordCreatedAt: new Date().toISOString() // Set date for temporary password
           };
 
           await storageService.saveUser(newUser);
@@ -149,11 +150,11 @@ export default function Login() {
       e.preventDefault();
       
       if (regPass !== regConfirmPass) {
-          alert("As senhas não coincidem.");
+          alert("As Passwords/Senhas não coincidem.");
           return;
       }
       if (regPass.length < 5) {
-          alert("A senha deve ter pelo menos 5 caracteres.");
+          alert("A Password/Senha deve ter pelo menos 5 caracteres.");
           return;
       }
 
@@ -282,7 +283,7 @@ export default function Login() {
                 />
 
                 <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password/Senha</label>
                     <div className="relative">
                         <input
                             type={showPassword ? "text" : "password"}
@@ -494,7 +495,7 @@ export default function Login() {
                 />
                 
                 <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Password/Senha</label>
                     <div className="relative">
                         <input
                             type={showRegPass ? "text" : "password"}
@@ -512,10 +513,13 @@ export default function Login() {
                             {showRegPass ? <Icons.EyeOff className="h-5 w-5" /> : <Icons.Eye className="h-5 w-5" />}
                         </button>
                     </div>
+                     <p className="text-xs text-gray-500 mt-1">
+                        A Password/Senha deve conter letras, números e símbolos (!@#$%^&*).
+                    </p>
                 </div>
 
                 <div className="relative">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Senha</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Password/Senha</label>
                     <div className="relative">
                         <input
                             type={showRegConfirmPass ? "text" : "password"}

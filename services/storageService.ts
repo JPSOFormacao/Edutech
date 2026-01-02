@@ -321,6 +321,8 @@ export const storageService = {
           allowedCourses: [],
           avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
           mustChangePassword: false,
+          // Registar data se a senha for temporária/gerada (assume-se que no registo manual o user define)
+          // Mas se o admin criar, usará outra função.
           emailVerified: false, 
           verificationToken: verificationToken,
           ...user
@@ -706,6 +708,25 @@ export const storageService = {
            throw new Error("Utilizador não encontrado. Registe-se primeiro.");
       }
     } else {
+        // --- 48 HOUR PASSWORD EXPIRY CHECK ---
+        // Se o utilizador tem de mudar a senha (significa que é temporária) e tem uma data de criação
+        if (user.mustChangePassword && user.tempPasswordCreatedAt) {
+            const created = new Date(user.tempPasswordCreatedAt);
+            const now = new Date();
+            const diffHours = (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+
+            if (diffHours > 48) {
+                // Bloquear utilizador
+                user = { ...user, status: UserStatus.BLOCKED };
+                await storageService.saveUser(user);
+                throw new Error("A sua senha temporária expirou (validade de 48h). A conta foi bloqueada por segurança. Contacte o administrador.");
+            }
+        }
+
+        if (user.status === UserStatus.BLOCKED) {
+            throw new Error("A sua conta encontra-se bloqueada. Contacte a administração.");
+        }
+
         // Auto-reparação de Super Admin
         // Cast user.role to string/UserRole to avoid overlap error if TS thinks user.role excludes ADMIN
         if (isSuperAdmin && ((user.role as string) !== UserRole.ADMIN || user.status !== UserStatus.ACTIVE)) {
@@ -727,7 +748,8 @@ export const storageService = {
     const user = users.find(u => u.id === userId);
     
     if (user) {
-        const updated = { ...user, password: newPassword, mustChangePassword: false };
+        // Ao atualizar a senha, limpa-se a data de criação temporária
+        const updated = { ...user, password: newPassword, mustChangePassword: false, tempPasswordCreatedAt: undefined };
         await storageService.saveUser(updated);
         
         const currentUser = storageService.getCurrentUser();

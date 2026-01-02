@@ -94,6 +94,7 @@ export interface User {
   avatarUrl?: string;
   password?: string;
   mustChangePassword?: boolean;
+  tempPasswordCreatedAt?: string; // Data de criação da senha temporária para validade de 48h
   bio?: string;
   privacySettings?: UserPrivacySettings;
   emailVerified?: boolean; // Novo campo

@@ -221,7 +221,10 @@ export default function EmailTemplatesPage() {
 
 <p>As suas credenciais de acesso são:<br/>
 Email: {{email}}<br/>
-Senha: {{password}}</p>`}
+Senha: {{password}}</p>
+
+<p>Aceda aqui: {{site_link}}</p>
+<p>Atenção: A sua senha expira em {{password_validity}}.</p>`}
               />
 
               <EmailSectionEditor 
@@ -264,7 +267,9 @@ Senha: {{password}}</p>`}
                   forcePreviewTrigger={saveTrigger}
                   placeholder={`<p>Olá {{name}},</p>
 <p>A sua senha foi redefinida.</p>
-<p><b>Nova Senha:</b> {{password}}</p>`}
+<p><b>Nova Senha:</b> {{password}}</p>
+<p>Esta senha é válida por {{password_validity}}.</p>
+<p>Aceda: {{site_link}}</p>`}
               />
           </div>
 
@@ -279,6 +284,33 @@ Senha: {{password}}</p>`}
                   </p>
                   
                   <ul className="space-y-3">
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{mailto_link}}`}</code>
+                              <span className="text-xs text-gray-600">Link de email para o sistema.</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{mailto_link}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
+                      </li>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{site_link}}`}</code>
+                              <span className="text-xs text-gray-600">Link para a página inicial do site.</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{site_link}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
+                      </li>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{password_validity}}`}</code>
+                              <span className="text-xs text-gray-600">Tempo validade senha (ex: 48 horas).</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{password_validity}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
+                      </li>
                       <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
                           <div>
                               <code className="text-pink-600 font-bold block mb-1">{`{{name}}`}</code>
@@ -300,7 +332,7 @@ Senha: {{password}}</p>`}
                       <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
                           <div>
                               <code className="text-pink-600 font-bold block mb-1">{`{{password}}`}</code>
-                              <span className="text-xs text-gray-600">A senha gerada (Boas-vindas/Reset).</span>
+                              <span className="text-xs text-gray-600">A Password/Senha gerada (Boas-vindas/Reset).</span>
                           </div>
                           <button onClick={() => handleCopy('{{password}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
                               <Icons.Copy className="w-4 h-4" />
