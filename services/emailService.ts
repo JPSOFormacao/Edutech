@@ -138,6 +138,7 @@ export const emailService = {
     let specificParams = {};
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
     const mockLink = `${baseUrl}/#/verify-email?token=TESTE-TOKEN-123`;
+    const mockRecoveryLink = `${baseUrl}/#/reset-password?token=TESTE-TOKEN-123`;
 
     // Verificar se existe Custom Content para este teste
     let messageBody = "";
@@ -184,6 +185,7 @@ export const emailService = {
             };
             break;
         case 'resetPasswordId':
+            // Este é o Admin Reset (Nova Senha Gerada)
             if (customContent?.resetPasswordText) {
                 messageBody = processTemplate(customContent.resetPasswordText, {
                     name: commonParams.to_name,
@@ -195,7 +197,7 @@ export const emailService = {
                     mailto_link: commonParams.mailto_link
                 });
             } else {
-                messageBody = "Email de teste para Recuperação de Senha.";
+                messageBody = "Email de teste para Nova Senha (Reset por Admin).";
             }
             specificParams = {
                 message: messageBody,
@@ -203,6 +205,26 @@ export const emailService = {
                 training_details: "Cursos: Exemplo de Curso Python",
                 site_link: baseUrl,
                 password_validity: validityText
+            };
+            break;
+        case 'recoveryId':
+            // Este é o User Forgot Password (Link)
+            if (customContent?.recoveryEmailText) {
+                messageBody = processTemplate(customContent.recoveryEmailText, {
+                    name: commonParams.to_name,
+                    email: commonParams.to_email,
+                    recovery_link: mockRecoveryLink,
+                    site_link: baseUrl,
+                    mailto_link: commonParams.mailto_link
+                });
+            } else {
+                messageBody = "Email de teste para Recuperação de Acesso (Link).";
+            }
+            specificParams = {
+                message: messageBody,
+                recovery_link: mockRecoveryLink,
+                link: mockRecoveryLink, // Generic alias
+                site_link: baseUrl
             };
             break;
         case 'welcomeId':
@@ -397,31 +419,38 @@ ${list}
   },
 
   sendRecoveryEmail: async (toName: string, toEmail: string, recoveryLink: string): Promise<EmailResult> => {
-      // Use resetPasswordId template because it's semantically the closest
-      const config = await getConfigForTemplate('resetPasswordId');
-      if (!config) return { success: false, message: "Template de recuperação não configurado." };
+      // Use specialized recoveryId template
+      const config = await getConfigForTemplate('recoveryId');
+      
+      if (!config) return { success: false, message: "Template de recuperação (recoveryId) não configurado." };
 
       const { serviceId, publicKey, templateId, customContent } = config;
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
       const cleanEmail = toEmail.trim();
 
-      // Check if there is custom text for Reset Password. 
-      // NOTE: Usually resetPasswordText is for "New Password Set". 
-      // We will construct a default message for "Recovery Link" unless the user has specifically handled it.
-      
-      const messageBody = `
-        Olá ${toName},
-        
-        Recebemos um pedido para redefinir a sua palavra-passe.
-        Para continuar, clique no link abaixo (válido por 24 horas):
-        
-        ${recoveryLink}
-        
-        Se não solicitou esta alteração, ignore este email.
-      `;
+      // Check if there is custom text for Recovery Link
+      let messageBody = "";
+      if (customContent?.recoveryEmailText) {
+          messageBody = processTemplate(customContent.recoveryEmailText, {
+              name: toName,
+              email: cleanEmail,
+              recovery_link: recoveryLink,
+              site_link: baseUrl,
+              mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
+          });
+      } else {
+          messageBody = `
+            Olá ${toName},
+            
+            Recebemos um pedido para redefinir a sua palavra-passe.
+            Para continuar, clique no link abaixo (válido por 24 horas):
+            
+            ${recoveryLink}
+            
+            Se não solicitou esta alteração, ignore este email.
+          `;
+      }
 
-      // We send 'password' as the link to ensure it appears in standard templates that might expect {{password}}
-      // But we primarily rely on `message` or explicit `link` variable if the template supports it.
       const templateParams = {
           to_name: toName,
           name: toName,
@@ -432,8 +461,8 @@ ${list}
           
           // Content
           message: messageBody,
-          link: recoveryLink,
-          password: `Link de Recuperação: ${recoveryLink}`, // Fallback for templates expecting {{password}}
+          recovery_link: recoveryLink,
+          link: recoveryLink, // Generic alias just in case
           
           from_name: SYSTEM_NAME,
           reply_to: SYSTEM_EMAIL,
@@ -519,8 +548,9 @@ ${list}
   },
 
   sendPasswordReset: async (toName: string, toEmail: string, newPass: string, classId?: string, courseIds?: string[]): Promise<EmailResult> => {
+    // This sends the NEW password (Admin Reset), not the link
     const config = await getConfigForTemplate('resetPasswordId');
-    if (!config) return { success: false, message: "Template de Reset de Senha não configurado em nenhuma conta ativa." };
+    if (!config) return { success: false, message: "Template de Reset de Senha (Admin) não configurado em nenhuma conta ativa." };
 
     const { serviceId, publicKey, templateId, customContent } = config;
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';

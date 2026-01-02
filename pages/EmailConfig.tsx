@@ -8,6 +8,7 @@ import { EmailTemplates, EmailCustomContent, EmailConfig, EmailConfigProfile } f
 const DEFAULT_TEMPLATES: EmailTemplates = {
     welcomeId: '',
     resetPasswordId: '',
+    recoveryId: '',
     enrollmentId: '',
     notificationId: '',
     verificationId: '',
@@ -219,6 +220,13 @@ export default function EmailConfigPage() {
                 </div>
                 
                 <Input 
+                    label="Recuperação de Password (Link)" 
+                    value={currentProfile.templates.recoveryId || ''} 
+                    onChange={e => handleUpdateTemplate('recoveryId', e.target.value)} 
+                    placeholder="ex: template_recover"
+                />
+
+                <Input 
                     label="Relatório de Auditoria (Ficheiros)" 
                     value={currentProfile.templates.auditLogId || ''} 
                     onChange={e => handleUpdateTemplate('auditLogId', e.target.value)} 
@@ -234,10 +242,10 @@ export default function EmailConfigPage() {
                 />
                 
                 <Input 
-                    label="Recuperação de Senha" 
+                    label="Reset de Senha (Admin/Nova Senha)" 
                     value={currentProfile.templates.resetPasswordId} 
                     onChange={e => handleUpdateTemplate('resetPasswordId', e.target.value)} 
-                    placeholder="ex: template_reset"
+                    placeholder="ex: template_reset_admin"
                 />
                 
                 <div className="pt-4 border-t border-gray-100 mt-4">

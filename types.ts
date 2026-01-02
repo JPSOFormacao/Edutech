@@ -180,7 +180,8 @@ export interface QuizData {
 
 export interface EmailTemplates {
     welcomeId: string;
-    resetPasswordId: string;
+    resetPasswordId: string; // Admin Reset (New Password)
+    recoveryId?: string; // User Forgot Password (Link)
     enrollmentId: string;
     notificationId: string;
     verificationId?: string; 
@@ -191,7 +192,8 @@ export interface EmailCustomContent {
     welcomeText?: string;
     verificationText?: string;
     resetPasswordText?: string;
-    auditLogText?: string; // Novo texto para Logs de Auditoria
+    recoveryEmailText?: string; // Novo campo para o texto do link de recuperação
+    auditLogText?: string; 
     _profiles_backup?: EmailConfigProfile[]; // Interno: Store multiple profiles inside JSON
 }
 

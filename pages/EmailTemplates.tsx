@@ -9,6 +9,7 @@ const DEFAULT_CONTENT: EmailCustomContent = {
     welcomeText: '',
     verificationText: '',
     resetPasswordText: '',
+    recoveryEmailText: '',
     auditLogText: ''
 };
 
@@ -228,20 +229,18 @@ Senha: {{password}}</p>
               />
 
               <EmailSectionEditor 
-                  title="Relatório de Auditoria (Ficheiros)"
-                  description="Enviado ao admin quando 10 ficheiros são apagados."
-                  value={customContent.auditLogText || ''}
-                  onChange={(val) => setCustomContent({...customContent, auditLogText: val})}
-                  onTest={() => handleTestSpecific('auditLogId')}
-                  isTesting={testingTemplate['auditLogId']}
-                  colorClass="border-red-200"
+                  title="Link de Recuperação de Acesso"
+                  description="Enviado quando o utilizador clica em 'Esqueci a password'."
+                  value={customContent.recoveryEmailText || ''}
+                  onChange={(val) => setCustomContent({...customContent, recoveryEmailText: val})}
+                  onTest={() => handleTestSpecific('recoveryId')}
+                  isTesting={testingTemplate['recoveryId']}
                   forcePreviewTrigger={saveTrigger}
-                  placeholder={`<h3>Relatório de Auditoria</h3>
-<p>O sistema detetou a eliminação de <b>{{total_files}}</b> ficheiros.</p>
-
-<hr/>
-<pre>{{file_list}}</pre>
-<hr/>`}
+                  placeholder={`<p>Olá {{name}},</p>
+<p>Recebemos um pedido para recuperar o acesso à sua conta.</p>
+<p>Clique no link abaixo para criar uma nova password:</p>
+<a href="{{recovery_link}}">{{recovery_link}}</a>
+<p>O link expira em 24 horas.</p>`}
               />
 
               <EmailSectionEditor 
@@ -258,18 +257,35 @@ Senha: {{password}}</p>
               />
 
               <EmailSectionEditor 
-                  title="Recuperação de Senha"
-                  description="Enviado quando a senha é redefinida pelo admin."
+                  title="Reset de Senha (Admin)"
+                  description="Enviado quando o Admin redefine a senha manualmente."
                   value={customContent.resetPasswordText || ''}
                   onChange={(val) => setCustomContent({...customContent, resetPasswordText: val})}
                   onTest={() => handleTestSpecific('resetPasswordId')}
                   isTesting={testingTemplate['resetPasswordId']}
                   forcePreviewTrigger={saveTrigger}
                   placeholder={`<p>Olá {{name}},</p>
-<p>A sua senha foi redefinida.</p>
+<p>A sua senha foi redefinida pelo administrador.</p>
 <p><b>Nova Senha:</b> {{password}}</p>
 <p>Esta senha é válida por {{password_validity}}.</p>
 <p>Aceda: {{site_link}}</p>`}
+              />
+
+              <EmailSectionEditor 
+                  title="Relatório de Auditoria (Ficheiros)"
+                  description="Enviado ao admin quando 10 ficheiros são apagados."
+                  value={customContent.auditLogText || ''}
+                  onChange={(val) => setCustomContent({...customContent, auditLogText: val})}
+                  onTest={() => handleTestSpecific('auditLogId')}
+                  isTesting={testingTemplate['auditLogId']}
+                  colorClass="border-red-200"
+                  forcePreviewTrigger={saveTrigger}
+                  placeholder={`<h3>Relatório de Auditoria</h3>
+<p>O sistema detetou a eliminação de <b>{{total_files}}</b> ficheiros.</p>
+
+<hr/>
+<pre>{{file_list}}</pre>
+<hr/>`}
               />
           </div>
 
@@ -284,6 +300,33 @@ Senha: {{password}}</p>
                   </p>
                   
                   <ul className="space-y-3">
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{recovery_link}}`}</code>
+                              <span className="text-xs text-gray-600">URL para redefinir password (esqueci-me).</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{recovery_link}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
+                      </li>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{link}}`}</code>
+                              <span className="text-xs text-gray-600">Link de verificação de email.</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{link}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
+                      </li>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{password}}`}</code>
+                              <span className="text-xs text-gray-600">A Password/Senha gerada (Boas-vindas/Reset).</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{password}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
+                      </li>
                       <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
                           <div>
                               <code className="text-pink-600 font-bold block mb-1">{`{{mailto_link}}`}</code>
@@ -326,24 +369,6 @@ Senha: {{password}}</p>
                               <span className="text-xs text-gray-600">Endereço de email do utilizador.</span>
                           </div>
                           <button onClick={() => handleCopy('{{email}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
-                              <Icons.Copy className="w-4 h-4" />
-                          </button>
-                      </li>
-                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
-                          <div>
-                              <code className="text-pink-600 font-bold block mb-1">{`{{password}}`}</code>
-                              <span className="text-xs text-gray-600">A Password/Senha gerada (Boas-vindas/Reset).</span>
-                          </div>
-                          <button onClick={() => handleCopy('{{password}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
-                              <Icons.Copy className="w-4 h-4" />
-                          </button>
-                      </li>
-                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
-                          <div>
-                              <code className="text-pink-600 font-bold block mb-1">{`{{link}}`}</code>
-                              <span className="text-xs text-gray-600">Link clicável (Verificação).</span>
-                          </div>
-                          <button onClick={() => handleCopy('{{link}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
                               <Icons.Copy className="w-4 h-4" />
                           </button>
                       </li>

@@ -483,11 +483,11 @@ export const storageService = {
 
   // --- EMAIL CONFIG ---
   getEmailConfig: async (): Promise<EmailConfig | null> => {
-    const emptyTemplates: EmailTemplates = { welcomeId: '', resetPasswordId: '', enrollmentId: '', notificationId: '', verificationId: '', auditLogId: '' };
+    const emptyTemplates: EmailTemplates = { welcomeId: '', resetPasswordId: '', recoveryId: '', enrollmentId: '', notificationId: '', verificationId: '', auditLogId: '' };
     const baseConfig: EmailConfig = {
         serviceId: '', publicKey: '', templates: { ...emptyTemplates }, activeProfileIndex: 0,
         profiles: Array(5).fill(null).map(() => ({ serviceId: '', publicKey: '', templates: { ...emptyTemplates }, isActive: false })),
-        customErrorMessage: '', customContent: { welcomeText: '', verificationText: '', resetPasswordText: '', auditLogText: '' }
+        customErrorMessage: '', customContent: { welcomeText: '', verificationText: '', resetPasswordText: '', recoveryEmailText: '', auditLogText: '' }
     };
 
     let dbData: any = {};
