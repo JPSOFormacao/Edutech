@@ -1,7 +1,7 @@
 
 import emailjs from '@emailjs/browser';
 import { storageService } from './storageService';
-import { EmailTemplates, FileDeletionLog, EMAIL_KEYS } from '../types';
+import { EmailTemplates, FileDeletionLog, EMAIL_KEYS, EMAIL_KEY_LABELS } from '../types';
 
 interface EmailResult {
     success: boolean;
@@ -76,62 +76,100 @@ const getErrorMsg = async (originalError: any): Promise<string> => {
 };
 
 // --- Helper to get Active Config containing a specific template ---
+// Returns:
+// - { config: ... } if found and valid.
+// - { config: null, error: "..." } if found but invalid (inactive/no creds).
+// - null if NOT found at all (empty ID).
 const getConfigForTemplate = async (templateKey: keyof EmailTemplates): Promise<{config: any, error?: string} | null> => {
     const config = await storageService.getEmailConfig();
     if (!config) return { config: null, error: "Configurações de email não encontradas." };
 
     const profiles = config.profiles || [];
     
-    // 1. Procurar SE existe o template em ALGUM perfil (para diagnóstico)
-    const profileWithTemplate = profiles.find(p => p.templates[templateKey] && p.templates[templateKey].trim().length > 0);
+    // 1. Encontrar QUAL perfil tem este template preenchido
+    // Nota: findIndex retorna -1 se não encontrar
+    const assignedProfileIndex = profiles.findIndex(p => p.templates[templateKey] && p.templates[templateKey].trim().length > 0);
     
-    if (!profileWithTemplate) {
-        return { config: null, error: `O ID do template '${templateKey}' não está preenchido em nenhuma conta.` };
+    // Se não encontrou em nenhum perfil, retorna null para indicar "Não configurado"
+    if (assignedProfileIndex === -1) {
+        return null; 
     }
+
+    const profile = profiles[assignedProfileIndex];
+    const label = EMAIL_KEY_LABELS[templateKey] || templateKey;
 
     // 2. Se existe, verificar se esse perfil está ATIVO e com CREDENCIAIS
-    if (!profileWithTemplate.isActive) {
-        return { config: null, error: `O template '${templateKey}' existe na conta, mas a conta está INATIVA ("Conta Ativa" desligado).` };
+    if (!profile.isActive) {
+        return { 
+            config: null, 
+            error: `O template '${label}' (ID: ${profile.templates[templateKey]}) está configurado na Conta #${assignedProfileIndex + 1}, mas esta conta está INATIVA. Ative a conta em "Credenciais Email".` 
+        };
     }
 
-    if (!profileWithTemplate.serviceId || !profileWithTemplate.publicKey) {
-        return { config: null, error: `O template '${templateKey}' existe, mas a conta não tem Service ID ou Public Key configurados.` };
+    if (!profile.serviceId || !profile.publicKey) {
+        return { 
+            config: null, 
+            error: `O template '${label}' está na Conta #${assignedProfileIndex + 1}, mas faltam as credenciais (Service ID ou Public Key).` 
+        };
     }
 
     // Sucesso
     return {
         config: {
-            serviceId: profileWithTemplate.serviceId,
-            publicKey: profileWithTemplate.publicKey,
-            templateId: profileWithTemplate.templates[templateKey],
+            serviceId: profile.serviceId,
+            publicKey: profile.publicKey,
+            templateId: profile.templates[templateKey],
             customContent: config.customContent
         }
     };
 };
 
 // --- Universal Fallback Helper ---
-// Tenta obter a config para a chave pedida. Se falhar, tenta 'notificationId', depois 'welcomeId'.
-// Isto permite que o sistema funcione com uma configuração mínima.
+// 1. Tenta a chave primária. Se existir mas der erro (conta inativa), RETORNA ERRO LOGO (sem fallback).
+// 2. Só faz fallback se a chave primária não estiver configurada (vazia).
 const getConfigWithFallback = async (primaryKey: keyof EmailTemplates): Promise<{config: any, error?: string}> => {
     // 1. Tentar a chave primária
-    let result = await getConfigForTemplate(primaryKey);
-    if (result && result.config) return result;
+    const primaryResult = await getConfigForTemplate(primaryKey);
+    
+    // Se encontrou configuração válida
+    if (primaryResult && primaryResult.config) {
+        return primaryResult;
+    }
 
+    // CRÍTICO: Se encontrou a configuração (ID existe) mas deu erro (ex: conta inativa),
+    // retornamos o erro imediatamente para o utilizador corrigir, em vez de tentar um fallback enganador.
+    if (primaryResult && primaryResult.error) {
+        return primaryResult;
+    }
+
+    // Se chegou aqui, é porque primaryResult é NULL (o ID não está preenchido em lado nenhum).
+    // Tentar Fallbacks...
     console.warn(`Template '${primaryKey}' não configurado. A tentar fallback...`);
 
     // 2. Tentar Notification ID (Genérico)
     if (primaryKey !== EMAIL_KEYS.NOTIFICATION) {
-        result = await getConfigForTemplate(EMAIL_KEYS.NOTIFICATION);
-        if (result && result.config) return result;
+        const notifResult = await getConfigForTemplate(EMAIL_KEYS.NOTIFICATION);
+        if (notifResult) {
+            // Mesmo lógica: se existe e é válido, usa. Se existe e é inválido, devolve erro.
+            if (notifResult.config) return notifResult;
+            if (notifResult.error) return notifResult;
+        }
     }
 
     // 3. Tentar Welcome ID (Mais comum de existir)
     if (primaryKey !== EMAIL_KEYS.WELCOME) {
-        result = await getConfigForTemplate(EMAIL_KEYS.WELCOME);
-        if (result && result.config) return result;
+        const welcomeResult = await getConfigForTemplate(EMAIL_KEYS.WELCOME);
+        if (welcomeResult) {
+            if (welcomeResult.config) return welcomeResult;
+            if (welcomeResult.error) return welcomeResult;
+        }
     }
 
-    return { config: null, error: `Não foi possível encontrar nenhum template de email configurado (nem ${primaryKey}, nem Notificação, nem Boas-vindas). Configure pelo menos um em "Credenciais Email".` };
+    const label = EMAIL_KEY_LABELS[primaryKey] || primaryKey;
+    return { 
+        config: null, 
+        error: `Não foi possível encontrar nenhum template configurado para '${label}' (${primaryKey}), nem fallback (Notificação/Boas-vindas). Verifique se os IDs estão preenchidos e as contas ativas.` 
+    };
 };
 
 export const emailService = {
@@ -142,12 +180,16 @@ export const emailService = {
 
   // Teste Específico por Tipo de Template
   sendSpecificTemplateTest: async (templateKey: keyof EmailTemplates): Promise<EmailResult> => {
-    // Para testes explícitos, não usamos fallback automático para não enganar o utilizador
-    // Queremos que ele saiba se AQUELE template específico está a falhar.
+    // Para testes explícitos, chamamos diretamente sem fallback para diagnosticar o erro exato
     const result = await getConfigForTemplate(templateKey);
     
-    if (!result || !result.config) {
-        return { success: false, message: result?.error || "Erro de configuração desconhecido." };
+    if (!result) {
+        const label = EMAIL_KEY_LABELS[templateKey] || templateKey;
+        return { success: false, message: `O template '${label}' (${templateKey}) não tem nenhum ID preenchido.` };
+    }
+
+    if (!result.config) {
+        return { success: false, message: result.error || "Erro de configuração." };
     }
     
     const { serviceId, publicKey, templateId, customContent } = result.config;

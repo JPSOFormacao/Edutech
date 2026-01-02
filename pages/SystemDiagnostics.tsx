@@ -5,7 +5,7 @@ import { storageService } from '../services/storageService';
 import { supabase } from '../services/supabaseClient';
 import { Button, Badge } from '../components/UI';
 import { Icons } from '../components/Icons';
-import { EmailTemplates, EmailConfigProfile, EMAIL_KEYS } from '../types';
+import { EmailTemplates, EmailConfigProfile, EMAIL_KEYS, EMAIL_KEY_LABELS, EmailConfig } from '../types';
 
 type CheckStatus = 'pending' | 'ok' | 'warning' | 'error';
 
@@ -28,6 +28,7 @@ export default function SystemDiagnostics() {
     const [loading, setLoading] = useState(false);
     const [lastRun, setLastRun] = useState<Date | null>(null);
     const [results, setResults] = useState<DiagnosticResult[]>([]);
+    const [emailConfig, setEmailConfig] = useState<EmailConfig | null>(null);
 
     const runDiagnostics = async () => {
         setLoading(true);
@@ -46,13 +47,14 @@ export default function SystemDiagnostics() {
 
         // --- 2. Email Configuration Check (MULTI-ACCOUNT AWARE) ---
         const emailItems: DiagnosticItem[] = [];
-        const emailConfig = await storageService.getEmailConfig();
+        const config = await storageService.getEmailConfig();
+        setEmailConfig(config); // Save for the detailed table
         
-        if (!emailConfig) {
+        if (!config) {
             emailItems.push({ id: 'email-conf-missing', label: 'Configuração Geral', status: 'error', message: 'Nenhuma configuração de email encontrada.', actionLabel: 'Configurar Agora', actionLink: '/email-config' });
         } else {
             // A. Verificar Saúde Geral das Contas
-            const profiles = emailConfig.profiles || [];
+            const profiles = config.profiles || [];
             const activeProfiles = profiles.filter(p => p.isActive);
             const activeAndConfigured = activeProfiles.filter(p => p.serviceId && p.publicKey);
 
@@ -64,58 +66,49 @@ export default function SystemDiagnostics() {
                 emailItems.push({ id: 'email-health', label: 'Disponibilidade do Serviço', status: 'ok', message: `${activeAndConfigured.length} conta(s) ativa(s) e operaciona(is).` });
             }
 
-            // B. Verificar Templates Críticos (Cruzando com a conta responsável)
-            // Usar EMAIL_KEYS para garantir que estamos a verificar os nomes corretos
-            const templatesToCheck: { key: keyof EmailTemplates, name: string, required: boolean }[] = [
-                { key: EMAIL_KEYS.WELCOME, name: 'Boas-vindas', required: true },
-                { key: EMAIL_KEYS.RECOVERY, name: 'Recuperação Password', required: true },
-                { key: EMAIL_KEYS.VERIFICATION, name: 'Verificação Email', required: false },
-                { key: EMAIL_KEYS.NOTIFICATION, name: 'Notificação Genérica', required: true }, 
-                { key: EMAIL_KEYS.ENROLLMENT, name: 'Inscrição Curso', required: false },
-            ];
-
-            templatesToCheck.forEach(tpl => {
-                // Encontrar QUAL conta é responsável por este template
+            // B. Verificar Templates Críticos
+            Object.values(EMAIL_KEYS).forEach(key => {
+                const templateKey = key as keyof EmailTemplates;
+                const label = EMAIL_KEY_LABELS[templateKey];
                 
-                // 1. Existe algum perfil com o ID preenchido?
-                const assignedProfileIndex = profiles.findIndex(p => p.templates[tpl.key] && p.templates[tpl.key].trim().length > 0);
+                // Encontrar QUAL conta é responsável por este template
+                const assignedProfileIndex = profiles.findIndex(p => p.templates[templateKey] && p.templates[templateKey].trim().length > 0);
                 const assignedProfile = assignedProfileIndex >= 0 ? profiles[assignedProfileIndex] : null;
 
                 if (!assignedProfile) {
-                    // Erro: Template não configurado em lado nenhum
+                    // Aviso se for opcional, Erro se for crítico (ex: Welcome, Recovery)
+                    const isCritical = ([EMAIL_KEYS.WELCOME, EMAIL_KEYS.RECOVERY, EMAIL_KEYS.NOTIFICATION] as string[]).includes(templateKey);
                     emailItems.push({ 
-                        id: `tpl-${tpl.key}`, 
-                        label: `Template: ${tpl.name}`, 
-                        status: tpl.required ? 'error' : 'warning', 
-                        message: `ID do template não preenchido em nenhuma conta.`,
+                        id: `tpl-${templateKey}`, 
+                        label: `Template: ${label}`, 
+                        status: isCritical ? 'error' : 'warning', 
+                        message: `ID não configurado em nenhuma conta.`,
                         actionLabel: 'Configurar',
                         actionLink: '/email-config'
                     });
                 } else {
-                    // 2. A conta responsável está saudável?
                     if (!assignedProfile.isActive) {
                         emailItems.push({ 
-                            id: `tpl-${tpl.key}`, 
-                            label: `Template: ${tpl.name}`, 
+                            id: `tpl-${templateKey}`, 
+                            label: `Template: ${label}`, 
                             status: 'error', 
-                            message: `O ID existe na Conta #${assignedProfileIndex + 1}, mas esta conta está INATIVA.`,
+                            message: `Encontrado na Conta #${assignedProfileIndex + 1}, mas a conta está INATIVA.`,
                             actionLabel: 'Ativar Conta',
                             actionLink: '/email-config'
                         });
                     } else if (!assignedProfile.serviceId || !assignedProfile.publicKey) {
                         emailItems.push({ 
-                            id: `tpl-${tpl.key}`, 
-                            label: `Template: ${tpl.name}`, 
+                            id: `tpl-${templateKey}`, 
+                            label: `Template: ${label}`, 
                             status: 'error', 
-                            message: `O ID existe na Conta #${assignedProfileIndex + 1}, mas faltam credenciais.`,
+                            message: `Encontrado na Conta #${assignedProfileIndex + 1}, mas faltam credenciais.`,
                             actionLabel: 'Corrigir',
                             actionLink: '/email-config'
                         });
                     } else {
-                        // Sucesso: Configurado numa conta ativa
                         emailItems.push({ 
-                            id: `tpl-${tpl.key}`, 
-                            label: `Template: ${tpl.name}`, 
+                            id: `tpl-${templateKey}`, 
+                            label: `Template: ${label}`, 
                             status: 'ok', 
                             message: `Operacional (Via Conta #${assignedProfileIndex + 1})` 
                         });
@@ -142,21 +135,6 @@ export default function SystemDiagnostics() {
         }
         newResults.push({ category: 'Integrações & Sistema', items: sysItems });
 
-        // --- 4. AI Service Check ---
-        const aiItems: DiagnosticItem[] = [];
-        const hasKey = process.env.API_KEY && process.env.API_KEY.length > 0;
-        
-        if (!hasKey) {
-             try {
-                 aiItems.push({ id: 'ai-key', label: 'API Key Gemini', status: 'ok', message: 'Chave de API detetada no ambiente.' });
-             } catch(e) {
-                 aiItems.push({ id: 'ai-key', label: 'API Key Gemini', status: 'warning', message: 'Não foi possível verificar a chave API diretamente.' });
-             }
-        } else {
-             aiItems.push({ id: 'ai-key', label: 'API Key Gemini', status: 'ok', message: 'Chave de API configurada.' });
-        }
-        newResults.push({ category: 'Inteligência Artificial', items: aiItems });
-
         setResults(newResults);
         setLastRun(new Date());
         setLoading(false);
@@ -165,6 +143,42 @@ export default function SystemDiagnostics() {
     useEffect(() => {
         runDiagnostics();
     }, []);
+
+    // Helper para tabela de variáveis
+    const getTemplateStatusRow = (variableCode: string, dbKey: keyof EmailTemplates) => {
+        if (!emailConfig) return null;
+        
+        const profiles = emailConfig.profiles || [];
+        const assignedIdx = profiles.findIndex(p => p.templates[dbKey] && p.templates[dbKey].trim().length > 0);
+        
+        let status = <span className="text-gray-400">Não Definido</span>;
+        let accountInfo = <span className="text-gray-400">-</span>;
+        let value = <span className="text-gray-400 italic">vazio</span>;
+
+        if (assignedIdx >= 0) {
+            const p = profiles[assignedIdx];
+            const val = p.templates[dbKey];
+            value = <span className="font-mono text-gray-800">{val.substring(0, 8)}...</span>;
+            accountInfo = <span className="font-bold">Conta #{assignedIdx + 1}</span>;
+            
+            if (p.isActive) {
+                status = <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold">ATIVA</span>;
+            } else {
+                status = <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">INATIVA</span>;
+            }
+        }
+
+        return (
+            <tr key={dbKey} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-2 px-4 font-mono text-indigo-600 text-xs sm:text-sm">{variableCode}</td>
+                <td className="py-2 px-4 font-mono text-slate-500 text-xs sm:text-sm">{dbKey}</td>
+                <td className="py-2 px-4 text-sm">{EMAIL_KEY_LABELS[dbKey]}</td>
+                <td className="py-2 px-4 text-sm">{value}</td>
+                <td className="py-2 px-4 text-sm">{accountInfo}</td>
+                <td className="py-2 px-4">{status}</td>
+            </tr>
+        );
+    };
 
     const getStatusIcon = (status: CheckStatus) => {
         switch (status) {
@@ -185,7 +199,7 @@ export default function SystemDiagnostics() {
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900">Diagnóstico do Sistema</h2>
                         <p className="text-sm text-gray-500">
-                            Verificação automática de configurações multi-conta e conectividade.
+                            Verificação de configurações multi-conta e mapeamento de variáveis.
                         </p>
                     </div>
                 </div>
@@ -245,62 +259,42 @@ export default function SystemDiagnostics() {
                         );
                     })}
 
-                    {/* Mapeamento de Variáveis (Debug Helper) */}
+                    {/* Mapeamento de Variáveis (Live Table) */}
                     <div className="bg-slate-50 shadow rounded-lg overflow-hidden border border-slate-200 mt-4">
                         <div className="px-6 py-4 border-b bg-slate-100 flex justify-between items-center">
-                            <h3 className="font-bold text-lg text-slate-800">Mapeamento de Variáveis Internas (Debug)</h3>
-                            <span className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-300">Info Técnica</span>
+                            <h3 className="font-bold text-lg text-slate-800">Estado das Variáveis de Email</h3>
+                            <span className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-300">Live Status</span>
                         </div>
-                        <div className="p-4">
-                            <p className="text-sm text-slate-600 mb-4">
-                                Esta tabela mostra a correspondência entre a variável usada no código e a chave guardada na base de dados.
-                                Se tiver erros de "Template não encontrado", verifique se o ID está preenchido no campo correto.
-                            </p>
+                        <div className="p-0">
+                            <div className="px-6 py-4 text-sm text-slate-600 border-b bg-white">
+                                <p className="mb-2"><strong>Como ler esta tabela:</strong></p>
+                                <ul className="list-disc pl-5 space-y-1">
+                                    <li><strong>Variável (Código):</strong> O nome usado no código da aplicação.</li>
+                                    <li><strong>DB Key:</strong> O nome da chave guardada na base de dados.</li>
+                                    <li><strong>Valor Encontrado:</strong> Indica se existe um ID de template preenchido.</li>
+                                    <li><strong>Conta & Estado:</strong> Mostra qual conta tem o template e se ela está ATIVA. Se estiver <span className="text-red-600 font-bold">INATIVA</span>, o envio falhará mesmo que o ID exista.</li>
+                                </ul>
+                            </div>
                             <div className="overflow-x-auto">
-                                <table className="min-w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b">
-                                            <th className="text-left py-2 font-mono text-slate-500">Variável (Código)</th>
-                                            <th className="text-left py-2 font-mono text-slate-500">Valor String (DB Key)</th>
-                                            <th className="text-left py-2 text-slate-500">Descrição</th>
+                                <table className="min-w-full text-left">
+                                    <thead className="bg-slate-100 text-slate-500 text-xs uppercase font-medium">
+                                        <tr>
+                                            <th className="py-3 px-4">Variável (Código)</th>
+                                            <th className="py-3 px-4">DB Key</th>
+                                            <th className="py-3 px-4">Descrição</th>
+                                            <th className="py-3 px-4">Valor Encontrado</th>
+                                            <th className="py-3 px-4">Conta</th>
+                                            <th className="py-3 px-4">Estado</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        <tr className="border-b border-slate-100">
-                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.WELCOME</td>
-                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.WELCOME}'</td>
-                                            <td className="py-2 text-slate-600">Email de Boas-vindas</td>
-                                        </tr>
-                                        <tr className="border-b border-slate-100">
-                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.RECOVERY</td>
-                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.RECOVERY}'</td>
-                                            <td className="py-2 text-slate-600">Link Recuperação Password</td>
-                                        </tr>
-                                        <tr className="border-b border-slate-100">
-                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.VERIFICATION</td>
-                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.VERIFICATION}'</td>
-                                            <td className="py-2 text-slate-600">Verificação de Email</td>
-                                        </tr>
-                                        <tr className="border-b border-slate-100">
-                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.NOTIFICATION</td>
-                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.NOTIFICATION}'</td>
-                                            <td className="py-2 text-slate-600">Notificação Genérica (Fallback)</td>
-                                        </tr>
-                                        <tr className="border-b border-slate-100">
-                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.ENROLLMENT</td>
-                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.ENROLLMENT}'</td>
-                                            <td className="py-2 text-slate-600">Confirmação de Inscrição</td>
-                                        </tr>
-                                        <tr className="border-b border-slate-100">
-                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.RESET_PASSWORD</td>
-                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.RESET_PASSWORD}'</td>
-                                            <td className="py-2 text-slate-600">Nova Senha (Gerada por Admin)</td>
-                                        </tr>
-                                        <tr>
-                                            <td className="py-2 font-mono text-indigo-600">EMAIL_KEYS.AUDIT_LOG</td>
-                                            <td className="py-2 font-mono text-slate-800">'{EMAIL_KEYS.AUDIT_LOG}'</td>
-                                            <td className="py-2 text-slate-600">Relatórios de Auditoria</td>
-                                        </tr>
+                                    <tbody className="bg-white">
+                                        {getTemplateStatusRow('EMAIL_KEYS.WELCOME', EMAIL_KEYS.WELCOME)}
+                                        {getTemplateStatusRow('EMAIL_KEYS.RECOVERY', EMAIL_KEYS.RECOVERY)}
+                                        {getTemplateStatusRow('EMAIL_KEYS.VERIFICATION', EMAIL_KEYS.VERIFICATION)}
+                                        {getTemplateStatusRow('EMAIL_KEYS.NOTIFICATION', EMAIL_KEYS.NOTIFICATION)}
+                                        {getTemplateStatusRow('EMAIL_KEYS.ENROLLMENT', EMAIL_KEYS.ENROLLMENT)}
+                                        {getTemplateStatusRow('EMAIL_KEYS.RESET_PASSWORD', EMAIL_KEYS.RESET_PASSWORD)}
+                                        {getTemplateStatusRow('EMAIL_KEYS.AUDIT_LOG', EMAIL_KEYS.AUDIT_LOG)}
                                     </tbody>
                                 </table>
                             </div>

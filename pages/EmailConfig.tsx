@@ -4,17 +4,17 @@ import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
 import { Button, Input, Badge } from '../components/UI';
 import { Icons } from '../components/Icons';
-import { EmailTemplates, EmailCustomContent, EmailConfig, EmailConfigProfile, EMAIL_KEYS } from '../types';
+import { EmailTemplates, EmailCustomContent, EmailConfig, EmailConfigProfile, EMAIL_KEYS, EMAIL_KEY_LABELS } from '../types';
 
 // Mapeamento de nomes amigáveis para os templates usando as CONSTANTES
 const TEMPLATE_DEFINITIONS: { key: keyof EmailTemplates; label: string; desc: string }[] = [
-    { key: EMAIL_KEYS.WELCOME, label: 'Boas-vindas', desc: 'Enviado ao criar conta ou aprovar registo.' },
-    { key: EMAIL_KEYS.RECOVERY, label: 'Recuperação de Acesso (Link)', desc: 'Link para o utilizador redefinir a password.' },
-    { key: EMAIL_KEYS.VERIFICATION, label: 'Verificação de Email', desc: 'Link para validar o endereço de email.' },
-    { key: EMAIL_KEYS.RESET_PASSWORD, label: 'Nova Senha (Admin)', desc: 'Enviado quando o Admin gera uma nova senha manualmente.' },
-    { key: EMAIL_KEYS.AUDIT_LOG, label: 'Relatório de Auditoria', desc: 'Alertas de segurança e eliminação de ficheiros.' },
-    { key: EMAIL_KEYS.ENROLLMENT, label: 'Inscrição em Curso', desc: 'Notificação de nova inscrição.' },
-    { key: EMAIL_KEYS.NOTIFICATION, label: 'Notificação Genérica', desc: 'Outros avisos do sistema.' },
+    { key: EMAIL_KEYS.WELCOME, label: EMAIL_KEY_LABELS[EMAIL_KEYS.WELCOME], desc: 'Enviado ao criar conta ou aprovar registo.' },
+    { key: EMAIL_KEYS.RECOVERY, label: EMAIL_KEY_LABELS[EMAIL_KEYS.RECOVERY], desc: 'Link para o utilizador redefinir a password.' },
+    { key: EMAIL_KEYS.VERIFICATION, label: EMAIL_KEY_LABELS[EMAIL_KEYS.VERIFICATION], desc: 'Link para validar o endereço de email.' },
+    { key: EMAIL_KEYS.RESET_PASSWORD, label: EMAIL_KEY_LABELS[EMAIL_KEYS.RESET_PASSWORD], desc: 'Enviado quando o Admin gera uma nova senha manualmente.' },
+    { key: EMAIL_KEYS.AUDIT_LOG, label: EMAIL_KEY_LABELS[EMAIL_KEYS.AUDIT_LOG], desc: 'Alertas de segurança e eliminação de ficheiros.' },
+    { key: EMAIL_KEYS.ENROLLMENT, label: EMAIL_KEY_LABELS[EMAIL_KEYS.ENROLLMENT], desc: 'Notificação de nova inscrição.' },
+    { key: EMAIL_KEYS.NOTIFICATION, label: EMAIL_KEY_LABELS[EMAIL_KEYS.NOTIFICATION], desc: 'Outros avisos do sistema.' },
 ];
 
 export default function EmailConfigPage() {

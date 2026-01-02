@@ -190,6 +190,17 @@ export const EMAIL_KEYS = {
     AUDIT_LOG: 'auditLogId'
 } as const;
 
+// Nomes amigáveis para exibir na UI e Logs
+export const EMAIL_KEY_LABELS: Record<string, string> = {
+    [EMAIL_KEYS.WELCOME]: 'Boas-vindas',
+    [EMAIL_KEYS.RESET_PASSWORD]: 'Nova Senha (Admin)',
+    [EMAIL_KEYS.RECOVERY]: 'Link Recuperação Password',
+    [EMAIL_KEYS.ENROLLMENT]: 'Inscrição Curso',
+    [EMAIL_KEYS.NOTIFICATION]: 'Notificação Genérica',
+    [EMAIL_KEYS.VERIFICATION]: 'Verificação Email',
+    [EMAIL_KEYS.AUDIT_LOG]: 'Relatório Auditoria'
+};
+
 // Interface dinamica baseada nas chaves
 export type EmailTemplates = Record<typeof EMAIL_KEYS[keyof typeof EMAIL_KEYS], string>;
 
