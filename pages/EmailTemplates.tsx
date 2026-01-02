@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
@@ -10,7 +11,9 @@ const DEFAULT_CONTENT: EmailCustomContent = {
     verificationText: '',
     resetPasswordText: '',
     recoveryEmailText: '',
-    auditLogText: ''
+    auditLogText: '',
+    enrollmentText: '',
+    notificationText: ''
 };
 
 // --- Sub-component for individual template sections ---
@@ -244,6 +247,20 @@ Senha: {{password}}</p>
               />
 
               <EmailSectionEditor 
+                  title="Inscrição em Curso"
+                  description="Enviado ao aluno quando o Administrador aprova uma inscrição específica."
+                  value={customContent.enrollmentText || ''}
+                  onChange={(val) => setCustomContent({...customContent, enrollmentText: val})}
+                  onTest={() => handleTestSpecific('enrollmentId')}
+                  isTesting={testingTemplate['enrollmentId']}
+                  forcePreviewTrigger={saveTrigger}
+                  placeholder={`<p>Olá {{name}},</p>
+<p>A sua inscrição no curso <b>{{course_name}}</b> foi aprovada com sucesso!</p>
+<p>Já pode aceder aos conteúdos na plataforma.</p>
+<a href="{{site_link}}">Ir para a Plataforma</a>`}
+              />
+
+              <EmailSectionEditor 
                   title="Email de Verificação"
                   description="Enviado para validar o endereço de email."
                   value={customContent.verificationText || ''}
@@ -269,6 +286,20 @@ Senha: {{password}}</p>
 <p><b>Nova Senha:</b> {{password}}</p>
 <p>Esta senha é válida por {{password_validity}}.</p>
 <p>Aceda: {{site_link}}</p>`}
+              />
+
+              <EmailSectionEditor 
+                  title="Notificação Genérica"
+                  description="Utilizado para avisos diversos do sistema."
+                  value={customContent.notificationText || ''}
+                  onChange={(val) => setCustomContent({...customContent, notificationText: val})}
+                  onTest={() => handleTestSpecific('notificationId')}
+                  isTesting={testingTemplate['notificationId']}
+                  forcePreviewTrigger={saveTrigger}
+                  placeholder={`<p>Olá {{name}},</p>
+<p>{{message}}</p>
+<hr/>
+<p>Equipa EduTech PT</p>`}
               />
 
               <EmailSectionEditor 
@@ -329,6 +360,24 @@ Senha: {{password}}</p>
                       </li>
                       <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
                           <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{course_name}}`}</code>
+                              <span className="text-xs text-gray-600">Nome do curso (apenas template Inscrição).</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{course_name}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
+                      </li>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
+                              <code className="text-pink-600 font-bold block mb-1">{`{{message}}`}</code>
+                              <span className="text-xs text-gray-600">Mensagem da notificação (apenas template Notificação).</span>
+                          </div>
+                          <button onClick={() => handleCopy('{{message}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
+                              <Icons.Copy className="w-4 h-4" />
+                          </button>
+                      </li>
+                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
+                          <div>
                               <code className="text-pink-600 font-bold block mb-1">{`{{mailto_link}}`}</code>
                               <span className="text-xs text-gray-600">Link de email para o sistema.</span>
                           </div>
@@ -342,15 +391,6 @@ Senha: {{password}}</p>
                               <span className="text-xs text-gray-600">Link para a página inicial do site.</span>
                           </div>
                           <button onClick={() => handleCopy('{{site_link}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
-                              <Icons.Copy className="w-4 h-4" />
-                          </button>
-                      </li>
-                      <li className="bg-white p-2 rounded border border-blue-100 shadow-sm flex justify-between items-start">
-                          <div>
-                              <code className="text-pink-600 font-bold block mb-1">{`{{password_validity}}`}</code>
-                              <span className="text-xs text-gray-600">Tempo validade senha (ex: 48 horas).</span>
-                          </div>
-                          <button onClick={() => handleCopy('{{password_validity}}')} className="text-gray-400 hover:text-indigo-600 p-1" title="Copiar">
                               <Icons.Copy className="w-4 h-4" />
                           </button>
                       </li>

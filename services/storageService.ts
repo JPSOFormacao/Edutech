@@ -343,6 +343,7 @@ export const storageService = {
       };
 
       await storageService.saveUser(updatedUser);
+      // CORREÇÃO: Usar href completo para evitar problemas em subdiretórios
       const baseUrl = window.location.href.split('#')[0];
       return `${baseUrl}#/reset-password?token=${token}`;
   },
@@ -491,7 +492,11 @@ export const storageService = {
     const baseConfig: EmailConfig = {
         serviceId: '', publicKey: '', templates: { ...emptyTemplates }, activeProfileIndex: 0,
         profiles: Array(5).fill(null).map(() => ({ serviceId: '', publicKey: '', templates: { ...emptyTemplates }, isActive: false })),
-        customErrorMessage: '', customContent: { welcomeText: '', verificationText: '', resetPasswordText: '', recoveryEmailText: '', auditLogText: '' }
+        customErrorMessage: '', 
+        customContent: { 
+            welcomeText: '', verificationText: '', resetPasswordText: '', recoveryEmailText: '', auditLogText: '', 
+            enrollmentText: '', notificationText: '' // NEW FIELDS
+        }
     };
 
     let dbData: any = {};

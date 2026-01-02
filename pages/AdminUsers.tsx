@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { storageService } from '../services/storageService';
 import { emailService } from '../services/emailService';
@@ -346,7 +347,9 @@ export default function UsersPage() {
               await storageService.saveUser(updated);
           }
 
-          const link = `${window.location.origin}/#/verify-email?token=${token}`;
+          // Safe link construction
+          const baseUrl = window.location.href.split('#')[0];
+          const link = `${baseUrl}#/verify-email?token=${token}`;
           const res = await emailService.sendVerificationEmail(u.name, u.email, link);
 
           if (res.success) {
@@ -448,8 +451,11 @@ export default function UsersPage() {
   };
 
   // Funções de Aprovação de Cursos
-  const handleApproveCourse = (courseId: string) => {
+  const handleApproveCourse = async (courseId: string) => {
       if(!selectedUser) return;
+      const course = courses.find(c => c.id === courseId);
+      
+      // Update local state first for UX
       const updatedAllowed = [...selectedUser.allowedCourses];
       if(!updatedAllowed.includes(courseId)) {
           updatedAllowed.push(courseId);
@@ -459,11 +465,35 @@ export default function UsersPage() {
           r.courseId === courseId ? { ...r, status: 'APPROVED' } : r
       ) as EnrollmentRequest[];
 
-      setSelectedUser({
+      const updatedUser = {
           ...selectedUser,
           allowedCourses: updatedAllowed,
           enrollmentRequests: updatedRequests
-      });
+      };
+
+      setSelectedUser(updatedUser);
+
+      // Ask if we want to send notification
+      if (confirm(`Inscrição aprovada para "${course?.title}". Deseja enviar o email de confirmação ao aluno?`)) {
+          setIsSendingEmail(true);
+          try {
+              // We must save the user state first to make the approval real in DB
+              // BUT handleSave handles the modal close. Here we want to keep working.
+              // So we save silently first.
+              await storageService.saveUser(updatedUser); 
+              
+              const res = await emailService.sendEnrollmentEmail(updatedUser.name, updatedUser.email, course?.title || 'Curso');
+              if (res.success) {
+                  alert("Email de inscrição enviado com sucesso!");
+              } else {
+                  alert("Aviso: Falha ao enviar email: " + res.message);
+              }
+          } catch(e) {
+              console.error(e);
+          } finally {
+              setIsSendingEmail(false);
+          }
+      }
   };
 
   const handleRejectCourse = (courseId: string) => {
@@ -743,12 +773,14 @@ export default function UsersPage() {
                                         <button 
                                             onClick={() => handleApproveCourse(req.courseId)}
                                             className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200"
+                                            disabled={isSendingEmail}
                                         >
                                             Aprovar
                                         </button>
                                         <button 
                                             onClick={() => handleRejectCourse(req.courseId)}
                                             className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200"
+                                            disabled={isSendingEmail}
                                         >
                                             Rejeitar
                                         </button>

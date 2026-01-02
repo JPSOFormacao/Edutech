@@ -1,3 +1,4 @@
+
 import emailjs from '@emailjs/browser';
 import { storageService } from './storageService';
 import { EmailTemplates, FileDeletionLog } from '../types';
@@ -153,9 +154,10 @@ export const emailService = {
     };
 
     let specificParams = {};
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
-    const mockLink = `${baseUrl}/#/verify-email?token=TESTE-TOKEN-123`;
-    const mockRecoveryLink = `${baseUrl}/#/reset-password?token=TESTE-TOKEN-123`;
+    // Safer base url construction
+    const baseUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://edutech.pt';
+    const mockLink = `${baseUrl}#/verify-email?token=TESTE-TOKEN-123`;
+    const mockRecoveryLink = `${baseUrl}#/reset-password?token=TESTE-TOKEN-123`;
 
     // Verificar se existe Custom Content para este teste
     let messageBody = "";
@@ -244,6 +246,41 @@ export const emailService = {
                 site_link: baseUrl
             };
             break;
+        case 'enrollmentId':
+            const mockCourse = "Curso Intensivo de Python";
+            if (customContent?.enrollmentText) {
+                messageBody = processTemplate(customContent.enrollmentText, {
+                    name: commonParams.to_name,
+                    course_name: mockCourse,
+                    site_link: baseUrl,
+                    mailto_link: commonParams.mailto_link
+                });
+            } else {
+                messageBody = `A sua inscrição no curso ${mockCourse} foi confirmada.`;
+            }
+            specificParams = {
+                message: messageBody,
+                course_name: mockCourse,
+                site_link: baseUrl
+            };
+            break;
+        case 'notificationId':
+            const mockMsg = "Esta é uma notificação de teste do sistema.";
+            if (customContent?.notificationText) {
+                messageBody = processTemplate(customContent.notificationText, {
+                    name: commonParams.to_name,
+                    message: mockMsg,
+                    site_link: baseUrl,
+                    mailto_link: commonParams.mailto_link
+                });
+            } else {
+                messageBody = mockMsg;
+            }
+            specificParams = {
+                message: messageBody,
+                site_link: baseUrl
+            };
+            break;
         case 'welcomeId':
         default:
              if (customContent?.welcomeText) {
@@ -286,14 +323,27 @@ export const emailService = {
     const result = await getConfigForTemplate('notificationId');
     if (!result || !result.config) return false;
     
-    const { serviceId, publicKey, templateId } = result.config;
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+    const { serviceId, publicKey, templateId, customContent } = result.config;
+    const baseUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://edutech.pt';
     
+    let messageBody = "";
+    if (customContent?.notificationText) {
+        messageBody = processTemplate(customContent.notificationText, {
+            name: toName,
+            message: message,
+            site_link: baseUrl,
+            mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
+        });
+    } else {
+        messageBody = message;
+    }
+
     try {
         await emailjs.send(serviceId, templateId, {
             to_name: toName,
             name: toName,
-            message: message,
+            message: messageBody,
+            original_message: message, // Allow raw fallback
             training_details: "N/A",
             from_name: SYSTEM_NAME,
             reply_to: SYSTEM_EMAIL,
@@ -310,6 +360,51 @@ export const emailService = {
     }
   },
 
+  sendEnrollmentEmail: async (toName: string, toEmail: string, courseName: string): Promise<EmailResult> => {
+      const result = await getConfigForTemplate('enrollmentId');
+      if (!result || !result.config) return { success: false, message: "Template de Inscrição não configurado." };
+
+      const { serviceId, publicKey, templateId, customContent } = result.config;
+      const baseUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://edutech.pt';
+      const cleanEmail = toEmail.trim();
+
+      let messageBody = "";
+      if (customContent?.enrollmentText) {
+          messageBody = processTemplate(customContent.enrollmentText, {
+              name: toName,
+              course_name: courseName,
+              site_link: baseUrl,
+              mailto_link: `<a href="mailto:${SYSTEM_EMAIL}">${SYSTEM_EMAIL}</a>`
+          });
+      } else {
+          messageBody = `
+            Olá ${toName},
+            
+            A sua inscrição no curso "${courseName}" foi confirmada com sucesso!
+            
+            Pode aceder aos conteúdos na secção "Meus Cursos" da plataforma.
+          `;
+      }
+
+      try {
+          await emailjs.send(serviceId, templateId, {
+              to_name: toName,
+              name: toName,
+              to_email: cleanEmail,
+              email: cleanEmail,
+              message: messageBody,
+              course_name: courseName,
+              site_link: baseUrl,
+              from_name: SYSTEM_NAME,
+              reply_to: SYSTEM_EMAIL
+          }, publicKey);
+          return { success: true };
+      } catch (e: any) {
+          const msg = await getErrorMsg(e);
+          return { success: false, message: msg };
+      }
+  },
+
   sendDeletionBatchEmail: async (logs: FileDeletionLog[]): Promise<boolean> => {
       // Tentar obter config para auditLogId, se não existir, tenta notificationId
       let result = await getConfigForTemplate('auditLogId');
@@ -323,7 +418,7 @@ export const emailService = {
       }
 
       const { serviceId, publicKey, templateId, customContent } = result.config;
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+      const baseUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://edutech.pt';
 
       // 2. Formatar lista
       const list = logs.map((log, idx) => 
@@ -386,7 +481,7 @@ ${list}
     if (!result || !result.config) return { success: false, message: result?.error || "Erro de configuração de email." };
     
     const { serviceId, publicKey, templateId, customContent } = result.config;
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+    const baseUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://edutech.pt';
     
     // Verificar se existe texto personalizado ou usar Default
     let messageBody = "";
@@ -444,7 +539,7 @@ ${list}
       }
 
       const { serviceId, publicKey, templateId, customContent } = result.config;
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+      const baseUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://edutech.pt';
       const cleanEmail = toEmail.trim();
 
       // Check if there is custom text for Recovery Link
@@ -503,7 +598,7 @@ ${list}
     if (!result || !result.config) return { success: false, message: result?.error || "Template de boas-vindas não configurado." };
 
     const { serviceId, publicKey, templateId, customContent } = result.config;
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+    const baseUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://edutech.pt';
     
     const systemConfig = await storageService.getSystemConfig();
     const validityText = (systemConfig?.tempPasswordValidityHours || 48) + " horas";
@@ -572,7 +667,7 @@ ${list}
     if (!result || !result.config) return { success: false, message: result?.error || "Template de Reset não configurado." };
 
     const { serviceId, publicKey, templateId, customContent } = result.config;
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://edutech.pt';
+    const baseUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://edutech.pt';
     
     const systemConfig = await storageService.getSystemConfig();
     const validityText = (systemConfig?.tempPasswordValidityHours || 48) + " horas";

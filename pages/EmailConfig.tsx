@@ -107,6 +107,7 @@ export default function EmailConfigPage() {
       setStatus(null); // Limpar mensagens anteriores
 
       // 1. Guardar configurações primeiro para garantir que o serviço usa os dados mais recentes
+      // (caso o utilizador tenha acabado de digitar o ID)
       const configToSave: EmailConfig = {
           ...config,
           activeProfileIndex: activeTab, 
@@ -123,7 +124,7 @@ export default function EmailConfigPage() {
               setSuccessKey(key as string);
               setTimeout(() => setSuccessKey(null), 3000); // Reset após 3 segundos
           } else {
-              // Erro: Mostra na faixa global para ser legível
+              // Erro: Mostra na faixa global para ser legível (detalhes técnicos)
               setStatus({ type: 'error', msg: `Erro ao testar envio: ${result.message}` });
           }
       } catch (e: any) {

@@ -193,8 +193,10 @@ export interface EmailCustomContent {
     verificationText?: string;
     resetPasswordText?: string;
     recoveryEmailText?: string; 
-    auditLogText?: string; 
-    _profiles_backup?: EmailConfigProfile[]; // Interno: Store multiple profiles inside JSON
+    auditLogText?: string;
+    enrollmentText?: string; // Novo
+    notificationText?: string; // Novo
+    _profiles_backup?: EmailConfigProfile[]; // Interno
 }
 
 export interface EmailConfigProfile {
